@@ -1,0 +1,31 @@
+"""
+Monitoring module for Saplings.
+
+This module provides monitoring capabilities for Saplings, including:
+- OpenTelemetry (OTEL) tracing infrastructure
+- Causal blame graph for identifying bottlenecks
+- GASA heatmap visualization
+- TraceViewer interface for trace exploration
+- LangSmith export capabilities
+"""
+
+from saplings.monitoring.config import MonitoringConfig
+from saplings.monitoring.trace import TraceManager, Span, SpanContext
+from saplings.monitoring.blame_graph import BlameGraph, BlameNode, BlameEdge
+from saplings.monitoring.trace_viewer import TraceViewer
+from saplings.monitoring.visualization import GASAHeatmap, PerformanceVisualizer
+from saplings.monitoring.langsmith import LangSmithExporter
+
+__all__ = [
+    "MonitoringConfig",
+    "TraceManager",
+    "Span",
+    "SpanContext",
+    "BlameGraph",
+    "BlameNode",
+    "BlameEdge",
+    "TraceViewer",
+    "GASAHeatmap",
+    "PerformanceVisualizer",
+    "LangSmithExporter",
+]

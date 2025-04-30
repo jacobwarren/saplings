@@ -1,0 +1,409 @@
+"""
+ValidatorRegistry module for Saplings.
+
+This module provides the ValidatorRegistry class for managing validators.
+"""
+
+import asyncio
+import importlib
+import inspect
+import logging
+import os
+import pkgutil
+import sys
+import time
+from typing import Any, Dict, List, Optional, Set, Type, TypeVar, cast
+
+from importlib_metadata import entry_points
+
+from saplings.core.plugin import PluginType, get_plugins_by_type
+from saplings.validator.config import ValidatorConfig, ValidatorType
+from saplings.validator.validator import (
+    RuntimeValidator,
+    StaticValidator,
+    ValidationResult,
+    ValidationStatus,
+    Validator,
+)
+
+logger = logging.getLogger(__name__)
+
+T = TypeVar('T', bound=Validator)
+
+
+class ValidatorRegistry:
+    """
+    Registry for validators.
+
+    This class provides methods for registering, discovering, and retrieving validators.
+    """
+
+    _instance = None
+
+    def __new__(cls):
+        """Create a singleton instance."""
+        if cls._instance is None:
+            cls._instance = super(ValidatorRegistry, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self):
+        """Initialize the validator registry."""
+        if self._initialized:
+            return
+
+        self._validators: Dict[str, Type[Validator]] = {}
+        self._validator_instances: Dict[str, Validator] = {}
+        self._config = ValidatorConfig.default()
+        self._validation_count = 0  # Counter for budget enforcement
+        self._initialized = True
+
+    def reset_budget(self):
+        """Reset the validation budget counter."""
+        self._validation_count = 0
+
+    def configure(self, config: ValidatorConfig) -> None:
+        """
+        Configure the validator registry.
+
+        Args:
+            config: Validator configuration
+        """
+        self._config = config
+
+    def register_validator(self, validator_class: Type[Validator]) -> None:
+        """
+        Register a validator class.
+
+        Args:
+            validator_class: Validator class to register
+
+        Raises:
+            ValueError: If a validator with the same ID is already registered
+        """
+        # Create a temporary instance to get the ID
+        validator = validator_class()
+        validator_id = validator.id
+
+        if validator_id in self._validators:
+            raise ValueError(f"Validator with ID '{validator_id}' is already registered")
+
+        self._validators[validator_id] = validator_class
+        logger.debug(f"Registered validator: {validator_id}")
+
+    def get_validator(self, validator_id: str) -> Validator:
+        """
+        Get a validator by ID.
+
+        Args:
+            validator_id: ID of the validator
+
+        Returns:
+            Validator: Validator instance
+
+        Raises:
+            ValueError: If the validator is not found
+        """
+        # Check if we already have an instance
+        if validator_id in self._validator_instances:
+            return self._validator_instances[validator_id]
+
+        # Check if we have the class
+        if validator_id not in self._validators:
+            raise ValueError(f"Validator not found: {validator_id}")
+
+        # Create a new instance
+        validator_class = self._validators[validator_id]
+        validator = validator_class()
+
+        # Cache the instance
+        self._validator_instances[validator_id] = validator
+
+        return validator
+
+    def list_validators(self) -> List[str]:
+        """
+        List all registered validators.
+
+        Returns:
+            List[str]: List of validator IDs
+        """
+        return list(self._validators.keys())
+
+    def get_validators_by_type(self, validator_type: ValidatorType) -> List[str]:
+        """
+        Get validators of a specific type.
+
+        Args:
+            validator_type: Type of validators to get
+
+        Returns:
+            List[str]: List of validator IDs
+        """
+        result = []
+        for validator_id, validator_class in self._validators.items():
+            # Create a temporary instance to get the type
+            validator = validator_class()
+            if validator.validator_type == validator_type:
+                result.append(validator_id)
+        return result
+
+    def discover_validators(self) -> None:
+        """
+        Discover validators from plugins and specified directories.
+        """
+        # Discover validators from plugins
+        if self._config.use_entry_points:
+            self._discover_validators_from_entry_points()
+
+        # Discover validators from specified directories
+        for directory in self._config.plugin_dirs:
+            self._discover_validators_from_directory(directory)
+
+    def _discover_validators_from_entry_points(self) -> None:
+        """
+        Discover validators from entry points.
+        """
+        # Get validators from plugin registry
+        validator_plugins = get_plugins_by_type(PluginType.VALIDATOR)
+        for plugin_name, plugin_class in validator_plugins.items():
+            if issubclass(plugin_class, Validator):
+                self.register_validator(cast(Type[Validator], plugin_class))
+
+        # Get validators from entry points
+        try:
+            for entry_point in entry_points(group="saplings.validators"):
+                try:
+                    validator_class = entry_point.load()
+                    if issubclass(validator_class, Validator):
+                        self.register_validator(validator_class)
+                except Exception as e:
+                    logger.warning(f"Failed to load validator from entry point {entry_point.name}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to discover validators from entry points: {e}")
+
+    def _discover_validators_from_directory(self, directory: str) -> None:
+        """
+        Discover validators from a directory.
+
+        Args:
+            directory: Directory to search for validators
+        """
+        if not os.path.isdir(directory):
+            logger.warning(f"Validator directory not found: {directory}")
+            return
+
+        # Add the directory to the Python path
+        sys.path.insert(0, directory)
+
+        # Find all Python modules in the directory
+        for _, name, is_pkg in pkgutil.iter_modules([directory]):
+            try:
+                # Import the module
+                module = importlib.import_module(name)
+
+                # Find all classes in the module
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name)
+
+                    # Check if it's a validator class
+                    if (
+                        inspect.isclass(attr)
+                        and issubclass(attr, Validator)
+                        and attr != Validator
+                        and attr != StaticValidator
+                        and attr != RuntimeValidator
+                    ):
+                        self.register_validator(attr)
+            except Exception as e:
+                logger.warning(f"Failed to load validator from module {name}: {e}")
+
+        # Remove the directory from the Python path
+        sys.path.remove(directory)
+
+    async def validate(
+        self,
+        output: str,
+        prompt: str,
+        validator_ids: Optional[List[str]] = None,
+        validator_type: Optional[ValidatorType] = None,
+        **kwargs,
+    ) -> List[ValidationResult]:
+        """
+        Validate an output using the specified validators.
+
+        Args:
+            output: Output to validate
+            prompt: Prompt that generated the output
+            validator_ids: IDs of validators to use (if None, use all)
+            validator_type: Type of validators to use (if None, use all)
+            **kwargs: Additional validation parameters
+
+        Returns:
+            List[ValidationResult]: Validation results
+        """
+        # Check budget constraints if enabled
+        if self._config.enforce_budget and self._config.max_validations_per_session is not None:
+            if self._validation_count >= self._config.max_validations_per_session:
+                logger.warning(
+                    f"Validation budget exceeded: {self._validation_count} >= {self._config.max_validations_per_session}"
+                )
+                # Return a budget exceeded result for each validator
+                if validator_ids is not None and len(validator_ids) > 0:
+                    return [
+                        ValidationResult(
+                            validator_id=validator_id,
+                            status=ValidationStatus.SKIPPED,
+                            message=f"Validation budget exceeded: {self._validation_count} >= {self._config.max_validations_per_session}",
+                            metadata={"budget_exceeded": True},
+                        )
+                        for validator_id in validator_ids
+                    ]
+                else:
+                    # If no specific validators were requested, return a generic result
+                    return [
+                        ValidationResult(
+                            validator_id="budget_enforcer",
+                            status=ValidationStatus.SKIPPED,
+                            message=f"Validation budget exceeded: {self._validation_count} >= {self._config.max_validations_per_session}",
+                            metadata={"budget_exceeded": True},
+                        )
+                    ]
+
+        # Get the validators to use
+        validators_to_use = []
+
+        if validator_ids is not None:
+            # Use the specified validators
+            for validator_id in validator_ids:
+                try:
+                    validators_to_use.append(self.get_validator(validator_id))
+                except ValueError:
+                    logger.warning(f"Validator not found: {validator_id}")
+        else:
+            # Use all validators of the specified type
+            for validator_id in self.list_validators():
+                validator = self.get_validator(validator_id)
+                if validator_type is None or validator.validator_type == validator_type:
+                    validators_to_use.append(validator)
+
+        # Validate using the selected validators
+        results = []
+
+        if self._config.parallel_validation:
+            # Run validators in parallel
+            tasks = []
+            for validator in validators_to_use:
+                task = asyncio.create_task(
+                    self._validate_with_timeout(validator, output, prompt, **kwargs)
+                )
+                tasks.append(task)
+
+            # Wait for all tasks to complete
+            for task in asyncio.as_completed(tasks):
+                result = await task
+                results.append(result)
+
+                # Check if we should stop on first failure
+                if (
+                    self._config.fail_fast
+                    and result.status in [ValidationStatus.FAILED, ValidationStatus.ERROR]
+                ):
+                    # Cancel remaining tasks
+                    for t in tasks:
+                        if not t.done():
+                            t.cancel()
+                    break
+        else:
+            # Run validators sequentially
+            for validator in validators_to_use:
+                result = await self._validate_with_timeout(validator, output, prompt, **kwargs)
+                results.append(result)
+
+                # Check if we should stop on first failure
+                if (
+                    self._config.fail_fast
+                    and result.status in [ValidationStatus.FAILED, ValidationStatus.ERROR]
+                ):
+                    break
+
+        # Increment the validation count if we actually ran validations
+        if self._config.enforce_budget and validators_to_use:
+            self._validation_count += 1
+
+        return results
+
+    async def _validate_with_timeout(
+        self, validator: Validator, output: str, prompt: str, **kwargs
+    ) -> ValidationResult:
+        """
+        Validate with a timeout.
+
+        Args:
+            validator: Validator to use
+            output: Output to validate
+            prompt: Prompt that generated the output
+            **kwargs: Additional validation parameters
+
+        Returns:
+            ValidationResult: Validation result
+        """
+        # Start timing
+        start_time = time.time()
+
+        try:
+            # Set up the timeout
+            if self._config.timeout_seconds is not None:
+                # Run with timeout
+                result = await asyncio.wait_for(
+                    validator.validate(output, prompt, **kwargs),
+                    timeout=self._config.timeout_seconds,
+                )
+            else:
+                # Run without timeout
+                result = await validator.validate(output, prompt, **kwargs)
+
+            # Add latency to metadata
+            result.metadata["latency_ms"] = int((time.time() - start_time) * 1000)
+
+            return result
+        except asyncio.TimeoutError:
+            # Validation timed out
+            return ValidationResult(
+                validator_id=validator.id,
+                status=ValidationStatus.ERROR,
+                message=f"Validation timed out after {self._config.timeout_seconds} seconds",
+                metadata={
+                    "latency_ms": int((time.time() - start_time) * 1000),
+                    "error": "timeout",
+                },
+            )
+        except Exception as e:
+            # Validation failed with an exception
+            return ValidationResult(
+                validator_id=validator.id,
+                status=ValidationStatus.ERROR,
+                message=f"Validation failed with an exception: {e}",
+                metadata={
+                    "latency_ms": int((time.time() - start_time) * 1000),
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+
+
+# Singleton instance
+_validator_registry = None
+
+
+def get_validator_registry() -> ValidatorRegistry:
+    """
+    Get the validator registry singleton.
+
+    Returns:
+        ValidatorRegistry: Validator registry
+    """
+    global _validator_registry
+    if _validator_registry is None:
+        _validator_registry = ValidatorRegistry()
+    return _validator_registry

@@ -1,0 +1,62 @@
+{
+  "name": "infographic_rubric",
+  "description": "Rubric for evaluating scientific paper infographics",
+  "dimensions": [
+    {
+      "name": "content_accuracy",
+      "description": "How accurately does the infographic represent the paper's findings and key concepts?",
+      "weight": 0.25,
+      "criteria": [
+        "The infographic correctly represents the paper's main findings",
+        "Key concepts are accurately explained",
+        "No factual errors or misrepresentations",
+        "The level of detail is appropriate for the target audience"
+      ]
+    },
+    {
+      "name": "visual_clarity",
+      "description": "How clear and understandable is the infographic?",
+      "weight": 0.2,
+      "criteria": [
+        "Information is presented in a logical and intuitive way",
+        "Visual elements effectively communicate the intended message",
+        "Text is concise and easy to understand",
+        "The infographic can be understood without extensive prior knowledge"
+      ]
+    },
+    {
+      "name": "design_quality",
+      "description": "How visually appealing and well-designed is the infographic?",
+      "weight": 0.15,
+      "criteria": [
+        "The design is visually appealing and professional",
+        "Color choices enhance readability and understanding",
+        "Layout is balanced and makes good use of space",
+        "Typography is appropriate and enhances readability"
+      ]
+    },
+    {
+      "name": "code_quality",
+      "description": "How well-written and maintainable is the React and D3 code?",
+      "weight": 0.2,
+      "criteria": [
+        "Code is well-structured and follows best practices",
+        "Components are modular and reusable",
+        "Code is properly commented and documented",
+        "No obvious bugs or performance issues"
+      ]
+    },
+    {
+      "name": "technical_implementation",
+      "description": "How well does the implementation use React and D3 features?",
+      "weight": 0.2,
+      "criteria": [
+        "Appropriate use of React components and hooks",
+        "Effective use of D3 for data visualization",
+        "Responsive design that works on different screen sizes",
+        "Proper handling of data and state"
+      ]
+    }
+  ],
+  "passing_threshold": 0.7
+}
