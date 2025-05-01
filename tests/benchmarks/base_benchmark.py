@@ -143,17 +143,24 @@ class BaseBenchmark:
         if not cls.SAVE_RESULTS:
             return ""
 
-        # Add timestamp
-        results["timestamp"] = datetime.now().isoformat()
+        try:
+            # Add timestamp
+            results["timestamp"] = datetime.now().isoformat()
 
-        # Create filename
-        filename = f"{cls.OUTPUT_DIR}/{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            # Create output directory if it doesn't exist
+            os.makedirs(cls.OUTPUT_DIR, exist_ok=True)
 
-        # Save results
-        with open(filename, "w") as f:
-            json.dump(results, f, indent=2)
+            # Create filename
+            filename = f"{cls.OUTPUT_DIR}/{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
-        return filename
+            # Save results
+            with open(filename, "w") as f:
+                json.dump(results, f, indent=2)
+
+            return filename
+        except Exception as e:
+            print(f"Warning: Failed to save benchmark results: {e}")
+            return ""
 
     @staticmethod
     def calculate_statistics(values: List[float]) -> Dict[str, float]:

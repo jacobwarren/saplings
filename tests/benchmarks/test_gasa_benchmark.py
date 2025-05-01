@@ -23,7 +23,12 @@ from tests.benchmarks.test_datasets import TestDatasets
 
 
 class TestGASABenchmark(BaseBenchmark):
-    """Benchmark tests for GASA."""
+    """Benchmark tests for GASA.
+
+    Note: These tests use the TestDatasets class which contains code samples with
+    potential infinite recursion bugs. The code samples have been modified to include
+    execution guards to prevent actual infinite recursion during testing.
+    """
 
     @pytest.fixture
     def mock_llm(self):
@@ -41,6 +46,7 @@ class TestGASABenchmark(BaseBenchmark):
         return MemoryStore(config=MemoryConfig())
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(60)  # Add a 60-second timeout to prevent hanging
     async def test_gasa_flop_reduction(self):
         """Test GASA FLOP reduction."""
         # Create test documents and graph
@@ -80,6 +86,7 @@ class TestGASABenchmark(BaseBenchmark):
         self.save_results(results, "gasa_flop_reduction")
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(60)  # Add a 60-second timeout to prevent hanging
     async def test_gasa_latency_improvement(self, mock_llm, trace_manager):
         """Test GASA latency improvement."""
         # Create test documents and graph
@@ -117,6 +124,7 @@ class TestGASABenchmark(BaseBenchmark):
         self.save_results(results, "gasa_latency_improvement")
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(60)  # Add a 60-second timeout to prevent hanging
     async def test_gasa_memory_usage(self, mock_llm, trace_manager):
         """Test GASA memory usage."""
         # Create test documents and graph

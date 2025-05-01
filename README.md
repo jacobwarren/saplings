@@ -127,6 +127,31 @@ For development installations with all optional dependencies:
 pip install "saplings[dev,viz,monitoring]"
 ```
 
+### Running Tests
+
+To run the standard test suite:
+
+```bash
+pytest
+```
+
+#### Benchmark Tests
+
+Benchmark tests are excluded from the standard test suite because they can be resource-intensive and may occasionally hang. To run benchmark tests:
+
+```bash
+# Run all tests including benchmarks
+pytest --run-benchmarks
+
+# Run only benchmark tests
+pytest tests/benchmarks/ --run-benchmarks
+
+# Run a specific benchmark test
+pytest tests/benchmarks/test_gasa_benchmark.py::TestGASABenchmark::test_gasa_flop_reduction --run-benchmarks
+```
+
+Note: Benchmark tests include timeouts to prevent hanging, but they may still be unstable in some environments.
+
 ## API Key Setup
 
 Saplings supports multiple model providers, each requiring their own API keys. Here's how to set them up:

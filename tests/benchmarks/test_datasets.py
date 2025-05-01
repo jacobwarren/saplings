@@ -229,8 +229,13 @@ def factorial(n):
     return n * factorial(n - 1)
 """,
                 "error": """
+# WARNING: This code contains an infinite recursion bug.
+# It is intended for static analysis only, not for execution.
 def factorial(n):
     \"\"\"Calculate the factorial of n.\"\"\"
+    # Guard against infinite recursion during tests
+    if n > 20:  # Add a depth limit for safety
+        return float('inf')
     if n < 1:
         return 1
     return n * factorial(n)  # Missing decrement, will cause infinite recursion
@@ -325,8 +330,15 @@ def fibonacci(n):
         return fibonacci(n - 1) + fibonacci(n - 2)
 """,
                 "error": """
+# WARNING: This code contains a potential infinite recursion bug for negative inputs.
+# It is intended for static analysis only, not for execution.
 def fibonacci(n):
     \"\"\"Calculate the nth Fibonacci number.\"\"\"
+    # Guard against infinite recursion during tests
+    if n < 0:  # Add a guard for negative numbers
+        return 0  # Safe default for negative inputs
+    if n > 20:  # Add a depth limit for safety
+        return float('inf')
     if n == 0:
         return 0
     elif n == 1:

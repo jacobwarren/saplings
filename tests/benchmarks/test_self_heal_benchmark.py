@@ -40,6 +40,7 @@ class TestSelfHealBenchmark(BaseBenchmark):
             yield temp_dir
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(30)  # Add a 30-second timeout to prevent hanging
     async def test_patch_generator(self):
         """Test patch generator performance."""
         # Create code samples with errors
@@ -92,6 +93,7 @@ class TestSelfHealBenchmark(BaseBenchmark):
         self.save_results(results, "patch_generator_performance")
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(30)  # Add a 30-second timeout to prevent hanging
     async def test_success_pair_collector(self, temp_dir):
         """Test success pair collector performance."""
         # Create code samples
@@ -152,6 +154,7 @@ class TestSelfHealBenchmark(BaseBenchmark):
         self.save_results(results, "success_pair_collector_performance")
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(30)  # Add a 30-second timeout to prevent hanging
     async def test_adapter_manager(self, mock_llm, temp_dir):
         """Test adapter manager performance."""
         # Create adapter manager
@@ -314,6 +317,7 @@ class TestSelfHealBenchmark(BaseBenchmark):
         self.save_results(results, "adapter_manager_performance")
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(30)  # Add a 30-second timeout to prevent hanging
     async def test_lora_tuning(self, mock_llm, temp_dir):
         """Test LoRA tuning performance."""
         # Skip actual training in benchmark

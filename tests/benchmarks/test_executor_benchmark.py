@@ -24,7 +24,12 @@ from tests.benchmarks.test_datasets import TestDatasets
 
 
 class TestExecutorBenchmark(BaseBenchmark):
-    """Benchmark tests for the executor component."""
+    """Benchmark tests for the executor component.
+
+    Note: These tests use the TestDatasets class which contains code samples with
+    potential infinite recursion bugs. The code samples have been modified to include
+    execution guards to prevent actual infinite recursion during testing.
+    """
 
     @pytest.fixture
     def mock_llm(self):
@@ -42,6 +47,7 @@ class TestExecutorBenchmark(BaseBenchmark):
         return MemoryStore(config=MemoryConfig())
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(60)  # Add a 60-second timeout to prevent hanging
     async def test_executor_strategies(self, mock_llm, trace_manager):
         """Test executor performance with different strategies."""
         # Create test documents
@@ -155,6 +161,7 @@ class TestExecutorBenchmark(BaseBenchmark):
         self.save_results(results, "executor_strategies")
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(60)  # Add a 60-second timeout to prevent hanging
     async def test_executor_planner_integration(self, mock_llm, trace_manager):
         """Test executor performance with planner integration."""
         # Create test documents
@@ -284,6 +291,7 @@ class TestExecutorBenchmark(BaseBenchmark):
         self.save_results(results, "executor_planner_integration")
 
     @pytest.mark.asyncio
+    @pytest.mark.timeout(60)  # Add a 60-second timeout to prevent hanging
     async def test_executor_streaming(self, mock_llm, trace_manager):
         """Test executor streaming performance."""
         # Create test documents
