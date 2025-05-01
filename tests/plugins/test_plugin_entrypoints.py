@@ -4,12 +4,19 @@ Tests for the plugin entrypoints.
 This module tests that the plugin entrypoints are correctly registered and can be loaded.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 pytestmark = pytest.mark.nocov
 
-from saplings.core.plugin import PluginType, PluginRegistry, discover_plugins, get_plugins_by_type, register_plugin
+from saplings.core.plugin import (
+    PluginRegistry,
+    PluginType,
+    discover_plugins,
+    get_plugins_by_type,
+    register_plugin,
+)
 from saplings.memory.config import MemoryConfig, PrivacyLevel, VectorStoreType
 from saplings.memory.indexer import get_indexer
 from saplings.memory.vector_store import get_vector_store

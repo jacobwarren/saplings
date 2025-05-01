@@ -170,9 +170,9 @@ async def test_download_paper(mock_paper_content):
     download_paper = agent_example.download_paper
 
     # Mock arxiv.Search and arxiv.Client
-    with patch("examples.qwen3_infographic_agent.arxiv.Search") as mock_search, \
-         patch("examples.qwen3_infographic_agent.arxiv.Client") as mock_client:
-
+    with patch("examples.qwen3_infographic_agent.arxiv.Search") as mock_search, patch(
+        "examples.qwen3_infographic_agent.arxiv.Client"
+    ) as mock_client:
         # Create a mock paper
         mock_paper = MagicMock()
         mock_paper.title = "Test Paper Title"
@@ -211,7 +211,7 @@ async def test_download_paper(mock_paper_content):
                 "authors": "Test Author 1, Test Author 2",
                 "abstract": "This is a test abstract for the mock paper.",
                 "content": "Title: Test Paper Title\n\nAuthors: Test Author 1, Test Author 2\n\nAbstract: This is a test abstract for the mock paper.\n\nPaper Content:\nMocked PDF content",
-                "pdf_path": "paper_2401_12345.pdf"
+                "pdf_path": "paper_2401_12345.pdf",
             }
 
             # Verify the result
@@ -284,11 +284,13 @@ async def test_create_model(mock_model):
 async def test_setup_agents(mock_model, mock_graph_runner):
     """Test the setup_agents function."""
     # Mock the vLLM import check and LLM.from_uri
-    with patch("examples.qwen3_infographic_agent.GraphRunner", return_value=mock_graph_runner), \
-         patch("saplings.core.model_adapter.LLM.from_uri", return_value=mock_model), \
-         patch("saplings.adapters.vllm_adapter.vllm", MagicMock()), \
-         patch("saplings.adapters.vllm_adapter.VLLM_AVAILABLE", True):
-
+    with patch(
+        "examples.qwen3_infographic_agent.GraphRunner", return_value=mock_graph_runner
+    ), patch("saplings.core.model_adapter.LLM.from_uri", return_value=mock_model), patch(
+        "saplings.adapters.vllm_adapter.vllm", MagicMock()
+    ), patch(
+        "saplings.adapters.vllm_adapter.VLLM_AVAILABLE", True
+    ):
         # Mock the JudgeAgent creation
         with patch("examples.qwen3_infographic_agent.JudgeAgent", MagicMock()):
             runner = await agent_example.setup_agents(mock_model)
@@ -371,7 +373,9 @@ async def test_run_infographic_agent(
             mock_graph_runner.judge = mock_judge_agent
 
             # Configure the negotiate method to return a result
-            mock_graph_runner.negotiate = AsyncMock(return_value="Mock infographic result with ```html\n<div>Test</div>\n``` and ```css\nbody{}\n``` and ```javascript\nconsole.log();\n```")
+            mock_graph_runner.negotiate = AsyncMock(
+                return_value="Mock infographic result with ```html\n<div>Test</div>\n``` and ```css\nbody{}\n``` and ```javascript\nconsole.log();\n```"
+            )
 
             # Run the function
             await agent_example.run_infographic_agent()
