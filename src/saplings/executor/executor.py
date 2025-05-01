@@ -21,6 +21,7 @@ from saplings.gasa import GASAConfig, MaskBuilder, MaskFormat, MaskType
 from saplings.judge import JudgeAgent, JudgeResult
 from saplings.memory.document import Document
 from saplings.memory.graph import DependencyGraph
+from saplings.monitoring.trace import TraceManager
 from saplings.validator.registry import ValidatorRegistry
 from saplings.validator.validator import ValidationStatus
 
@@ -143,6 +144,7 @@ class Executor:
         dependency_graph: Optional[DependencyGraph] = None,
         judge_agent: Optional[JudgeAgent] = None,
         validator_registry: Optional["ValidatorRegistry"] = None,
+        trace_manager: Optional["TraceManager"] = None,
     ):
         """
         Initialize the executor.
@@ -154,6 +156,7 @@ class Executor:
             dependency_graph: Dependency graph for GASA
             judge_agent: JudgeAgent for verification
             validator_registry: ValidatorRegistry for validation
+            trace_manager: TraceManager for tracing execution
         """
         self.model = model
         self.config = config or ExecutorConfig.default()
@@ -161,6 +164,7 @@ class Executor:
         self.dependency_graph = dependency_graph
         self.judge_agent = judge_agent
         self.validator_registry = validator_registry
+        self.trace_manager = trace_manager
 
         # Initialize GASA if enabled
         self.mask_builder = None

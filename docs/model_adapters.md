@@ -18,7 +18,7 @@ The easiest way to create a model is to use the `LLM.from_uri` method, which tak
 from saplings.core.model_adapter import LLM
 
 # Create a vLLM model
-model = LLM.from_uri("vllm://meta-llama/Llama-2-7b-chat-hf")
+model = LLM.from_uri("vllm://meta-llama/Llama-3.1-8B-Instruct")
 
 # Create an OpenAI model
 model = LLM.from_uri("openai://gpt-4")
@@ -45,7 +45,7 @@ Where:
 - `parameters` are additional parameters for the model (optional)
 
 Examples:
-- `vllm://meta-llama/Llama-2-7b-chat-hf?temperature=0.7&max_tokens=1024`
+- `vllm://meta-llama/Llama-3.1-8B-Instruct?temperature=0.7&max_tokens=1024`
 - `openai://gpt-4/latest?temperature=0.7`
 - `anthropic://claude-3-opus-20240229/latest?temperature=0.7`
 - `huggingface://meta-llama/Llama-3-8b-instruct/latest?device=cuda`
@@ -59,7 +59,7 @@ import asyncio
 from saplings.core.model_adapter import LLM
 
 async def generate_text():
-    model = LLM.from_uri("vllm://meta-llama/Llama-2-7b-chat-hf")
+    model = LLM.from_uri("vllm://meta-llama/Llama-3.1-8B-Instruct")
 
     # Generate text
     response = await model.generate(
@@ -83,7 +83,7 @@ import asyncio
 from saplings.core.model_adapter import LLM
 
 async def generate_streaming():
-    model = LLM.from_uri("vllm://meta-llama/Llama-2-7b-chat-hf")
+    model = LLM.from_uri("vllm://meta-llama/Llama-3.1-8B-Instruct")
 
     # Generate text with streaming
     async for chunk in model.generate_streaming(
@@ -106,14 +106,14 @@ The vLLM adapter provides high-performance inference using [vLLM](https://github
 from saplings.core.model_adapter import LLM
 
 # Create a vLLM model
-model = LLM.from_uri("vllm://meta-llama/Llama-2-7b-chat-hf")
+model = LLM.from_uri("vllm://meta-llama/Llama-3.1-8B-Instruct")
 
 # With parameters
-model = LLM.from_uri("vllm://meta-llama/Llama-2-7b-chat-hf?temperature=0.7&max_tokens=1024&quantization=awq")
+model = LLM.from_uri("vllm://meta-llama/Llama-3.1-8B-Instruct?temperature=0.7&max_tokens=1024&quantization=awq")
 
 # Or create it directly
 from saplings.adapters.vllm_adapter import VLLMAdapter
-model = VLLMAdapter("vllm://meta-llama/Llama-2-7b-chat-hf")
+model = VLLMAdapter("vllm://meta-llama/Llama-3.1-8B-Instruct")
 ```
 
 #### Installation

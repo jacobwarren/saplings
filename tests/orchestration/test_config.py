@@ -5,6 +5,7 @@ Tests for the orchestration configuration module.
 import pytest
 from pydantic import ValidationError
 
+from saplings.memory import MemoryStore
 from saplings.orchestration.config import (
     AgentNode,
     CommunicationChannel,
@@ -16,7 +17,12 @@ from saplings.orchestration.config import (
 class TestOrchestrationConfig:
     """Tests for the orchestration configuration classes."""
 
-    def test_agent_node(self):
+    @pytest.fixture
+    def memory_store(self):
+        """Create a memory store for testing."""
+        return MemoryStore()
+
+    def test_agent_node(self, memory_store):
         """Test AgentNode configuration."""
         # Test valid configuration
         agent = AgentNode(
@@ -25,6 +31,7 @@ class TestOrchestrationConfig:
             role="tester",
             description="A test agent",
             capabilities=["testing"],
+            memory_store=memory_store,
         )
         assert agent.id == "agent1"
         assert agent.name == "Test Agent"
@@ -41,6 +48,7 @@ class TestOrchestrationConfig:
             description="A test agent",
             capabilities=["testing"],
             metadata={"key": "value"},
+            memory_store=memory_store,
         )
         assert agent.metadata == {"key": "value"}
 
@@ -52,6 +60,7 @@ class TestOrchestrationConfig:
                 role="tester",
                 description="A test agent",
                 capabilities=["testing"],
+                memory_store=memory_store,
             )
 
     def test_communication_channel(self):
@@ -97,10 +106,10 @@ class TestOrchestrationConfig:
                 description="A test channel",
             )
 
-    def test_graph_runner_config(self):
+    def test_graph_runner_config(self, memory_store):
         """Test GraphRunnerConfig configuration."""
         # Test default configuration
-        config = GraphRunnerConfig()
+        config = GraphRunnerConfig(memory_store=memory_store)
         assert config.negotiation_strategy == NegotiationStrategy.DEBATE
         assert config.max_rounds == 5
         assert config.timeout_seconds == 60
@@ -116,6 +125,7 @@ class TestOrchestrationConfig:
             consensus_threshold=0.9,
             logging_enabled=False,
             metadata={"key": "value"},
+            memory_store=memory_store,
         )
         assert config.negotiation_strategy == NegotiationStrategy.CONTRACT_NET
         assert config.max_rounds == 10
@@ -126,16 +136,16 @@ class TestOrchestrationConfig:
 
         # Test invalid consensus_threshold (> 1.0)
         with pytest.raises(ValidationError):
-            GraphRunnerConfig(consensus_threshold=1.1)
+            GraphRunnerConfig(consensus_threshold=1.1, memory_store=memory_store)
 
         # Test invalid consensus_threshold (< 0.0)
         with pytest.raises(ValidationError):
-            GraphRunnerConfig(consensus_threshold=-0.1)
+            GraphRunnerConfig(consensus_threshold=-0.1, memory_store=memory_store)
 
         # Test invalid max_rounds (< 1)
         with pytest.raises(ValidationError):
-            GraphRunnerConfig(max_rounds=0)
+            GraphRunnerConfig(max_rounds=0, memory_store=memory_store)
 
         # Test invalid timeout_seconds (< 1)
         with pytest.raises(ValidationError):
-            GraphRunnerConfig(timeout_seconds=0)
+            GraphRunnerConfig(timeout_seconds=0, memory_store=memory_store)

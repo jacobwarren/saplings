@@ -13,8 +13,8 @@ import pytest
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.core.plugin import PluginType, ToolPlugin
 from saplings.executor import Executor, ExecutorConfig
-from saplings.orchestration import GraphRunner, GraphRunnerConfig, AgentNode
-from saplings.orchestration.config import CommunicationChannel
+from saplings.orchestration.config import AgentNode, GraphRunnerConfig, CommunicationChannel
+from saplings.orchestration import GraphRunner
 from saplings.planner import SequentialPlanner, PlannerConfig
 from saplings.tool_factory import (
     ToolFactory,
@@ -167,9 +167,9 @@ class TestCrossComponentIntegration:
         return SequentialPlanner(model=mock_llm, config=config)
 
     @pytest.fixture
-    def graph_runner(self, mock_llm):
+    def graph_runner(self, mock_llm, memory_store):
         """Create a GraphRunner instance for testing."""
-        config = GraphRunnerConfig()
+        config = GraphRunnerConfig(memory_store=memory_store)
         return GraphRunner(model=mock_llm, config=config)
 
     @pytest.fixture
@@ -360,7 +360,7 @@ class TestCrossComponentIntegration:
         assert len(mock_llm.generate_calls) > 0
 
     @pytest.mark.asyncio
-    async def test_graph_runner_tool_integration(self, mock_llm, graph_runner, tool_factory, hot_loader):
+    async def test_graph_runner_tool_integration(self, mock_llm, graph_runner, tool_factory, hot_loader, memory_store):
         """Test integration between graph runner and tools."""
         # Register a template
         template = ToolTemplate(
@@ -407,6 +407,7 @@ def {{function_name}}({{parameters}}):
             description="An agent that performs math operations",
             capabilities=["math"],
             metadata={"tools": {}},
+            memory_store=memory_store,
         )
 
         # Register the agent

@@ -112,8 +112,11 @@ class JudgeAgent:
 
     def __init__(
         self,
-        model: LLM,
+        model: Optional[LLM] = None,
         config: Optional[JudgeConfig] = None,
+        provider: Optional[str] = None,
+        model_name: Optional[str] = None,
+        **model_parameters
     ):
         """
         Initialize the judge agent.
@@ -121,7 +124,21 @@ class JudgeAgent:
         Args:
             model: LLM model to use for judgment
             config: Judge configuration
+            provider: Model provider (e.g., 'vllm', 'openai', 'anthropic')
+            model_name: Model name
+            **model_parameters: Additional model parameters
         """
+        # Handle the new approach for specifying models
+        if model is None and provider is not None and model_name is not None:
+            # Create a model using the new approach
+            model = LLM.create(
+                provider=provider,
+                model=model_name,
+                **model_parameters
+            )
+        elif model is None:
+            raise ValueError("Either 'model' or both 'provider' and 'model_name' must be provided")
+
         self.model = model
         self.config = config or JudgeConfig.default()
 

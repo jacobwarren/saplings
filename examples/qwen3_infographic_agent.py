@@ -1,5 +1,5 @@
 """
-End-to-end example of an autonomous agent using Qwen3-32B with vLLM.
+End-to-end example of an autonomous agent using vLLM.
 
 This example demonstrates how to:
 1. Fetch the top paper from Hugging Face Daily Papers
@@ -7,7 +7,7 @@ This example demonstrates how to:
 3. Generate an infographic using React and D3 to visualize the key findings
 
 The example uses:
-- vLLM for high-performance inference with Qwen3-32B
+- vLLM for high-performance inference with Qwen/Qwen3-30B-A3B or other available models
 - Function calling for tool integration
 - GraphRunner for multi-agent orchestration
 - JudgeAgent for quality assessment
@@ -24,10 +24,16 @@ from typing import Any, Dict, List, Optional, Union
 
 import requests
 from bs4 import BeautifulSoup
+import arxiv
+from huggingface_hub import HfApi
+from pypdf import PdfReader
 
 from saplings.core.model_adapter import LLM
 from saplings.judge import JudgeAgent, JudgeConfig
 from saplings.judge.config import Rubric, ScoringDimension
+from saplings.memory import MemoryStore, Document, DocumentMetadata
+from saplings.monitoring import MonitoringConfig, TraceManager, BlameGraph
+from saplings.self_heal import SuccessPairCollector
 from saplings.orchestration import (
     AgentNode,
     CommunicationChannel,
@@ -104,7 +110,7 @@ def get_hugging_face_top_daily_paper() -> Dict[str, str]:
 )
 def get_paper_id(url_or_title: str) -> str:
     """
-    Extract the paper ID from an arXiv URL or search for it by title.
+    Extract the paper ID from an arXiv URL or search for it by title using the Hugging Face API.
 
     Args:
         url_or_title: The URL of the paper or its title
@@ -128,8 +134,19 @@ def get_paper_id(url_or_title: str) -> str:
     if re.match(r'^\d+\.\d+$', url_or_title):
         return url_or_title
 
-    # If it's a title, we would need to search for it
-    # For simplicity, we'll just return an empty string
+    # If it's a title, search for it using the Hugging Face API
+    try:
+        logger.info(f"Searching for paper with title: {url_or_title}")
+        api = HfApi()
+        papers = api.list_papers(query=url_or_title, limit=1)
+        if papers:
+            paper = next(iter(papers))
+            logger.info(f"Found paper: {paper.title} with ID: {paper.id}")
+            return paper.id
+    except Exception as e:
+        logger.error(f"Error searching for paper by title: {e}")
+
+    # If we couldn't find the paper, return an empty string
     return ""
 
 @function_registry.register(
@@ -147,30 +164,50 @@ def download_paper(paper_id: str) -> Dict[str, str]:
         Dict[str, str]: A dictionary containing the paper's content
     """
     try:
-        # For this example, we'll simulate downloading by fetching the abstract
-        url = f"https://arxiv.org/abs/{paper_id}"
-        response = requests.get(url)
-        response.raise_for_status()
+        # First, get the metadata from the arXiv API
+        logger.info(f"Downloading paper with ID: {paper_id}")
 
-        soup = BeautifulSoup(response.content, "html.parser")
+        # Create a search query for the specific paper ID
+        search = arxiv.Search(id_list=[paper_id])
 
-        # Extract the abstract
-        abstract_element = soup.find('blockquote', class_='abstract')
-        abstract = abstract_element.text.replace('Abstract: ', '') if abstract_element else "Abstract not found"
+        # Get the paper
+        client = arxiv.Client()
+        results = list(client.results(search, max_results=1))
 
-        # Extract the title
-        title_element = soup.find('h1', class_='title')
-        title = title_element.text.replace('Title:', '').strip() if title_element else "Title not found"
+        if not results:
+            logger.warning(f"No paper found with ID: {paper_id}")
+            return {
+                "title": "Paper not found",
+                "authors": "",
+                "abstract": "",
+                "content": f"No paper found with ID: {paper_id}",
+                "pdf_path": ""
+            }
 
-        # Extract the authors
-        authors_element = soup.find('div', class_='authors')
-        authors = authors_element.text.replace('Authors:', '').strip() if authors_element else "Authors not found"
+        paper = results[0]
+
+        # Extract metadata
+        title = paper.title
+        authors = ", ".join(author.name for author in paper.authors)
+        abstract = paper.summary
+
+        # Download the PDF
+        pdf_path = f"paper_{paper_id.replace('.', '_')}.pdf"
+        paper.download_pdf(filename=pdf_path)
+        logger.info(f"Downloaded PDF to {pdf_path}")
+
+        # Read the first few pages of the PDF
+        pdf_content = read_pdf_file(pdf_path)
+
+        # Combine metadata and content
+        content = f"Title: {title}\n\nAuthors: {authors}\n\nAbstract: {abstract}\n\nPaper Content:\n{pdf_content}"
 
         return {
             "title": title,
             "authors": authors,
             "abstract": abstract,
-            "content": f"Title: {title}\n\nAuthors: {authors}\n\nAbstract: {abstract}\n\nNote: This is a simulated download that only includes the abstract. In a real implementation, we would download and parse the full PDF."
+            "content": content,
+            "pdf_path": pdf_path
         }
     except Exception as e:
         logger.error(f"Error downloading paper: {e}")
@@ -178,8 +215,45 @@ def download_paper(paper_id: str) -> Dict[str, str]:
             "title": "",
             "authors": "",
             "abstract": "",
-            "content": f"Error downloading paper: {str(e)}"
+            "content": f"Error downloading paper: {str(e)}",
+            "pdf_path": ""
         }
+
+@function_registry.register(
+    description="Read a PDF file and extract its text",
+    group="research"
+)
+def read_pdf_file(file_path: str) -> str:
+    """
+    Read a PDF file and extract its text.
+
+    Args:
+        file_path: Path to the PDF file
+
+    Returns:
+        str: The extracted text from the PDF
+    """
+    try:
+        logger.info(f"Reading PDF file: {file_path}")
+        reader = PdfReader(file_path)
+
+        # Get the number of pages
+        num_pages = len(reader.pages)
+        logger.info(f"PDF has {num_pages} pages")
+
+        # Read the first 3 pages or all pages if less than 3
+        pages_to_read = min(3, num_pages)
+        content = ""
+
+        for i in range(pages_to_read):
+            page = reader.pages[i]
+            content += f"\n--- Page {i+1} ---\n"
+            content += page.extract_text()
+
+        return content
+    except Exception as e:
+        logger.error(f"Error reading PDF file: {e}")
+        return f"Error reading PDF file: {str(e)}"
 
 @function_registry.register(
     description="Get D3.js chart templates for different visualization types",
@@ -754,7 +828,7 @@ def generate_infographic_code(
         "data": json.dumps(data, indent=2)
     }
 
-async def create_model(model_name: str = "Qwen/Qwen3-32B") -> LLM:
+async def create_model(model_name: str = "Qwen/Qwen3-30B-A3B") -> LLM:
     """
     Create a vLLM model with the specified model name.
 
@@ -764,15 +838,70 @@ async def create_model(model_name: str = "Qwen/Qwen3-32B") -> LLM:
     Returns:
         LLM: The created model
     """
+    # We'll skip the model existence check and let vLLM handle it
+    # The vLLM adapter has been updated to try different approaches if the model can't be found
+    logger.info(f"Using model: {model_name}")
+
     # Create a vLLM model with function calling enabled
-    # For Qwen models, we use the hermes parser
-    model_uri = f"vllm://{model_name}?temperature=0.7&max_tokens=4096&enable_tool_choice=true&tool_call_parser=hermes"
+    try:
+        # For vLLM 0.8.5, we only need to set enable_tool_choice=true
+        # The tool_call_parser and chat_template parameters are not supported in this version
 
-    logger.info(f"Creating model: {model_uri}")
-    model = LLM.from_uri(model_uri)
-    logger.info(f"Model created successfully: {model.model_name}")
+        # Create model parameters
+        model_params = {
+            "temperature": 0.7,
+            "max_tokens": 4096
+        }
 
-    return model
+        # Only add function calling parameters if we're using a model that supports it
+        if "gpt2" not in model_name.lower():
+            model_params["enable_tool_choice"] = True
+
+        logger.info(f"Creating model: vllm/{model_name} with parameters: {model_params}")
+
+        try:
+            # Try with the parameters using the new approach
+            model = LLM.create(
+                provider="vllm",
+                model=model_name,
+                **model_params
+            )
+            logger.info(f"Model created successfully: {model_name}")
+            return model
+        except RuntimeError as e:
+            # If there's any parameter issue, try with minimal parameters
+            if "parameter" in str(e).lower() or "argument" in str(e).lower():
+                logger.warning(f"Parameter error: {e}. Trying with minimal parameters.")
+                # Use minimal parameters
+                model = LLM.create(
+                    provider="vllm",
+                    model=model_name,
+                    temperature=0.7,
+                    max_tokens=4096
+                )
+                logger.info(f"Model created successfully with minimal parameters: {model_name}")
+                return model
+            # If the model doesn't exist, try with a local model if available
+            elif "Invalid repository ID" in str(e) or "Repository Not Found" in str(e):
+                # Check if there's a local model directory we can use
+                local_models_dir = os.environ.get("LOCAL_MODELS_DIR", "./models")
+                if os.path.exists(local_models_dir):
+                    local_models = [d for d in os.listdir(local_models_dir)
+                                   if os.path.isdir(os.path.join(local_models_dir, d))]
+                    if local_models:
+                        local_model_path = os.path.join(local_models_dir, local_models[0])
+                        logger.warning(f"Model {model_name} not found. Trying with local model: {local_model_path}")
+                        return await create_model(local_model_path)
+
+                # If no local model is available, try with a different Hugging Face model
+                logger.warning(f"Model {model_name} not found. Trying with mistralai/Mistral-7B-v0.1.")
+                return await create_model("mistralai/Mistral-7B-v0.1")
+            else:
+                # If it's a different error, re-raise it
+                raise
+    except Exception as e:
+        logger.error(f"Failed to create model: {e}")
+        raise
 
 async def setup_agents(model: LLM) -> GraphRunner:
     """
@@ -784,16 +913,43 @@ async def setup_agents(model: LLM) -> GraphRunner:
     Returns:
         GraphRunner: The configured graph runner
     """
-    # Create a graph runner with the debate negotiation strategy
+    # Create memory store
+    memory_store = MemoryStore()
+
+    # Create monitoring components
+    trace_manager = TraceManager()
+    blame_graph = BlameGraph(trace_manager=trace_manager)
+
+    # Create judge agent for validation
+    judge = JudgeAgent(
+        provider="vllm",
+        model_name="Qwen/Qwen3-30B-A3B",
+        temperature=0.5,
+        max_tokens=4096,
+        enable_tool_choice=True
+    )
+
+    # Create success pair collector for self-healing
+    success_pair_collector = SuccessPairCollector()
+
+    # Create a graph runner with enhanced capabilities
     config = GraphRunnerConfig(
         negotiation_strategy=NegotiationStrategy.DEBATE,
         max_rounds=3,
         timeout_seconds=300,
         consensus_threshold=0.8,
+        memory_store=memory_store,
+        enable_monitoring=True,
+        trace_manager=trace_manager,
+        blame_graph=blame_graph,
+        enable_validation=True,
+        judge=judge,
+        enable_self_healing=True,
+        success_pair_collector=success_pair_collector,
     )
     graph_runner = GraphRunner(model=model, config=config)
 
-    # Register agents
+    # Register agents with different models
     researcher = AgentNode(
         id="researcher",
         name="Research Analyst",
@@ -810,6 +966,11 @@ async def setup_agents(model: LLM) -> GraphRunner:
         understand technical papers and identify what's truly innovative or important.
         """,
         capabilities=["research", "analysis", "summarization", "scientific_knowledge"],
+        provider="vllm",
+        model="Qwen/Qwen3-30B-A3B",
+        model_parameters={"temperature": 0.7, "max_tokens": 4096, "enable_tool_choice": True},
+        enable_gasa=True,  # Enable GASA for efficient attention
+        memory_store=memory_store  # Use the shared memory store
     )
 
     visualizer = AgentNode(
@@ -829,6 +990,10 @@ async def setup_agents(model: LLM) -> GraphRunner:
         oversimplifying it.
         """,
         capabilities=["visualization", "design", "information_architecture", "visual_communication"],
+        provider="vllm",
+        model="Qwen/Qwen3-30B-A3B",
+        model_parameters={"temperature": 0.8, "max_tokens": 4096, "enable_tool_choice": True},
+        memory_store=memory_store  # Use the shared memory store
     )
 
     coder = AgentNode(
@@ -854,6 +1019,11 @@ async def setup_agents(model: LLM) -> GraphRunner:
         and maintainable.
         """,
         capabilities=["coding", "web_development", "react", "d3", "frontend"],
+        provider="vllm",
+        model="Qwen/Qwen3-30B-A3B",
+        model_parameters={"temperature": 0.6, "max_tokens": 4096, "enable_tool_choice": True},
+        enable_gasa=True,  # Enable GASA for efficient attention
+        memory_store=memory_store  # Use the shared memory store
     )
 
     reviewer = AgentNode(
@@ -872,6 +1042,10 @@ async def setup_agents(model: LLM) -> GraphRunner:
         implementation (React/D3), allowing you to evaluate work from multiple perspectives.
         """,
         capabilities=["code_review", "quality_assurance", "technical_evaluation", "accessibility"],
+        provider="vllm",
+        model="Qwen/Qwen3-30B-A3B",
+        model_parameters={"temperature": 0.5, "max_tokens": 4096, "enable_tool_choice": True},
+        memory_store=memory_store  # Use the shared memory store
     )
 
     # Register the agents
@@ -881,68 +1055,53 @@ async def setup_agents(model: LLM) -> GraphRunner:
     graph_runner.register_agent(reviewer)
 
     # Define communication channels
-    graph_runner.add_channel(
-        CommunicationChannel(
-            source_id="researcher",
-            target_id="visualizer",
-            channel_type="research_results",
-            description="Research analysis and key points that should be visualized",
-        )
+    graph_runner.create_channel(
+        source_id="researcher",
+        target_id="visualizer",
+        channel_type="research_results",
+        description="Research analysis and key points that should be visualized",
     )
 
-    graph_runner.add_channel(
-        CommunicationChannel(
-            source_id="visualizer",
-            target_id="coder",
-            channel_type="visualization_specs",
-            description="Detailed visualization specifications including layout, chart types, and design elements",
-        )
+    graph_runner.create_channel(
+        source_id="visualizer",
+        target_id="coder",
+        channel_type="visualization_specs",
+        description="Detailed visualization specifications including layout, chart types, and design elements",
     )
 
-    graph_runner.add_channel(
-        CommunicationChannel(
-            source_id="coder",
-            target_id="reviewer",
-            channel_type="implementation",
-            description="Implemented code and visualizations for review",
-        )
+    graph_runner.create_channel(
+        source_id="coder",
+        target_id="reviewer",
+        channel_type="implementation",
+        description="Implemented code and visualizations for review",
     )
 
-    graph_runner.add_channel(
-        CommunicationChannel(
-            source_id="reviewer",
-            target_id="coder",
-            channel_type="feedback",
-            description="Technical feedback and suggestions for improvement",
-        )
+    graph_runner.create_channel(
+        source_id="reviewer",
+        target_id="coder",
+        channel_type="feedback",
+        description="Technical feedback and suggestions for improvement",
     )
 
-    graph_runner.add_channel(
-        CommunicationChannel(
-            source_id="reviewer",
-            target_id="visualizer",
-            channel_type="design_feedback",
-            description="Feedback on visualization design and effectiveness",
-        )
+    graph_runner.create_channel(
+        source_id="reviewer",
+        target_id="visualizer",
+        channel_type="design_feedback",
+        description="Feedback on visualization design and effectiveness",
     )
 
-    graph_runner.add_channel(
-        CommunicationChannel(
-            source_id="reviewer",
-            target_id="researcher",
-            channel_type="accuracy_feedback",
-            description="Feedback on the accuracy of represented information",
-        )
+    graph_runner.create_channel(
+        source_id="reviewer",
+        target_id="researcher",
+        channel_type="accuracy_feedback",
+        description="Feedback on the accuracy of represented information",
     )
 
     return graph_runner
 
-async def create_judge(model: LLM) -> JudgeAgent:
+async def create_judge() -> JudgeAgent:
     """
     Create a judge agent for evaluating the quality of the generated infographic.
-
-    Args:
-        model: The LLM model to use
 
     Returns:
         JudgeAgent: The configured judge agent
@@ -1018,15 +1177,22 @@ async def create_judge(model: LLM) -> JudgeAgent:
         """
     )
 
-    # Create the judge agent
-    judge_agent = JudgeAgent(model=model, config=judge_config)
-    logger.info("Created judge agent with infographic rubric")
+    # Create the judge agent with its own model
+    judge_agent = JudgeAgent(
+        provider="vllm",
+        model_name="Qwen/Qwen3-30B-A3B",
+        config=judge_config,
+        temperature=0.4,  # Lower temperature for more consistent evaluations
+        max_tokens=4096,
+        enable_tool_choice=True
+    )
+    logger.info("Created judge agent with infographic rubric and dedicated model")
 
     return judge_agent
 
 async def run_infographic_agent():
     """Run the end-to-end infographic agent example."""
-    print("=== Qwen3-32B Infographic Agent Example ===")
+    print("=== Infographic Agent Example ===")
 
     try:
         # Create the model
@@ -1034,9 +1200,6 @@ async def run_infographic_agent():
 
         # Set up the agents
         graph_runner = await setup_agents(model)
-
-        # Create the judge
-        judge_agent = await create_judge(model)
 
         # Step 1: Get the top paper
         print("\nStep 1: Getting the top paper from Hugging Face Daily Papers...")
@@ -1046,8 +1209,56 @@ async def run_infographic_agent():
         print(f"Authors: {paper_info['authors']}")
         print(f"Abstract: {paper_info['abstract'][:200]}...")
 
-        # Step 2: Analyze the paper using the multi-agent system
-        print("\nStep 2: Analyzing the paper using the multi-agent system...")
+        # Step 2: Get the paper ID and download the full paper
+        print("\nStep 2: Getting the paper ID and downloading the full paper...")
+
+        # First try to get the ID from the URL
+        paper_id = get_paper_id(paper_info['url'])
+
+        # If that fails, try to get it from the title
+        if not paper_id:
+            print(f"Could not extract ID from URL, trying to search by title...")
+            paper_id = get_paper_id(paper_info['title'])
+
+        if paper_id:
+            print(f"Found paper ID: {paper_id}")
+            # Download the paper and extract its content
+            print(f"Downloading paper with ID: {paper_id}...")
+            paper_content = download_paper(paper_id)
+
+            if 'pdf_path' in paper_content and paper_content['pdf_path']:
+                print(f"Successfully downloaded PDF to: {paper_content['pdf_path']}")
+                print(f"Extracted {len(paper_content['content'].split())} words from the PDF")
+            else:
+                print("Could not download the PDF, using abstract only")
+        else:
+            print("Could not find paper ID, using abstract only")
+            paper_content = {
+                "content": f"Title: {paper_info['title']}\n\nAuthors: {paper_info['authors']}\n\nAbstract: {paper_info['abstract']}"
+            }
+
+        # Add the paper to the shared memory store
+        print("\nAdding paper to shared memory store...")
+
+        # Create a document for the paper
+        paper_doc = Document(
+            id=f"paper_{paper_id}" if paper_id else "paper_unknown",
+            content=paper_content['content'],
+            metadata=DocumentMetadata(
+                source=paper_info['url'],
+                title=paper_info['title'],
+                author=paper_info['authors'],
+                description=paper_info['abstract'],
+                content_type="scientific_paper",
+            )
+        )
+
+        # Add the document to the graph runner's memory store
+        graph_runner.add_to_memory(paper_doc)
+        print(f"Added paper to memory store with ID: {paper_doc.id}")
+
+        # Step 3: Analyze the paper using the multi-agent system
+        print("\nStep 3: Analyzing the paper using the multi-agent system...")
 
         task = f"""
         Analyze the following paper and create an infographic using React and D3:
@@ -1067,17 +1278,10 @@ async def run_infographic_agent():
         1. A summary of the paper
         2. A design for the infographic
         3. React and D3 code to implement the infographic
+
+        Paper content:
+        {paper_content['content'][:3000]}...
         """
-
-        # Get the paper ID
-        paper_id = get_paper_id(paper_info['url'])
-        if paper_id:
-            # Download the paper
-            print(f"Downloading paper with ID: {paper_id}...")
-            paper_content = download_paper(paper_id)
-
-            # Add the paper content to the task
-            task += f"\n\nPaper content:\n{paper_content['content'][:1000]}..."
 
         # First try the contract-net approach for a more structured workflow
         print("Running the multi-agent system using contract-net strategy...")
@@ -1085,9 +1289,13 @@ async def run_infographic_agent():
             # Configure the graph runner for contract-net
             graph_runner.config.negotiation_strategy = NegotiationStrategy.CONTRACT_NET
 
-            # Use the researcher as the manager
-            result = await graph_runner.run_contract_net(
-                manager_id="researcher",
+            # Set the manager agent as the first agent
+            # Reorder agents to make researcher the first one
+            researcher_agent = graph_runner.agents.pop("researcher")
+            graph_runner.agents = {"researcher": researcher_agent, **graph_runner.agents}
+
+            # Use negotiate with CONTRACT_NET strategy
+            result = await graph_runner.negotiate(
                 task=task,
                 context=f"This is a scientific paper about {paper_info['title']}. The goal is to create an infographic that accurately represents the paper's findings and makes them visually accessible."
             )
@@ -1099,17 +1307,29 @@ async def run_infographic_agent():
 
             # Fall back to debate strategy
             graph_runner.config.negotiation_strategy = NegotiationStrategy.DEBATE
-            result = await graph_runner.run_debate(task)
+            result = await graph_runner.negotiate(
+                task=task,
+                context=f"This is a scientific paper about {paper_info['title']}. The goal is to create an infographic that accurately represents the paper's findings and makes them visually accessible."
+            )
 
         print("\nMulti-agent system result:")
         print(result[:500] + "..." if len(result) > 500 else result)
 
         # Step 3: Judge the quality of the result
         print("\nStep 3: Judging the quality of the result...")
-        judgment = await judge_agent.judge(
-            output=result,
-            prompt=task,
-        )
+        if graph_runner.judge:
+            # Use the judge from the graph runner
+            judgment = await graph_runner.judge.judge(
+                output=result,
+                prompt=task,
+            )
+        else:
+            # Create a separate judge if needed
+            judge_agent = await create_judge()
+            judgment = await judge_agent.judge(
+                output=result,
+                prompt=task,
+            )
 
         print(f"Overall score: {judgment.overall_score:.2f}")
         print(f"Passed: {judgment.passed}")
@@ -1163,6 +1383,16 @@ async def run_infographic_agent():
         # Clean up
         if hasattr(model, 'cleanup'):
             model.cleanup()
+
+        # Clean up downloaded PDF files
+        if 'paper_content' in locals() and 'pdf_path' in paper_content and paper_content['pdf_path']:
+            try:
+                pdf_path = paper_content['pdf_path']
+                if os.path.exists(pdf_path):
+                    os.remove(pdf_path)
+                    print(f"Removed downloaded PDF file: {pdf_path}")
+            except Exception as e:
+                logger.error(f"Error removing PDF file: {e}")
 
     except Exception as e:
         logger.error(f"Error running example: {e}")

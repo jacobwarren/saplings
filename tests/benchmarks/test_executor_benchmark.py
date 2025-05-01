@@ -80,7 +80,7 @@ class TestExecutorBenchmark(BaseBenchmark):
             {
                 "name": "With Verification",
                 "config": ExecutorConfig(
-                    verification_strategy=VerificationStrategy.SELF_CONSISTENCY,
+                    verification_strategy=VerificationStrategy.BASIC,
                     verification_threshold=0.7,
                 ),
             },
@@ -342,19 +342,17 @@ class TestExecutorBenchmark(BaseBenchmark):
                     # Streaming execution
                     first_token_time = None
                     token_count = 0
-                    
-                    async for chunk in executor.execute_streaming(
+
+                    async for chunk in executor.model.generate_streaming(
                         prompt=prompt,
-                        documents=documents,
-                        trace_id=trace.trace_id,
                     ):
                         # Record time of first token
                         if first_token_time is None:
                             first_token_time = asyncio.get_event_loop().time()
-                        
+
                         # Count tokens (approximate)
                         token_count += len(chunk.split())
-                    
+
                     # Calculate first token latency
                     if first_token_time:
                         first_token_latency = (first_token_time - start_time) * 1000  # ms
@@ -366,10 +364,10 @@ class TestExecutorBenchmark(BaseBenchmark):
                         documents=documents,
                         trace_id=trace.trace_id,
                     )
-                    
+
                     # Approximate token count
                     token_count = result.token_count if hasattr(result, "token_count") else len(result.text.split())
-                    
+
                     # No first token latency for non-streaming
                     first_token_latencies.append(0)
 

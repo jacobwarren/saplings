@@ -81,8 +81,8 @@ class TestLLMFactory:
         # Check that the adapter was created correctly
         assert isinstance(model, MockVLLMAdapter)
         assert model.model_uri.provider == "vllm"
-        assert model.model_uri.model_name == "meta-llama"
-        assert model.model_uri.version == "Llama-2-7b-chat-hf"
+        assert model.model_uri.model_name == "meta-llama/Llama-2-7b-chat-hf"
+        assert model.model_uri.version == "latest"
 
     @pytest.mark.asyncio
     async def test_from_uri_openai(self, monkeypatch):
@@ -148,8 +148,8 @@ class TestLLMFactory:
         # Check that the adapter was created correctly
         assert isinstance(model, MockHuggingFaceAdapter)
         assert model.model_uri.provider == "huggingface"
-        assert model.model_uri.model_name == "meta-llama"
-        assert model.model_uri.version == "Llama-3-8b-instruct"
+        assert model.model_uri.model_name == "meta-llama/Llama-3-8b-instruct"
+        assert model.model_uri.version == "latest"
 
     @pytest.mark.asyncio
     async def test_from_uri_with_parameters(self, monkeypatch):
@@ -171,8 +171,8 @@ class TestLLMFactory:
         # Check that the adapter was created correctly
         assert isinstance(model, MockVLLMAdapter)
         assert model.model_uri.provider == "vllm"
-        assert model.model_uri.model_name == "meta-llama"
-        assert model.model_uri.version == "Llama-2-7b-chat-hf"
+        assert model.model_uri.model_name == "meta-llama/Llama-2-7b-chat-hf"
+        assert model.model_uri.version == "latest"
         assert model.model_uri.parameters["temperature"] == "0.5"
         assert model.model_uri.parameters["max_tokens"] == "100"
 

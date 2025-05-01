@@ -178,8 +178,7 @@ class TestComparisonBenchmark(BaseBenchmark):
         )
 
         # Add documents to memory store
-        for doc in documents:
-            await memory_store.add_document(doc)
+        memory_store.documents = {doc.id: doc for doc in documents}
 
         # Results dictionary
         results = {
@@ -384,8 +383,7 @@ class TestComparisonBenchmark(BaseBenchmark):
         graph = TestDatasets.create_document_graph(documents)
 
         # Add documents to memory store
-        for doc in documents:
-            await memory_store.add_document(doc)
+        memory_store.documents = {doc.id: doc for doc in documents}
 
         # Create task
         task = "Analyze the following documents and extract key information."
@@ -538,7 +536,7 @@ class TestComparisonBenchmark(BaseBenchmark):
             async def retrieve(self, query, limit=10):
                 """Retrieve documents based on keyword matching."""
                 # Get all documents
-                all_docs = await self.memory_store.get_all_documents()
+                all_docs = self.memory_store.documents.values()
 
                 # Extract keywords from query (simple tokenization)
                 keywords = set(query.lower().split())
@@ -546,7 +544,11 @@ class TestComparisonBenchmark(BaseBenchmark):
                 # Score documents based on keyword matches
                 scored_docs = []
                 for doc in all_docs:
-                    content_lower = doc.content.lower()
+                    # Make sure doc.content is a string before calling lower()
+                    if isinstance(doc, Document):
+                        content_lower = doc.content.lower()
+                    else:
+                        content_lower = str(doc).lower()
                     score = sum(1 for keyword in keywords if keyword in content_lower)
                     scored_docs.append((doc, score))
 
@@ -591,12 +593,12 @@ class TestComparisonBenchmark(BaseBenchmark):
                 response = await self.model.generate(prompt)
 
                 # Parse plan (simple line-by-line parsing)
-                plan_text = response["text"]
+                plan_text = response.text
                 plan_steps = []
 
                 for line in plan_text.split("\n"):
                     line = line.strip()
-                    if line and (line.startswith("- ") or line.startswith("Step ") or line[0].isdigit() and line[1] == "."):
+                    if line and (line.startswith("- ") or line.startswith("Step ") or (len(line) > 1 and line[0].isdigit() and line[1] == ".")):
                         plan_steps.append(line)
 
                 return plan_steps

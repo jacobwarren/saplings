@@ -9,10 +9,18 @@ import pytest
 from typing import Any, Dict, List, Optional, Type, Union
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from saplings.adapters.openai_adapter import OpenAIAdapter
+# Import the necessary modules
 from saplings.core.model_adapter import LLM, LLMResponse, ModelURI
-
 from .test_base import BaseAdapterTest
+
+# Check if OpenAI is available
+try:
+    from saplings.adapters.openai_adapter import OpenAIAdapter, OPENAI_AVAILABLE
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+# Skip all tests if OpenAI is not available
+pytestmark = pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI not installed")
 
 
 class TestOpenAIAdapter(BaseAdapterTest):
@@ -206,24 +214,29 @@ class TestOpenAIAdapter(BaseAdapterTest):
     @pytest.mark.asyncio
     async def test_with_parameters(self):
         """Test creating the adapter with parameters."""
-        # Mock the OpenAI client
+        # Mock the OpenAI module
+        mock_openai_module = MagicMock()
         mock_client = MagicMock()
-        with patch("saplings.adapters.openai_adapter.OpenAI", return_value=mock_client) as mock_openai:
-            # Create a URI with parameters
-            uri = f"{self.provider_name}://{self.model_name}?temperature=0.5&max_tokens=100&api_key=test-key&api_base=https://test.com"
 
-            # Create the adapter
-            adapter = self.adapter_class(uri)
+        # Set up the mock
+        with patch.dict('sys.modules', {'openai': mock_openai_module}):
+            with patch("saplings.adapters.openai_adapter.OpenAI", return_value=mock_client) as mock_openai:
+                with patch("saplings.adapters.openai_adapter.OPENAI_AVAILABLE", True):
+                    # Create a URI with parameters
+                    uri = f"{self.provider_name}://{self.model_name}?temperature=0.5&max_tokens=100&api_key=test-key&api_base=https://test.com"
 
-            # Check that the parameters were parsed correctly
-            assert adapter.temperature == 0.5
-            assert adapter.max_tokens == 100
+                    # Create the adapter
+                    adapter = self.adapter_class(uri)
 
-            # Check that the client was created with the correct parameters
-            mock_openai.assert_called_once()
-            _, kwargs = mock_openai.call_args
-            assert kwargs["api_key"] == "test-key"
-            assert kwargs["base_url"] == "https://test.com"
+                    # Check that the parameters were parsed correctly
+                    assert adapter.temperature == 0.5
+                    assert adapter.max_tokens == 100
+
+                    # Check that the client was created with the correct parameters
+                    mock_openai.assert_called_once()
+                    _, kwargs = mock_openai.call_args
+                    assert kwargs["api_key"] == "test-key"
+                    assert kwargs["base_url"] == "https://test.com"
 
     @pytest.mark.asyncio
     async def test_environment_variables(self, monkeypatch):
@@ -233,15 +246,20 @@ class TestOpenAIAdapter(BaseAdapterTest):
         monkeypatch.setenv("OPENAI_API_BASE", "https://env-test.com")
         monkeypatch.setenv("OPENAI_ORGANIZATION", "env-test-org")
 
-        # Mock the OpenAI client
+        # Mock the OpenAI module
+        mock_openai_module = MagicMock()
         mock_client = MagicMock()
-        with patch("saplings.adapters.openai_adapter.OpenAI", return_value=mock_client) as mock_openai:
-            # Create the adapter
-            adapter = self.adapter_class(f"{self.provider_name}://{self.model_name}")
 
-            # Check that the client was created with the correct parameters
-            mock_openai.assert_called_once()
-            _, kwargs = mock_openai.call_args
-            assert kwargs["api_key"] == "env-test-key"
-            assert kwargs["base_url"] == "https://env-test.com"
-            assert kwargs["organization"] == "env-test-org"
+        # Set up the mock
+        with patch.dict('sys.modules', {'openai': mock_openai_module}):
+            with patch("saplings.adapters.openai_adapter.OpenAI", return_value=mock_client) as mock_openai:
+                with patch("saplings.adapters.openai_adapter.OPENAI_AVAILABLE", True):
+                    # Create the adapter
+                    adapter = self.adapter_class(f"{self.provider_name}://{self.model_name}")
+
+                    # Check that the client was created with the correct parameters
+                    mock_openai.assert_called_once()
+                    _, kwargs = mock_openai.call_args
+                    assert kwargs["api_key"] == "env-test-key"
+                    assert kwargs["base_url"] == "https://env-test.com"
+                    assert kwargs["organization"] == "env-test-org"

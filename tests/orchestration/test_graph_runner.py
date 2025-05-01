@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
+from saplings.memory import MemoryStore
 from saplings.orchestration.config import (
     AgentNode,
     CommunicationChannel,
@@ -19,6 +20,11 @@ from saplings.orchestration.graph_runner import GraphRunner
 
 class TestGraphRunner:
     """Tests for the GraphRunner class."""
+
+    @pytest.fixture
+    def memory_store(self):
+        """Create a memory store for testing."""
+        return MemoryStore()
 
     @pytest.fixture
     def mock_llm(self):
@@ -42,12 +48,13 @@ class TestGraphRunner:
         return mock
 
     @pytest.fixture
-    def graph_runner(self, mock_llm):
+    def graph_runner(self, mock_llm, memory_store):
         """Create a GraphRunner instance for testing."""
         config = GraphRunnerConfig(
             negotiation_strategy=NegotiationStrategy.DEBATE,
             max_rounds=3,
             timeout_seconds=10,
+            memory_store=memory_store,
         )
         return GraphRunner(model=mock_llm, config=config)
 
@@ -60,7 +67,7 @@ class TestGraphRunner:
         assert graph_runner.agents == {}
         assert graph_runner.channels == []
 
-    def test_register_agent(self, graph_runner):
+    def test_register_agent(self, graph_runner, memory_store):
         """Test registering an agent."""
         # Register an agent
         agent = AgentNode(
@@ -69,6 +76,7 @@ class TestGraphRunner:
             role="tester",
             description="A test agent",
             capabilities=["testing"],
+            memory_store=memory_store,
         )
         graph_runner.register_agent(agent)
 
@@ -76,7 +84,7 @@ class TestGraphRunner:
         assert "agent1" in graph_runner.agents
         assert graph_runner.agents["agent1"] == agent
 
-    def test_register_duplicate_agent(self, graph_runner):
+    def test_register_duplicate_agent(self, graph_runner, memory_store):
         """Test registering a duplicate agent."""
         # Register an agent
         agent = AgentNode(
@@ -85,6 +93,7 @@ class TestGraphRunner:
             role="tester",
             description="A test agent",
             capabilities=["testing"],
+            memory_store=memory_store,
         )
         graph_runner.register_agent(agent)
 
@@ -95,11 +104,12 @@ class TestGraphRunner:
             role="duplicator",
             description="A duplicate agent",
             capabilities=["duplicating"],
+            memory_store=memory_store,
         )
         with pytest.raises(ValueError):
             graph_runner.register_agent(duplicate_agent)
 
-    def test_create_channel(self, graph_runner):
+    def test_create_channel(self, graph_runner, memory_store):
         """Test creating a communication channel."""
         # Register agents
         agent1 = AgentNode(
@@ -108,6 +118,7 @@ class TestGraphRunner:
             role="tester",
             description="A test agent",
             capabilities=["testing"],
+            memory_store=memory_store,
         )
         agent2 = AgentNode(
             id="agent2",
@@ -115,6 +126,7 @@ class TestGraphRunner:
             role="reviewer",
             description="A review agent",
             capabilities=["reviewing"],
+            memory_store=memory_store,
         )
         graph_runner.register_agent(agent1)
         graph_runner.register_agent(agent2)
@@ -134,7 +146,7 @@ class TestGraphRunner:
         assert channel.channel_type == "test"
         assert channel.description == "A test channel"
 
-    def test_create_channel_invalid_agent(self, graph_runner):
+    def test_create_channel_invalid_agent(self, graph_runner, memory_store):
         """Test creating a channel with an invalid agent."""
         # Register an agent
         agent = AgentNode(
@@ -143,6 +155,7 @@ class TestGraphRunner:
             role="tester",
             description="A test agent",
             capabilities=["testing"],
+            memory_store=memory_store,
         )
         graph_runner.register_agent(agent)
 
@@ -156,7 +169,7 @@ class TestGraphRunner:
             )
 
     @pytest.mark.asyncio
-    async def test_debate_negotiation(self, graph_runner):
+    async def test_debate_negotiation(self, graph_runner, memory_store):
         """Test debate negotiation strategy."""
         # Register agents
         agent1 = AgentNode(
@@ -165,6 +178,7 @@ class TestGraphRunner:
             role="proposer",
             description="An agent that proposes ideas",
             capabilities=["proposing"],
+            memory_store=memory_store,
         )
         agent2 = AgentNode(
             id="agent2",
@@ -172,6 +186,7 @@ class TestGraphRunner:
             role="critic",
             description="An agent that critiques ideas",
             capabilities=["critiquing"],
+            memory_store=memory_store,
         )
         graph_runner.register_agent(agent1)
         graph_runner.register_agent(agent2)
@@ -205,7 +220,7 @@ class TestGraphRunner:
             assert result == "Consensus reached: This is the solution"
 
     @pytest.mark.asyncio
-    async def test_contract_net_negotiation(self, graph_runner):
+    async def test_contract_net_negotiation(self, graph_runner, memory_store):
         """Test contract-net negotiation strategy."""
         # Set the negotiation strategy to CONTRACT_NET
         graph_runner.config.negotiation_strategy = NegotiationStrategy.CONTRACT_NET
@@ -217,6 +232,7 @@ class TestGraphRunner:
             role="manager",
             description="An agent that manages tasks",
             capabilities=["managing"],
+            memory_store=memory_store,
         )
         worker1 = AgentNode(
             id="worker1",
@@ -224,6 +240,7 @@ class TestGraphRunner:
             role="worker",
             description="An agent that performs tasks",
             capabilities=["working"],
+            memory_store=memory_store,
         )
         worker2 = AgentNode(
             id="worker2",
@@ -231,6 +248,7 @@ class TestGraphRunner:
             role="worker",
             description="Another agent that performs tasks",
             capabilities=["working"],
+            memory_store=memory_store,
         )
         graph_runner.register_agent(manager)
         graph_runner.register_agent(worker1)
@@ -277,7 +295,7 @@ class TestGraphRunner:
             assert result == "Task completed: This is the result"
 
     @pytest.mark.asyncio
-    async def test_invalid_negotiation_strategy(self, graph_runner):
+    async def test_invalid_negotiation_strategy(self, graph_runner, memory_store):
         """Test invalid negotiation strategy."""
         # Set an invalid negotiation strategy
         graph_runner.config.negotiation_strategy = "INVALID"
@@ -290,7 +308,7 @@ class TestGraphRunner:
             )
 
     @pytest.mark.asyncio
-    async def test_run_with_timeout(self, graph_runner):
+    async def test_run_with_timeout(self, graph_runner, memory_store):
         """Test running with a timeout."""
         # Set a very short timeout
         graph_runner.config.timeout_seconds = 0.1
@@ -302,6 +320,7 @@ class TestGraphRunner:
             role="proposer",
             description="An agent that proposes ideas",
             capabilities=["proposing"],
+            memory_store=memory_store,
         )
         agent2 = AgentNode(
             id="agent2",
@@ -309,6 +328,7 @@ class TestGraphRunner:
             role="critic",
             description="An agent that critiques ideas",
             capabilities=["critiquing"],
+            memory_store=memory_store,
         )
         graph_runner.register_agent(agent1)
         graph_runner.register_agent(agent2)
@@ -341,7 +361,7 @@ class TestGraphRunner:
                 )
 
     @pytest.mark.asyncio
-    async def test_run_with_max_rounds(self, graph_runner):
+    async def test_run_with_max_rounds(self, graph_runner, memory_store):
         """Test running with max rounds."""
         # Set max rounds to 2
         graph_runner.config.max_rounds = 2
@@ -353,6 +373,7 @@ class TestGraphRunner:
             role="proposer",
             description="An agent that proposes ideas",
             capabilities=["proposing"],
+            memory_store=memory_store,
         )
         agent2 = AgentNode(
             id="agent2",
@@ -360,6 +381,7 @@ class TestGraphRunner:
             role="critic",
             description="An agent that critiques ideas",
             capabilities=["critiquing"],
+            memory_store=memory_store,
         )
         graph_runner.register_agent(agent1)
         graph_runner.register_agent(agent2)
@@ -382,7 +404,7 @@ class TestGraphRunner:
         original_run_negotiation = graph_runner._run_negotiation
         rounds = [0]
 
-        async def mock_run_negotiation(task, context, max_rounds):
+        async def mock_run_negotiation(task, context, max_rounds, trace_id=None):
             # Increment the round counter
             rounds[0] += 1
 
@@ -413,7 +435,7 @@ class TestGraphRunner:
             graph_runner._run_negotiation = original_run_negotiation
 
     @pytest.mark.asyncio
-    async def test_multi_agent_coordination(self, graph_runner):
+    async def test_multi_agent_coordination(self, graph_runner, memory_store):
         """Test coordination between multiple agents in a complex graph."""
         # Create a team of specialized agents
         researcher = AgentNode(
@@ -422,6 +444,7 @@ class TestGraphRunner:
             role="researcher",
             description="An agent that researches information",
             capabilities=["research", "information_gathering"],
+            memory_store=memory_store,
         )
 
         analyst = AgentNode(
@@ -430,6 +453,7 @@ class TestGraphRunner:
             role="analyst",
             description="An agent that analyzes data",
             capabilities=["data_analysis", "statistics"],
+            memory_store=memory_store,
         )
 
         writer = AgentNode(
@@ -438,6 +462,7 @@ class TestGraphRunner:
             role="writer",
             description="An agent that writes content",
             capabilities=["writing", "summarization"],
+            memory_store=memory_store,
         )
 
         reviewer = AgentNode(
@@ -446,6 +471,7 @@ class TestGraphRunner:
             role="reviewer",
             description="An agent that reviews and improves content",
             capabilities=["editing", "quality_control"],
+            memory_store=memory_store,
         )
 
         # Register all agents

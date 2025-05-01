@@ -13,7 +13,9 @@ import pytest
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.core.plugin import PluginType, ToolPlugin
 from saplings.executor import Executor, ExecutorConfig
-from saplings.orchestration import GraphRunner, GraphRunnerConfig, AgentNode
+from saplings.memory import MemoryStore
+from saplings.orchestration.config import AgentNode, GraphRunnerConfig
+from saplings.orchestration import GraphRunner
 from saplings.planner import SequentialPlanner, PlannerConfig
 from saplings.tool_factory import (
     ToolFactory,
@@ -32,6 +34,11 @@ from saplings.integration import (
 
 class TestHotLoading:
     """Tests for the hot-loading system."""
+
+    @pytest.fixture
+    def memory_store(self):
+        """Create a memory store for testing."""
+        return MemoryStore()
 
     @pytest.fixture
     def mock_llm(self):
@@ -88,9 +95,9 @@ class TestHotLoading:
         return SequentialPlanner(model=mock_llm, config=config)
 
     @pytest.fixture
-    def graph_runner(self, mock_llm):
+    def graph_runner(self, mock_llm, memory_store):
         """Create a GraphRunner instance for testing."""
-        config = GraphRunnerConfig()
+        config = GraphRunnerConfig(memory_store=memory_store)
         return GraphRunner(model=mock_llm, config=config)
 
     @pytest.fixture
@@ -365,7 +372,7 @@ def {{function_name}}({{parameters}}):
         assert spec.id in integration_manager.planner.tools
 
     @pytest.mark.asyncio
-    async def test_integration_with_graph_runner(self, integration_manager, tool_factory):
+    async def test_integration_with_graph_runner(self, integration_manager, tool_factory, memory_store):
         """Test integration with graph runner."""
         # Register a template
         template = ToolTemplate(
@@ -415,6 +422,7 @@ def {{function_name}}({{parameters}}):
             description="An agent that uses tools",
             capabilities=["using_tools"],
             metadata={"tools": {}},
+            memory_store=memory_store,
         )
         integration_manager.graph_runner.register_agent(agent)
 
@@ -531,7 +539,7 @@ class HotLoadedTool(ToolPlugin):
                 os.remove(tool_file_path)
 
     @pytest.mark.asyncio
-    async def test_end_to_end_integration(self, integration_manager, tool_factory):
+    async def test_end_to_end_integration(self, integration_manager, tool_factory, memory_store):
         """Test end-to-end integration between hot-loading, tool factory, executor, and planner."""
         # Register a template
         template = ToolTemplate(
@@ -613,6 +621,7 @@ def {{function_name}}({{parameters}}):
             description="An agent that processes data",
             capabilities=["data_processing"],
             metadata={"tools": {}},
+            memory_store=memory_store,
         )
         integration_manager.graph_runner.register_agent(agent)
 

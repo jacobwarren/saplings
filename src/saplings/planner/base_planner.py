@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 
 from saplings.core.model_adapter import LLM, ModelRole
+from saplings.monitoring.trace import TraceManager
 from saplings.planner.config import PlannerConfig
 from saplings.planner.plan_step import PlanStep, PlanStepStatus
 
@@ -22,19 +23,26 @@ class BasePlanner(ABC):
     This class defines the interface that all planners must implement.
     """
 
-    def __init__(self, config: Optional[PlannerConfig] = None, model: Optional[LLM] = None):
+    def __init__(
+        self,
+        config: Optional[PlannerConfig] = None,
+        model: Optional[LLM] = None,
+        trace_manager: Optional["TraceManager"] = None
+    ):
         """
         Initialize the planner.
 
         Args:
             config: Planner configuration
             model: LLM model to use for planning
+            trace_manager: TraceManager for tracing execution
         """
         self.config = config or PlannerConfig.default()
         self.model = model
         self.steps: List[PlanStep] = []
         self.total_cost: float = 0.0
         self.total_tokens: int = 0
+        self.trace_manager = trace_manager
 
         # Validate model if provided
         if self.model is not None:

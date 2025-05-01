@@ -39,7 +39,6 @@ from saplings.monitoring import (
     BlameGraph,
     TraceViewer
 )
-from saplings.orchestration import GraphRunner, GraphRunnerConfig
 from saplings.planner import (
     SequentialPlanner,
     PlannerConfig,
@@ -74,7 +73,9 @@ class AgentConfig:
 
     def __init__(
         self,
-        model_uri: str,
+        model_uri: Optional[str] = None,
+        provider: Optional[str] = None,
+        model_name: Optional[str] = None,
         memory_path: str = "./agent_memory",
         output_dir: str = "./agent_output",
         enable_gasa: bool = True,
@@ -90,12 +91,15 @@ class AgentConfig:
         executor_verification_strategy: str = "judge",
         tool_factory_sandbox_enabled: bool = True,
         allowed_imports: List[str] = None,
+        **model_parameters
     ):
         """
         Initialize the agent configuration.
 
         Args:
-            model_uri: URI of the model to use (e.g., "openai:gpt-4", "anthropic:claude-3-opus")
+            model_uri: URI of the model to use (e.g., "openai://gpt-4", "anthropic://claude-3-opus")
+            provider: Model provider (e.g., 'vllm', 'openai', 'anthropic')
+            model_name: Model name
             memory_path: Path to store agent memory
             output_dir: Directory to save outputs
             enable_gasa: Whether to enable Graph-Aligned Sparse Attention
@@ -111,8 +115,23 @@ class AgentConfig:
             executor_verification_strategy: Strategy for output verification
             tool_factory_sandbox_enabled: Whether to enable sandbox for tool execution
             allowed_imports: List of allowed imports for dynamic tools
+            **model_parameters: Additional model parameters
         """
+        # Handle model specification
+        if model_uri is None and provider is not None and model_name is not None:
+            # Create a model URI from provider and model_name
+            params_str = ""
+            if model_parameters:
+                params_list = [f"{k}={v}" for k, v in model_parameters.items()]
+                params_str = "?" + "&".join(params_list)
+            model_uri = f"{provider}://{model_name}{params_str}"
+        elif model_uri is None:
+            raise ValueError("Either 'model_uri' or both 'provider' and 'model_name' must be provided")
+
         self.model_uri = model_uri
+        self.provider = provider
+        self.model_name = model_name
+        self.model_parameters = model_parameters
         self.memory_path = memory_path
         self.output_dir = output_dir
         self.enable_gasa = enable_gasa
@@ -237,8 +256,18 @@ class Agent:
 
     def _init_model(self):
         """Initialize the model."""
-        self.model = LLM.from_uri(self.config.model_uri)
-        logger.info(f"Model initialized: {self.config.model_uri}")
+        # Use the new approach if provider and model_name are provided
+        if self.config.provider is not None and self.config.model_name is not None:
+            self.model = LLM.create(
+                provider=self.config.provider,
+                model=self.config.model_name,
+                **self.config.model_parameters
+            )
+            logger.info(f"Model initialized: {self.config.provider}/{self.config.model_name}")
+        else:
+            # Fall back to the URI approach
+            self.model = LLM.from_uri(self.config.model_uri)
+            logger.info(f"Model initialized: {self.config.model_uri}")
 
     def _init_retrieval(self):
         """Initialize retrieval components."""
@@ -388,6 +417,10 @@ class Agent:
 
     def _init_orchestration(self):
         """Initialize orchestration components."""
+        # Import here to avoid circular imports
+        from saplings.orchestration.config import GraphRunnerConfig
+        from saplings.orchestration.graph_runner import GraphRunner
+
         # Create graph runner config
         graph_runner_config = GraphRunnerConfig()
 

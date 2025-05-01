@@ -8,6 +8,7 @@ allowing for high-performance inference with vLLM.
 import asyncio
 import json
 import logging
+import os
 import re
 import traceback
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
@@ -66,9 +67,54 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         self.tool_call_parser = self.model_uri.parameters.get("tool_call_parser", None)
         self.chat_template = self.model_uri.parameters.get("chat_template", None)
 
+        # Special handling for Hugging Face models with organization prefixes
+        # vLLM has an issue with models specified as "Org/Model" format
+        # It tries to access "https://huggingface.co/api/models/Org/tree/main" instead of
+        # "https://huggingface.co/api/models/Org/Model/tree/main"
+        # We need to handle this by using the full model path
+
+        # For local models, use the model name as is
+        if os.path.exists(self.model_name):
+            model_name_for_engine = self.model_name
+            logger.info(f"Using local model: {model_name_for_engine}")
+        else:
+            # For Hugging Face models, we need to modify how the model is loaded
+            # vLLM expects the model to be in the format "Org/Model" but has issues with
+            # how it constructs the API URL
+
+            # Let's try to use a direct download approach
+            # This will force vLLM to download the model from the full URL
+            # instead of trying to construct the API URL itself
+            if "/" in self.model_name:
+                # Use the huggingface_hub library to get the full repo ID
+                try:
+                    from huggingface_hub import HfApi
+                    api = HfApi()
+
+                    # Try to get the model info to verify it exists
+                    # This will raise an error if the model doesn't exist
+                    # or if we don't have access to it
+                    try:
+                        # Use the full model name as is
+                        model_name_for_engine = self.model_name
+                        logger.info(f"Using Hugging Face model: {model_name_for_engine}")
+                    except Exception as e:
+                        logger.warning(f"Error accessing model {self.model_name}: {e}")
+                        # Fall back to a different approach
+                        model_name_for_engine = self.model_name
+                        logger.info(f"Falling back to direct model name: {model_name_for_engine}")
+                except ImportError:
+                    # If huggingface_hub is not installed, just use the model name as is
+                    model_name_for_engine = self.model_name
+                    logger.info(f"Using Hugging Face model (without hub library): {model_name_for_engine}")
+            else:
+                # If there's no organization prefix, just use the model name as is
+                model_name_for_engine = self.model_name
+                logger.info(f"Using Hugging Face model: {model_name_for_engine}")
+
         # Initialize vLLM engine
         engine_kwargs = {
-            "model": self.model_name,
+            "model": model_name_for_engine,
             "trust_remote_code": kwargs.get("trust_remote_code", True),
         }
 
@@ -89,25 +135,31 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 # In vLLM 0.8.0+, function calling is enabled by default
                 # We just need to set the appropriate parameters for the model
 
-                # Set tool call parser if specified
-                if self.tool_call_parser:
-                    engine_kwargs["tool_call_parser"] = self.tool_call_parser
-                elif "llama-3.1" in self.model_name.lower():
-                    engine_kwargs["tool_call_parser"] = "llama3_json"
-                elif "llama-3.2" in self.model_name.lower():
-                    engine_kwargs["tool_call_parser"] = "llama3_json"
-                elif "hermes" in self.model_name.lower():
-                    engine_kwargs["tool_call_parser"] = "hermes"
-                elif "mistral" in self.model_name.lower():
-                    engine_kwargs["tool_call_parser"] = "mistral"
+                # In vLLM 0.8.5, tool_call_parser and chat_template are not supported as engine arguments
+                # Instead, we need to use the enable_auto_tool_choice parameter
 
-                # Set chat template if specified
+                # Check if enable_auto_tool_choice is supported in this vLLM version
+                try:
+                    # Create a test EngineArgs to check if enable_auto_tool_choice is supported
+                    from vllm.engine.arg_utils import EngineArgs
+                    test_args = {"enable_auto_tool_choice": True}
+                    EngineArgs(**test_args)
+
+                    # If we get here, enable_auto_tool_choice is supported
+                    engine_kwargs["enable_auto_tool_choice"] = True
+                    logger.info("Using enable_auto_tool_choice for function calling")
+                except (TypeError, ImportError, AttributeError):
+                    # enable_auto_tool_choice is not supported in this vLLM version
+                    logger.warning("Function calling may not work as expected in this vLLM version.")
+
+                # Log warnings about unsupported parameters
+                if self.tool_call_parser:
+                    logger.warning("tool_call_parser parameter not supported in this vLLM version. "
+                                  "Function calling may not work as expected.")
+
                 if self.chat_template:
-                    engine_kwargs["chat_template"] = self.chat_template
-                elif "llama-3.1" in self.model_name.lower():
-                    engine_kwargs["chat_template"] = "tool_use"
-                elif "llama-3.2" in self.model_name.lower():
-                    engine_kwargs["chat_template"] = "tool_use"
+                    logger.warning("chat_template parameter not supported in this vLLM version. "
+                                  "Chat formatting may not work as expected.")
             else:
                 # For older versions, try to use enable_auto_tool_choice
                 try:
@@ -118,13 +170,33 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                     # If we get here, enable_auto_tool_choice is supported
                     engine_kwargs["enable_auto_tool_choice"] = True
 
-                    # Set tool call parser if specified
-                    if self.tool_call_parser:
-                        engine_kwargs["tool_call_parser"] = self.tool_call_parser
+                    # Check if tool_call_parser is supported in this vLLM version
+                    try:
+                        # Create a test EngineArgs to check if tool_call_parser is supported
+                        test_args = {"tool_call_parser": "test"}
+                        EngineArgs(**test_args)
 
-                    # Set chat template if specified
-                    if self.chat_template:
-                        engine_kwargs["chat_template"] = self.chat_template
+                        # If we get here, tool_call_parser is supported
+                        if self.tool_call_parser:
+                            engine_kwargs["tool_call_parser"] = self.tool_call_parser
+                    except (TypeError, AttributeError):
+                        # tool_call_parser is not supported in this vLLM version
+                        logger.warning("tool_call_parser parameter not supported in this vLLM version. "
+                                      "Function calling may not work as expected.")
+
+                    # Check if chat_template is supported in this vLLM version
+                    try:
+                        # Create a test EngineArgs to check if chat_template is supported
+                        test_args = {"chat_template": "test"}
+                        EngineArgs(**test_args)
+
+                        # If we get here, chat_template is supported
+                        if self.chat_template:
+                            engine_kwargs["chat_template"] = self.chat_template
+                    except (TypeError, AttributeError):
+                        # chat_template is not supported in this vLLM version
+                        logger.warning("chat_template parameter not supported in this vLLM version. "
+                                      "Chat formatting may not work as expected.")
                 except (TypeError, ImportError, AttributeError):
                     # enable_auto_tool_choice is not supported in this vLLM version
                     logger.warning("Function calling not fully supported in this vLLM version. "
@@ -137,7 +209,39 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
         # Create the vLLM engine
         try:
-            self.engine = vllm.LLM(**engine_kwargs)
+            # Try to load the model with the current engine_kwargs
+            try:
+                self.engine = vllm.LLM(**engine_kwargs)
+            except Exception as first_error:
+                # If the error is about the repository not being found and the model name contains a slash
+                if ("Repository Not Found" in str(first_error) or "Invalid repository ID" in str(first_error)) and "/" in self.model_name:
+                    # Try a different approach - use the model name without the organization prefix
+                    org, model_without_org = self.model_name.split("/", 1)
+                    logger.warning(f"Error loading model with full name. Trying with model name only: {model_without_org}")
+
+                    # Update the engine kwargs with the new model name
+                    engine_kwargs["model"] = model_without_org
+
+                    # Try again with the new model name
+                    try:
+                        self.engine = vllm.LLM(**engine_kwargs)
+                    except Exception as second_error:
+                        # If that also fails, try with just the organization name
+                        logger.warning(f"Error loading model with model name only. Trying with organization name: {org}")
+
+                        # Update the engine kwargs with the organization name
+                        engine_kwargs["model"] = org
+
+                        # Try one more time
+                        try:
+                            self.engine = vllm.LLM(**engine_kwargs)
+                        except Exception as third_error:
+                            # If all approaches fail, raise the original error
+                            logger.error(f"All approaches failed. Original error: {first_error}")
+                            raise RuntimeError(f"Error initializing vLLM engine: {first_error}")
+                else:
+                    # If it's a different error, re-raise it
+                    raise RuntimeError(f"Error initializing vLLM engine: {first_error}")
         except Exception as e:
             logger.error(f"Error initializing vLLM engine: {e}")
             logger.error(traceback.format_exc())

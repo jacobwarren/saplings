@@ -205,7 +205,9 @@ class TestPatchGenerator:
             assert patch.original_code == code
             assert patch.error == error
             # The patched code should have the correct number of arguments
-            assert "foo(1, 2)" in patch.patched_code.replace(" ", "") or "foo(1,2)" in patch.patched_code.replace(" ", "")
+            # Use a more flexible regex pattern to match the function call with 2 arguments
+            import re
+            assert re.search(r'foo\s*\(\s*1\s*,\s*2\s*\)', patch.patched_code) is not None
         assert patch.status == PatchStatus.GENERATED
 
         # Test missing module error

@@ -432,7 +432,15 @@ class SimpleIndexer(Indexer):
             List[Entity]: Extracted entities
         """
         entities = []
-        content = document.content.lower()
+
+        # Handle nested Document objects
+        if isinstance(document.content, Document):
+            content = document.content.content
+        else:
+            content = document.content
+
+        # Convert to string and lowercase
+        content = str(content).lower()
 
         # Only process entity types that are enabled in the configuration
         enabled_entity_types = self.config.graph.entity_types
@@ -470,7 +478,15 @@ class SimpleIndexer(Indexer):
             List[Relationship]: Extracted relationships
         """
         relationships = []
-        content = document.content.lower()
+
+        # Handle nested Document objects
+        if isinstance(document.content, Document):
+            content = document.content.content
+        else:
+            content = document.content
+
+        # Convert to string and lowercase
+        content = str(content).lower()
 
         # Create a dictionary of entities by type for easier lookup
         entities_by_type = {}

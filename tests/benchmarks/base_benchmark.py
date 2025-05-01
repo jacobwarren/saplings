@@ -13,7 +13,34 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pytest
 
-from saplings.core.model_adapter import LLM, ModelMetadata, ModelRole
+from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
+
+
+class MockTokenizer:
+    """Mock tokenizer for testing."""
+
+    def __init__(self):
+        """Initialize the mock tokenizer."""
+        self.unk_token_id = 0
+
+    def __call__(self, text, return_tensors="pt"):
+        """Tokenize text."""
+        # Simple tokenization by splitting on spaces
+        tokens = text.split()
+
+        # Create a mock tokens object with PyTorch-like attributes
+        class MockTokens:
+            def __init__(self, tokens):
+                # Create a numpy array to simulate PyTorch tensor
+                import numpy as np
+                self.input_ids = np.array([list(range(len(tokens)))], dtype=np.int32)
+
+        return MockTokens(tokens)
+
+    def convert_tokens_to_ids(self, token):
+        """Convert token to ID."""
+        # Simple mock implementation
+        return 1 if token else 0
 
 
 class BaseBenchmark:
@@ -166,7 +193,10 @@ class MockBenchmarkLLM(LLM):
         self.response_time_ms = kwargs.get("response_time_ms", 100)
         self.token_count = kwargs.get("token_count", 100)
 
-    async def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
+        # Add a simple tokenizer
+        self.tokenizer = MockTokenizer()
+
+    async def generate(self, prompt: str, **kwargs) -> LLMResponse:
         """Generate text from the model."""
         # Record the call
         self.generate_calls.append({
@@ -178,16 +208,16 @@ class MockBenchmarkLLM(LLM):
         await self._simulate_processing()
 
         # Return a mock response
-        return {
-            "text": f"Response to: {prompt[:50]}...",
-            "model_uri": self.model_uri,
-            "usage": {
+        return LLMResponse(
+            text=f"Response to: {prompt[:50]}...",
+            model_uri=self.model_uri,
+            usage={
                 "prompt_tokens": len(prompt.split()),
                 "completion_tokens": self.token_count,
                 "total_tokens": len(prompt.split()) + self.token_count,
             },
-            "metadata": {"model": "benchmark-model"},
-        }
+            metadata={"model": "benchmark-model"},
+        )
 
     async def generate_streaming(self, prompt: str, **kwargs):
         """Generate text from the model with streaming output."""

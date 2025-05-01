@@ -88,8 +88,21 @@ class ModelURI(BaseModel):
             # 2. provider://namespace/model-name - Complex model name without version
             # 3. provider://namespace/model-name/version - Complex model name with version
 
+            # For Hugging Face models with organization prefixes (e.g., "Qwen/Qwen3-30B-A3B")
+            # we want to keep the full path as the model name
+            if len(path_components) >= 2 and provider_part.lower() in ["vllm", "huggingface"]:
+                # Check if the last component looks like a version (e.g., "v1.0", "latest")
+                last_component = path_components[-1].lower()
+                if last_component in ["latest", "main"] or (last_component.startswith("v") and any(c.isdigit() for c in last_component)):
+                    # This is likely a version
+                    version = path_components[-1]
+                    model_name = "/".join(path_components[:-1])
+                else:
+                    # This is likely part of the model name
+                    model_name = "/".join(path_components)
+                    version = "latest"
             # Check if this is a URI from test_parse_with_complex_model_name
-            if uri_string == "provider://namespace/model-name":
+            elif uri_string == "provider://namespace/model-name":
                 model_name = "namespace/model-name"
                 version = "latest"
             # Check if this is a URI from test_parse_with_complex_model_name_and_parameters
@@ -307,6 +320,36 @@ class LLM(ABC):
                 )
         else:
             raise ValueError(f"Unsupported model provider: {provider}")
+
+    @classmethod
+    def create(cls, provider: str, model: str, **kwargs) -> "LLM":
+        """
+        Create an LLM instance with a provider and model name.
+
+        This is a more intuitive alternative to the URI-based approach.
+
+        Args:
+            provider: The model provider (e.g., 'vllm', 'openai', 'anthropic', 'huggingface')
+            model: The model name
+            **kwargs: Additional parameters for the model
+
+        Returns:
+            LLM: An instance of the appropriate LLM adapter
+
+        Raises:
+            ValueError: If the provider is not supported
+            ImportError: If the required dependencies are not installed
+        """
+        # Convert parameters to a URI format
+        parameters_str = ""
+        if kwargs:
+            parameters_str = "?" + "&".join(f"{k}={v}" for k, v in kwargs.items())
+
+        # Create a URI string
+        uri_string = f"{provider}://{model}{parameters_str}"
+
+        # Use the from_uri method to create the model
+        return cls.from_uri(uri_string)
 
     @abstractmethod
     async def generate(

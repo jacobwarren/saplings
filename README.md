@@ -78,6 +78,9 @@ For simple tasks with well-defined outputs, consider using:
 Saplings agents are composed of several key components:
 
 1. **Memory**: Stores and indexes documents, code, and other information
+   - The `MemoryStore` is an in-memory object by default that combines vector storage and graph-based memory
+   - Memory can be persisted to disk using `memory_store.save("path/to/directory")` and loaded with `memory_store.load("path/to/directory")`
+   - When saved, it creates a directory structure with vector embeddings, dependency graph data, and configuration
 2. **Retriever**: Finds relevant information based on queries
 3. **Planner**: Breaks down complex tasks into steps
 4. **Executor**: Carries out individual steps using models and tools
@@ -93,6 +96,13 @@ GASA is a novel technique that injects learned binary attention masks—derived 
 - Routing other tokens through lightweight global summary tokens
 - Reducing computational costs while improving grounding
 - Empirically fewer hallucinations in outputs
+
+#### GASA with Third-Party LLMs
+
+When using GASA with third-party APIs like OpenAI and Anthropic:
+- Full GASA implementation is only possible with local models (vLLM) where we have direct access to the attention mechanism
+- With third-party APIs, Saplings uses a "soft GASA" approach that performs intelligent context packing based on the dependency graph
+- The `enable_gasa` flag still works with third-party models, but activates context optimization rather than true sparse attention masks
 
 ### Self-Improvement Loop
 
@@ -221,9 +231,10 @@ memory = MemoryStore()
 memory.index_repository("/path/to/your/repo")
 
 # Create an agent configuration
+# Note: memory_path enables automatic persistence of the memory store
 config = AgentConfig(
     model_uri="openai://gpt-4o",
-    memory_path="./agent_memory"
+    memory_path="./agent_memory"  # Directory where memory will be saved/loaded
 )
 
 # Create an agent with the configuration
@@ -231,6 +242,11 @@ agent = Agent(config=config)
 
 # Set the memory store
 agent.memory_store = memory
+
+# Memory will be automatically saved to the memory_path directory
+# You can also manually save/load memory:
+# memory.save("./custom_memory_path")
+# memory.load("./custom_memory_path")
 
 # Run a task (note: this is an async method)
 import asyncio
