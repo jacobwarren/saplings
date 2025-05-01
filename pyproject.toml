@@ -1,12 +1,16 @@
-[tool.poetry]
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
 name = "saplings"
 version = "0.2.0"
 description = "A graphs-first, self-improving agent framework"
-authors = ["Jacob Warren <jacob.paul.warren@gmail.com>"]
+authors = [
+    {name = "Jacob Warren", email = "jacob.paul.warren@gmail.com"}
+]
 readme = "README.md"
-license = "MIT"
-repository = "https://github.com/jacobwarren/saplings"
-documentation = "https://github.com/jacobwarren/saplings/docs"
+license = {text = "MIT"}
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -18,9 +22,29 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+requires-python = ">=3.9,<3.13"
+dynamic = ["dependencies"]
+
+[project.urls]
+Repository = "https://github.com/jacobwarren/saplings"
+Documentation = "https://github.com/jacobwarren/saplings/docs"
+
+[tool.poetry]
 packages = [{include = "saplings", from = "src"}]
 
+# Dependencies are defined in tool.poetry.dependencies for now
+
+[project.optional-dependencies]
+lora = ["transformers>=4.30.0", "datasets>=2.13.0", "torch>=2.0.0", "peft>=0.5.0", "accelerate>=0.20.0", "bitsandbytes>=0.40.0"]
+vllm = ["vllm>=0.8.5"]
+openai = ["openai>=1.0.0"]
+anthropic = ["anthropic>=0.8.0"]
+huggingface = ["transformers>=4.30.0", "torch>=2.0.0"]
+monitoring = ["langsmith>=0.0.60"]
+all = ["transformers>=4.30.0", "datasets>=2.13.0", "torch>=2.0.0", "peft>=0.5.0", "accelerate>=0.20.0", "bitsandbytes>=0.40.0", "vllm>=0.8.5", "openai>=1.0.0", "anthropic>=0.8.0", "langsmith>=0.0.60"]
+
 [tool.poetry.dependencies]
+# Keep this for backward compatibility with Poetry 1.x
 python = ">=3.9,<3.13"
 numpy = "^1.24.0"
 pydantic = "^2.0.0"
@@ -52,6 +76,9 @@ openai = {version = "^1.0.0", optional = true}
 anthropic = {version = "^0.8.0", optional = true}
 langsmith = {version = "^0.0.60", optional = true}
 
+# Dev and test dependencies are defined in tool.poetry.group.*.dependencies for now
+
+# Keep these for backward compatibility with Poetry 1.x
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
 pytest-cov = "^4.1.0"
@@ -78,9 +105,7 @@ peft = "^0.5.0"
 accelerate = "^0.20.0"
 bitsandbytes = "^0.40.0"
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+# Build system is defined at the top of the file
 
 [tool.black]
 line-length = 100
@@ -106,6 +131,23 @@ python_classes = "Test*"
 [tool.pytest.ini_options.markers]
 nocov = "Skip coverage for this test"
 
+[project.entry-points."saplings.model_adapters"]
+vllm = "saplings.adapters.vllm_adapter:VLLMAdapter"
+openai = "saplings.adapters.openai_adapter:OpenAIAdapter"
+anthropic = "saplings.adapters.anthropic_adapter:AnthropicAdapter"
+huggingface = "saplings.adapters.huggingface_adapter:HuggingFaceAdapter"
+
+[project.entry-points."saplings.memory_stores"]
+secure = "saplings.plugins.memory_stores:SecureMemoryStore"
+
+[project.entry-points."saplings.validators"]
+code = "saplings.plugins.validators:CodeValidator"
+factual = "saplings.plugins.validators:FactualValidator"
+
+[project.entry-points."saplings.indexers"]
+code = "saplings.plugins.indexers:CodeIndexer"
+
+# Keep these for backward compatibility with Poetry 1.x
 [tool.poetry.plugins."saplings.model_adapters"]
 vllm = "saplings.adapters.vllm_adapter:VLLMAdapter"
 openai = "saplings.adapters.openai_adapter:OpenAIAdapter"
@@ -124,11 +166,4 @@ code = "saplings.plugins.indexers:CodeIndexer"
 
 # Inference dependencies are now in the main dependencies section with optional=true
 
-[tool.poetry.extras]
-lora = ["transformers", "datasets", "torch", "peft", "accelerate", "bitsandbytes"]
-vllm = ["vllm"]
-openai = ["openai"]
-anthropic = ["anthropic"]
-huggingface = ["transformers", "torch"]
-monitoring = ["langsmith"]
-all = ["transformers", "datasets", "torch", "peft", "accelerate", "bitsandbytes", "vllm", "openai", "anthropic", "langsmith"]
+# Extras are now defined in project.optional-dependencies

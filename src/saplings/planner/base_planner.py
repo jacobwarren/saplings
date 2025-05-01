@@ -43,6 +43,7 @@ class BasePlanner(ABC):
         self.total_cost: float = 0.0
         self.total_tokens: int = 0
         self.trace_manager = trace_manager
+        self.tools = {}
 
         # Validate model if provided
         if self.model is not None:

@@ -28,7 +28,7 @@ from saplings.memory.config import MemoryConfig
 from saplings.memory.indexer import get_indexer
 from saplings.memory.vector_store import get_vector_store
 from saplings.monitoring import BlameGraph, MonitoringConfig, TraceManager, TraceViewer
-from saplings.planner import PlannerConfig, PlanStep, SequentialPlanner
+from saplings.planner import PlannerConfig, PlanStep, PlanStepStatus, SequentialPlanner
 from saplings.retrieval import (
     CascadeRetriever,
     EmbeddingRetriever,
@@ -72,7 +72,7 @@ class AgentConfig:
         planner_budget_strategy: str = "token_count",
         executor_verification_strategy: str = "judge",
         tool_factory_sandbox_enabled: bool = True,
-        allowed_imports: List[str] = None,
+        allowed_imports: Optional[List[str]] = None,
         **model_parameters,
     ):
         """
@@ -458,13 +458,15 @@ class Agent:
             # Use defaults if not provided
             if "source" not in metadata_copy:
                 metadata_copy["source"] = "unknown"
-            if "document_id" not in metadata_copy:
-                metadata_copy["document_id"] = f"doc_{datetime.now().timestamp()}"
+
+            # Generate document ID
+            document_id = f"doc_{datetime.now().timestamp()}"
 
             doc_metadata = DocumentMetadata(**metadata_copy)
 
             # Create document
             document = Document(
+                id=document_id,
                 content=content,
                 metadata=doc_metadata,
             )
@@ -475,7 +477,7 @@ class Agent:
             # Index the document
             self.indexer.index_document(document)
 
-            logger.info(f"Added document: {document.metadata.document_id}")
+            logger.info(f"Added document: {document.id}")
 
             # End span
             if self.trace_manager and span:
@@ -523,7 +525,7 @@ class Agent:
             )
 
         try:
-            documents = []
+            documents: List[Document] = []
 
             # Check if directory exists
             if not os.path.isdir(directory):
@@ -585,7 +587,7 @@ class Agent:
 
             raise
 
-    async def retrieve(self, query: str, limit: int = None) -> List[Document]:
+    async def retrieve(self, query: str, limit: Optional[int] = None) -> List[Document]:
         """
         Retrieve documents based on a query.
 
@@ -630,7 +632,7 @@ class Agent:
                 )
                 self.trace_manager.end_span(span.span_id)
 
-            return documents
+            return list(documents)
 
         except Exception as e:
             logger.error(f"Error retrieving documents: {e}")
@@ -686,7 +688,7 @@ class Agent:
                 )
                 self.trace_manager.end_span(span.span_id)
 
-            return plan
+            return list(plan)
 
         except Exception as e:
             logger.error(f"Error creating plan: {e}")
@@ -876,19 +878,19 @@ class Agent:
                         attributes={
                             "component": "agent",
                             "step_number": i + 1,
-                            "step_description": step.description,
+                            "step_description": step.task_description,
                         },
                     )
 
                 # Execute step
                 step_result = await self.executor.execute(
-                    prompt=step.description,
+                    prompt=step.task_description,
                     documents=context,
                     trace_id=trace_id,
                 )
 
                 # Update step status
-                step.status = "completed"
+                step.update_status(PlanStepStatus.COMPLETED)
                 step.result = step_result.text
 
                 # Add to results

@@ -17,8 +17,15 @@ import numpy as np
 
 from saplings.core.model_adapter import LLM, LLMResponse, ModelRole
 from saplings.executor.config import ExecutorConfig, RefinementStrategy, VerificationStrategy
-from saplings.gasa import GASAConfig, MaskBuilder, MaskFormat, MaskType
-from saplings.judge import JudgeAgent, JudgeResult
+from saplings.gasa import (
+    FallbackStrategy,
+    GASAConfig,
+    MaskBuilder,
+    MaskFormat,
+    MaskStrategy,
+    MaskType,
+)
+from saplings.judge import JudgeAgent
 from saplings.memory.document import Document
 from saplings.memory.graph import DependencyGraph
 from saplings.monitoring.trace import TraceManager
@@ -86,7 +93,7 @@ class ExecutionResult:
             ExecutionResult: Execution result
         """
         return cls(
-            text=response.text,
+            text=response.text or "",  # Handle None case by providing empty string
             model_uri=response.model_uri,
             usage=response.usage,
             metadata=response.metadata,
@@ -160,11 +167,27 @@ class Executor:
         """
         self.model = model
         self.config = config or ExecutorConfig.default()
-        self.gasa_config = gasa_config or GASAConfig()
+        self.gasa_config = gasa_config or GASAConfig(
+            enabled=True,
+            max_hops=2,
+            mask_strategy=MaskStrategy.BINARY,
+            fallback_strategy=FallbackStrategy.BLOCK_DIAGONAL,
+            global_tokens=["[CLS]", "[SEP]", "<s>", "</s>", "[SUM]"],
+            summary_token="[SUM]",
+            add_summary_token=True,
+            block_size=512,
+            overlap=64,
+            soft_mask_temperature=0.1,
+            cache_masks=True,
+            cache_dir=None,
+            visualize=False,
+            visualization_dir=None,
+        )
         self.dependency_graph = dependency_graph
         self.judge_agent = judge_agent
         self.validator_registry = validator_registry
         self.trace_manager = trace_manager
+        self.tools: Dict[str, Any] = {}
 
         # Initialize GASA if enabled
         self.mask_builder = None
@@ -208,7 +231,7 @@ class Executor:
                 f"It must have either EXECUTOR or GENERAL role."
             )
 
-    def _get_cache_key(self, prompt: str, **_) -> str:
+    def _get_cache_key(self, prompt: str, **_: Any) -> str:
         """
         Get a cache key for a prompt and generation parameters.
 
@@ -253,13 +276,13 @@ class Executor:
             logger.debug(
                 f"Applied GASA mask to {generation_type} generation (shape: {mask.shape if hasattr(mask, 'shape') else 'unknown'})"
             )
-            return mask
+            return mask  # type: ignore
         except Exception as e:
             logger.warning(f"Failed to build GASA mask for {generation_type} generation: {e}")
             return None
 
     async def _generate_draft(
-        self, prompt: str, documents: Optional[List[Document]] = None, **kwargs
+        self, prompt: str, documents: Optional[List[Document]] = None, **kwargs: Any
     ) -> LLMResponse:
         """
         Generate a draft response with low temperature.
@@ -296,7 +319,7 @@ class Executor:
         return draft_response
 
     async def _generate_final(
-        self, prompt: str, documents: Optional[List[Document]] = None, **kwargs
+        self, prompt: str, documents: Optional[List[Document]] = None, **kwargs: Any
     ) -> LLMResponse:
         """
         Generate a final response with normal temperature.
@@ -337,7 +360,7 @@ class Executor:
         output: str,
         prompt: str,
         verification_strategy: Optional[VerificationStrategy] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[bool, Optional[float], Optional[str]]:
         """
         Verify an output using the configured verification strategy.
@@ -637,7 +660,7 @@ class Executor:
         verification_feedback: Optional[str],
         documents: Optional[List[Document]] = None,
         attempt: int = 1,
-        **kwargs,
+        **kwargs: Any,
     ) -> LLMResponse:
         """
         Refine a rejected output using the configured refinement strategy.
@@ -704,7 +727,7 @@ class Executor:
         stream: Optional[bool] = None,
         on_draft: Optional[Callable[[str], None]] = None,
         on_chunk: Optional[Callable[[str], None]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         """
         Execute a prompt to generate text.
@@ -827,7 +850,7 @@ class Executor:
         return result
 
     async def _generate_streaming_draft(
-        self, prompt: str, documents: Optional[List[Document]] = None, **kwargs
+        self, prompt: str, documents: Optional[List[Document]] = None, **kwargs: Any
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Generate a draft response with streaming output.
@@ -859,7 +882,7 @@ class Executor:
         # Generate draft with streaming
         draft_text = ""
         async for chunk in self.model.generate_streaming(prompt, **draft_kwargs):
-            draft_text += chunk
+            draft_text += str(chunk)
 
         # Record latency
         latency_ms = int((time.time() - start_time) * 1000)
@@ -878,7 +901,7 @@ class Executor:
         prompt: str,
         documents: Optional[List[Document]] = None,
         on_chunk: Optional[Callable[[str], None]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Generate a final response with streaming output.
@@ -911,11 +934,11 @@ class Executor:
         # Generate final response with streaming
         final_text = ""
         async for chunk in self.model.generate_streaming(prompt, **final_kwargs):
-            final_text += chunk
+            final_text += str(chunk)
 
             # Call chunk callback if provided
             if on_chunk is not None:
-                on_chunk(chunk)
+                on_chunk(str(chunk))
 
         # Record latency
         latency_ms = int((time.time() - start_time) * 1000)
@@ -935,7 +958,7 @@ class Executor:
         documents: Optional[List[Document]] = None,
         on_draft: Optional[Callable[[str], None]] = None,
         on_chunk: Optional[Callable[[str], None]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         """
         Execute a prompt with streaming output.
@@ -977,7 +1000,7 @@ class Executor:
         # Create a simulated LLMResponse for verification
         final_response = LLMResponse(
             text=final_text,
-            model_uri=str(self.model.model_uri),
+            model_uri=str(getattr(self.model, "model_uri", "unknown")),
             usage={
                 "prompt_tokens": self.model.estimate_tokens(prompt),
                 "completion_tokens": self.model.estimate_tokens(final_text),
@@ -985,6 +1008,8 @@ class Executor:
                 + self.model.estimate_tokens(final_text),
             },
             metadata=final_metadata,
+            function_call=None,
+            tool_calls=None,
         )
 
         # Verify the output
@@ -1019,7 +1044,7 @@ class Executor:
 
             # Update final response
             final_response = refined_response
-            final_text = refined_response.text
+            final_text = refined_response.text or ""
 
             # Call chunk callback if provided
             if on_chunk is not None:

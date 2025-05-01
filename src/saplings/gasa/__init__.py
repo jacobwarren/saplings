@@ -17,7 +17,7 @@ by focusing the model's attention on relevant context.
 """
 
 from saplings.gasa.block_packing import BlockDiagonalPacker
-from saplings.gasa.config import GASAConfig
+from saplings.gasa.config import FallbackStrategy, GASAConfig, MaskStrategy
 from saplings.gasa.mask_builder import MaskBuilder, MaskFormat, MaskType
 from saplings.gasa.visualization import MaskVisualizer
 
@@ -26,6 +26,8 @@ __all__ = [
     "MaskBuilder",
     "MaskFormat",
     "MaskType",
+    "MaskStrategy",
+    "FallbackStrategy",
     "BlockDiagonalPacker",
     "MaskVisualizer",
 ]
