@@ -36,7 +36,7 @@ class TestFunctionLogger:
             name="test_func",
             arguments={"arg1": "value1", "arg2": 2},
             result="test result",
-            metadata={"source": "test"}
+            metadata={"source": "test"},
         )
 
         # Check the log entry
@@ -61,9 +61,7 @@ class TestFunctionLogger:
 
         # Log a function call with an error
         log_entry = logger.log_function_call(
-            name="test_func",
-            arguments={"arg1": "value1"},
-            error=error
+            name="test_func", arguments={"arg1": "value1"}, error=error
         )
 
         # Check the log entry
@@ -83,9 +81,7 @@ class TestFunctionLogger:
 
         # Log function start
         start_entry = logger.log_function_start(
-            name="test_func",
-            arguments={"arg1": "value1"},
-            metadata={"source": "test"}
+            name="test_func", arguments={"arg1": "value1"}, metadata={"source": "test"}
         )
 
         # Check the start entry
@@ -101,10 +97,7 @@ class TestFunctionLogger:
 
         # Log function end
         end_entry = logger.log_function_end(
-            name="test_func",
-            call_id=call_id,
-            result="test result",
-            duration=0.1
+            name="test_func", call_id=call_id, result="test result", duration=0.1
         )
 
         # Check the end entry
@@ -125,7 +118,7 @@ class TestFunctionLogger:
             "username": "test_user",
             "password": "secret",
             "api_key": "12345",
-            "data": {"secret": "hidden", "public": "visible"}
+            "data": {"secret": "hidden", "public": "visible"},
         }
 
         # Sanitize the arguments
@@ -150,11 +143,7 @@ class TestFunctionLogger:
         assert logger._sanitize_result(True) is True
 
         # Test with a dictionary
-        result = {
-            "username": "test_user",
-            "password": "secret",
-            "api_key": "12345"
-        }
+        result = {"username": "test_user", "password": "secret", "api_key": "12345"}
 
         sanitized = logger._sanitize_result(result)
 
@@ -185,10 +174,7 @@ class TestFunctionCallTimer:
 
         # Use the timer as a context manager
         with FunctionCallTimer(
-            logger,
-            name="test_func",
-            arguments={"arg1": "value1"},
-            metadata={"source": "test"}
+            logger, name="test_func", arguments={"arg1": "value1"}, metadata={"source": "test"}
         ):
             # Simulate some work
             time.sleep(0.1)
@@ -204,11 +190,7 @@ class TestFunctionCallTimer:
 
         # Use the timer as a context manager
         try:
-            with FunctionCallTimer(
-                logger,
-                name="test_func",
-                arguments={"arg1": "value1"}
-            ):
+            with FunctionCallTimer(logger, name="test_func", arguments={"arg1": "value1"}):
                 # Raise an error
                 raise ValueError("test error")
         except ValueError:
@@ -220,9 +202,9 @@ class TestFunctionCallTimer:
 
         # Check for error in the log record
         for record in caplog.records:
-            if hasattr(record, 'function_call') and record.function_call.get('status') == 'error':
-                assert 'error' in record.function_call
-                assert 'test error' in record.function_call['error']
+            if hasattr(record, "function_call") and record.function_call.get("status") == "error":
+                assert "error" in record.function_call
+                assert "test error" in record.function_call["error"]
                 break
         else:
             assert False, "No error record found in logs"
@@ -238,9 +220,7 @@ class TestConvenienceFunctions:
 
         # Log a function call
         log_entry = log_function_call(
-            name="test_func",
-            arguments={"arg1": "value1"},
-            result="test result"
+            name="test_func", arguments={"arg1": "value1"}, result="test result"
         )
 
         # Check the log entry
@@ -257,10 +237,7 @@ class TestConvenienceFunctions:
         caplog.set_level(logging.INFO)
 
         # Use the timer as a context manager
-        with time_function_call(
-            name="test_func",
-            arguments={"arg1": "value1"}
-        ):
+        with time_function_call(name="test_func", arguments={"arg1": "value1"}):
             # Simulate some work
             time.sleep(0.1)
 

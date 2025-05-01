@@ -30,10 +30,11 @@ jobs:
 
     - name: Install dependencies
       run: |
-        poetry install --with dev
+        poetry install --with dev --with inference
 
     - name: Lint with flake8
       run: |
+        # Use configuration from .flake8 file
         poetry run flake8 src tests
 
     - name: Check formatting with black

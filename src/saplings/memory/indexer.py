@@ -395,21 +395,52 @@ class SimpleIndexer(Indexer):
         # Define entity patterns (simple keyword lists for demonstration)
         self.entity_patterns = {
             "person": [
-                "Alice", "Bob", "Charlie", "David", "Eve",
-                "John", "Jane", "Michael", "Sarah", "Tom",
+                "Alice",
+                "Bob",
+                "Charlie",
+                "David",
+                "Eve",
+                "John",
+                "Jane",
+                "Michael",
+                "Sarah",
+                "Tom",
             ],
             "organization": [
-                "Google", "Microsoft", "Apple", "Amazon", "Facebook",
-                "IBM", "Intel", "Oracle", "Tesla", "Twitter",
+                "Google",
+                "Microsoft",
+                "Apple",
+                "Amazon",
+                "Facebook",
+                "IBM",
+                "Intel",
+                "Oracle",
+                "Tesla",
+                "Twitter",
             ],
             "location": [
-                "New York", "London", "Paris", "Tokyo", "Berlin",
-                "San Francisco", "Beijing", "Moscow", "Sydney", "Toronto",
+                "New York",
+                "London",
+                "Paris",
+                "Tokyo",
+                "Berlin",
+                "San Francisco",
+                "Beijing",
+                "Moscow",
+                "Sydney",
+                "Toronto",
             ],
             "concept": [
-                "algorithm", "database", "network", "security", "privacy",
-                "machine learning", "artificial intelligence", "blockchain",
-                "cloud computing", "data science",
+                "algorithm",
+                "database",
+                "network",
+                "security",
+                "privacy",
+                "machine learning",
+                "artificial intelligence",
+                "blockchain",
+                "cloud computing",
+                "data science",
             ],
         }
 
@@ -417,7 +448,12 @@ class SimpleIndexer(Indexer):
         self.relationship_patterns = [
             ("person", "works_for", "organization", ["works for", "employed by", "joined"]),
             ("person", "lives_in", "location", ["lives in", "resides in", "moved to"]),
-            ("organization", "located_in", "location", ["located in", "headquartered in", "based in"]),
+            (
+                "organization",
+                "located_in",
+                "location",
+                ["located in", "headquartered in", "based in"],
+            ),
             ("person", "knows", "person", ["knows", "met", "collaborated with"]),
         ]
 
@@ -519,7 +555,10 @@ class SimpleIndexer(Indexer):
                             if (
                                 (source_pos < pattern_pos < target_pos)
                                 or (target_pos < pattern_pos < source_pos)
-                                or (abs(source_pos - pattern_pos) < 50 and abs(target_pos - pattern_pos) < 50)
+                                or (
+                                    abs(source_pos - pattern_pos) < 50
+                                    and abs(target_pos - pattern_pos) < 50
+                                )
                             ):
                                 relationship = Relationship(
                                     source_id=f"entity:{source_entity.entity_type}:{source_entity.name}",
@@ -572,9 +611,7 @@ class IndexerRegistry:
         self._indexers[name] = indexer_class
         logger.info(f"Registered indexer: {name}")
 
-    def get_indexer(
-        self, name: str, config: Optional[MemoryConfig] = None
-    ) -> Indexer:
+    def get_indexer(self, name: str, config: Optional[MemoryConfig] = None) -> Indexer:
         """
         Get an indexer by name.
 
@@ -610,13 +647,12 @@ def register_simple_indexer():
     registry = IndexerRegistry()
     registry.register_indexer("simple", SimpleIndexer)
 
+
 # Register the SimpleIndexer
 register_simple_indexer()
 
 
-def get_indexer(
-    name: str = "simple", config: Optional[MemoryConfig] = None
-) -> Indexer:
+def get_indexer(name: str = "simple", config: Optional[MemoryConfig] = None) -> Indexer:
     """
     Get an indexer by name.
 
@@ -640,7 +676,9 @@ def get_indexer(
 
             # Look for a plugin with a matching name
             for plugin_name, plugin_class in indexer_plugins.items():
-                if plugin_name.lower() == name.lower() or plugin_name.lower().replace("_", "") == name.lower().replace("_", ""):
+                if plugin_name.lower() == name.lower() or plugin_name.lower().replace(
+                    "_", ""
+                ) == name.lower().replace("_", ""):
                     # Create an instance of the plugin
                     return plugin_class(config)
 

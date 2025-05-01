@@ -5,10 +5,11 @@ This module provides tests for the vLLM example code.
 """
 
 import asyncio
-import pytest
 from unittest.mock import MagicMock, patch
 
-from examples.vllm_example import run_vllm_example, run_provider_comparison
+import pytest
+
+from examples.vllm_example import run_provider_comparison, run_vllm_example
 
 
 class TestVLLMExample:
@@ -23,7 +24,7 @@ class TestVLLMExample:
         # Create a mock response that can be awaited
         mock_response = MagicMock(
             text="This is a test response.",
-            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
 
         # Make generate return a coroutine that returns the mock response
@@ -55,44 +56,52 @@ class TestVLLMExample:
         mock_vllm_model = MagicMock()
         mock_vllm_response = MagicMock(
             text="vLLM response",
-            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
+
         async def mock_vllm_generate(*args, **kwargs):
             return mock_vllm_response
+
         mock_vllm_model.generate = mock_vllm_generate
         mock_vllm_model.cleanup = MagicMock()
 
         mock_openai_model = MagicMock()
         mock_openai_response = MagicMock(
             text="OpenAI response",
-            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
+
         async def mock_openai_generate(*args, **kwargs):
             return mock_openai_response
+
         mock_openai_model.generate = mock_openai_generate
 
         mock_anthropic_model = MagicMock()
         mock_anthropic_response = MagicMock(
             text="Anthropic response",
-            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
+
         async def mock_anthropic_generate(*args, **kwargs):
             return mock_anthropic_response
+
         mock_anthropic_model.generate = mock_anthropic_generate
 
         mock_huggingface_model = MagicMock()
         mock_huggingface_response = MagicMock(
             text="HuggingFace response",
-            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
+
         async def mock_huggingface_generate(*args, **kwargs):
             return mock_huggingface_response
+
         mock_huggingface_model.generate = mock_huggingface_generate
         mock_huggingface_model.cleanup = MagicMock()
 
         # Add hasattr method to all models to properly handle cleanup checks
         def mock_hasattr(self, attr):
-            return attr == 'cleanup'
+            return attr == "cleanup"
 
         type(mock_vllm_model).__hasattr__ = mock_hasattr
         type(mock_openai_model).__hasattr__ = lambda self, attr: False

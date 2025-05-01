@@ -38,7 +38,7 @@ class TestModelCache:
             text="Test response",
             model_uri="openai://gpt-4",
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "openai"}
+            metadata={"provider": "openai"},
         )
 
         # Set a value
@@ -49,7 +49,11 @@ class TestModelCache:
         assert cached_response is not None
         assert cached_response.text == "Test response"
         assert cached_response.model_uri == "openai://gpt-4"
-        assert cached_response.usage == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
+        assert cached_response.usage == {
+            "prompt_tokens": 10,
+            "completion_tokens": 20,
+            "total_tokens": 30,
+        }
 
         # Get a nonexistent value
         assert cache.get("nonexistent") is None
@@ -65,10 +69,7 @@ class TestModelCache:
         cache = ModelCache(max_size=10, ttl=0.1)  # 100ms TTL
 
         # Create a response
-        response = LLMResponse(
-            text="Test response",
-            model_uri="openai://gpt-4"
-        )
+        response = LLMResponse(text="Test response", model_uri="openai://gpt-4")
 
         # Set a value
         cache.set("key1", response)
@@ -280,26 +281,17 @@ class TestCacheKeyGeneration:
         """Test generating a cache key with a string prompt."""
         # Generate a key
         key1 = generate_cache_key(
-            model_uri="openai://gpt-4",
-            prompt="Hello, world!",
-            max_tokens=100,
-            temperature=0.7
+            model_uri="openai://gpt-4", prompt="Hello, world!", max_tokens=100, temperature=0.7
         )
 
         # Generate the same key again
         key2 = generate_cache_key(
-            model_uri="openai://gpt-4",
-            prompt="Hello, world!",
-            max_tokens=100,
-            temperature=0.7
+            model_uri="openai://gpt-4", prompt="Hello, world!", max_tokens=100, temperature=0.7
         )
 
         # Generate a different key
         key3 = generate_cache_key(
-            model_uri="openai://gpt-4",
-            prompt="Different prompt",
-            max_tokens=100,
-            temperature=0.7
+            model_uri="openai://gpt-4", prompt="Different prompt", max_tokens=100, temperature=0.7
         )
 
         # Check that the keys are as expected
@@ -311,23 +303,17 @@ class TestCacheKeyGeneration:
         # Create a message prompt
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Hello, world!"}
+            {"role": "user", "content": "Hello, world!"},
         ]
 
         # Generate a key
         key1 = generate_cache_key(
-            model_uri="openai://gpt-4",
-            prompt=messages,
-            max_tokens=100,
-            temperature=0.7
+            model_uri="openai://gpt-4", prompt=messages, max_tokens=100, temperature=0.7
         )
 
         # Generate the same key again
         key2 = generate_cache_key(
-            model_uri="openai://gpt-4",
-            prompt=messages,
-            max_tokens=100,
-            temperature=0.7
+            model_uri="openai://gpt-4", prompt=messages, max_tokens=100, temperature=0.7
         )
 
         # Generate a different key
@@ -335,7 +321,7 @@ class TestCacheKeyGeneration:
             model_uri="openai://gpt-4",
             prompt=[{"role": "user", "content": "Different prompt"}],
             max_tokens=100,
-            temperature=0.7
+            temperature=0.7,
         )
 
         # Check that the keys are as expected
@@ -353,7 +339,7 @@ class TestCacheKeyGeneration:
                     "type": "string",
                     "description": "The city and state, e.g. San Francisco, CA",
                 }
-            }
+            },
         }
 
         # Generate a key
@@ -361,7 +347,7 @@ class TestCacheKeyGeneration:
             model_uri="openai://gpt-4",
             prompt="What's the weather like in San Francisco?",
             functions=[function],
-            function_call="auto"
+            function_call="auto",
         )
 
         # Generate the same key again
@@ -369,7 +355,7 @@ class TestCacheKeyGeneration:
             model_uri="openai://gpt-4",
             prompt="What's the weather like in San Francisco?",
             functions=[function],
-            function_call="auto"
+            function_call="auto",
         )
 
         # Generate a different key
@@ -377,7 +363,7 @@ class TestCacheKeyGeneration:
             model_uri="openai://gpt-4",
             prompt="What's the weather like in San Francisco?",
             functions=[function],
-            function_call={"name": "get_weather"}
+            function_call={"name": "get_weather"},
         )
 
         # Check that the keys are as expected
@@ -391,7 +377,7 @@ class TestCacheKeyGeneration:
             model_uri="openai://gpt-4",
             prompt="Hello, world!",
             complex_object={"key": "value", "nested": {"key": "value"}},
-            complex_list=[1, 2, 3, {"key": "value"}]
+            complex_list=[1, 2, 3, {"key": "value"}],
         )
 
         # Check that the key is a string
@@ -408,11 +394,7 @@ class TestPersistence:
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create a cache with persistence
             cache1 = ModelCache(
-                max_size=10,
-                ttl=None,
-                namespace="test_persist",
-                persist=True,
-                persist_path=temp_dir
+                max_size=10, ttl=None, namespace="test_persist", persist=True, persist_path=temp_dir
             )
 
             # Create a response
@@ -420,7 +402,7 @@ class TestPersistence:
                 text="Test response",
                 model_uri="openai://gpt-4",
                 usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-                metadata={"provider": "openai"}
+                metadata={"provider": "openai"},
             )
 
             # Set a value
@@ -428,11 +410,7 @@ class TestPersistence:
 
             # Create a new cache with the same namespace and path
             cache2 = ModelCache(
-                max_size=10,
-                ttl=None,
-                namespace="test_persist",
-                persist=True,
-                persist_path=temp_dir
+                max_size=10, ttl=None, namespace="test_persist", persist=True, persist_path=temp_dir
             )
 
             # Check that the value was loaded from disk
@@ -446,11 +424,7 @@ class TestPersistence:
 
             # Create a third cache to verify the deletion was persisted
             cache3 = ModelCache(
-                max_size=10,
-                ttl=None,
-                namespace="test_persist",
-                persist=True,
-                persist_path=temp_dir
+                max_size=10, ttl=None, namespace="test_persist", persist=True, persist_path=temp_dir
             )
 
             # Check that the value is gone
@@ -503,6 +477,7 @@ class TestCacheDecorator:
 
     def test_sync_decorator(self):
         """Test the decorator with a synchronous function."""
+
         # Create a class with a method to decorate
         class TestModel:
             def __init__(self):
@@ -512,10 +487,7 @@ class TestCacheDecorator:
             @cached_model_response(namespace="test_decorator")
             def generate(self, prompt, **kwargs):
                 self.call_count += 1
-                return LLMResponse(
-                    text=f"Response to: {prompt}",
-                    model_uri=self.model_uri
-                )
+                return LLMResponse(text=f"Response to: {prompt}", model_uri=self.model_uri)
 
         # Create an instance
         model = TestModel()
@@ -546,6 +518,7 @@ class TestCacheDecorator:
     @pytest.mark.asyncio
     async def test_async_decorator(self):
         """Test the decorator with an asynchronous function."""
+
         # Create a class with an async method to decorate
         class TestAsyncModel:
             def __init__(self):
@@ -556,10 +529,7 @@ class TestCacheDecorator:
             async def generate(self, prompt, **kwargs):
                 self.call_count += 1
                 await asyncio.sleep(0.01)  # Simulate async operation
-                return LLMResponse(
-                    text=f"Async response to: {prompt}",
-                    model_uri=self.model_uri
-                )
+                return LLMResponse(text=f"Async response to: {prompt}", model_uri=self.model_uri)
 
         # Create an instance
         model = TestAsyncModel()
@@ -602,7 +572,7 @@ class TestConvenienceFunctions:
                 ttl=3600,
                 strategy=CacheStrategy.LFU,
                 persist=True,
-                persist_path=temp_dir
+                persist_path=temp_dir,
             )
 
             # Verify the cache was created with the right parameters

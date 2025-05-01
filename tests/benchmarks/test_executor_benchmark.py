@@ -13,18 +13,12 @@ import numpy as np
 import pytest
 
 from saplings.core.model_adapter import LLM
-from saplings.executor import (
-    Executor,
-    ExecutorConfig,
-    RefinementStrategy,
-    VerificationStrategy,
-)
+from saplings.executor import Executor, ExecutorConfig, RefinementStrategy, VerificationStrategy
 from saplings.gasa import GASAConfig
 from saplings.memory import Document, MemoryStore
 from saplings.memory.config import MemoryConfig
-from saplings.monitoring import TraceManager, MonitoringConfig
-from saplings.planner import SequentialPlanner, PlannerConfig, PlanStep
-
+from saplings.monitoring import MonitoringConfig, TraceManager
+from saplings.planner import PlannerConfig, PlanStep, SequentialPlanner
 from tests.benchmarks.base_benchmark import BaseBenchmark, MockBenchmarkLLM
 from tests.benchmarks.test_datasets import TestDatasets
 
@@ -143,13 +137,15 @@ class TestExecutorBenchmark(BaseBenchmark):
             memory_usage_stats = self.calculate_statistics(memory_usages)
 
             # Add to results
-            results["configurations"].append({
-                "name": config_info["name"],
-                "latency_stats": latency_stats,
-                "token_count_stats": token_count_stats,
-                "memory_usage_stats": memory_usage_stats,
-                "raw_latencies_ms": latencies,
-            })
+            results["configurations"].append(
+                {
+                    "name": config_info["name"],
+                    "latency_stats": latency_stats,
+                    "token_count_stats": token_count_stats,
+                    "memory_usage_stats": memory_usage_stats,
+                    "raw_latencies_ms": latencies,
+                }
+            )
 
             print(f"  Latency: {latency_stats['mean']:.2f}ms")
             print(f"  Token count: {token_count_stats['mean']:.2f}")
@@ -269,14 +265,16 @@ class TestExecutorBenchmark(BaseBenchmark):
             memory_usage_stats = self.calculate_statistics(memory_usages)
 
             # Add to results
-            results["configurations"].append({
-                "name": config_info["name"],
-                "use_planner": config_info["use_planner"],
-                "latency_stats": latency_stats,
-                "token_count_stats": token_count_stats,
-                "memory_usage_stats": memory_usage_stats,
-                "raw_latencies_ms": latencies,
-            })
+            results["configurations"].append(
+                {
+                    "name": config_info["name"],
+                    "use_planner": config_info["use_planner"],
+                    "latency_stats": latency_stats,
+                    "token_count_stats": token_count_stats,
+                    "memory_usage_stats": memory_usage_stats,
+                    "raw_latencies_ms": latencies,
+                }
+            )
 
             print(f"  Latency: {latency_stats['mean']:.2f}ms")
             print(f"  Token count: {token_count_stats['mean']:.2f}")
@@ -366,7 +364,11 @@ class TestExecutorBenchmark(BaseBenchmark):
                     )
 
                     # Approximate token count
-                    token_count = result.token_count if hasattr(result, "token_count") else len(result.text.split())
+                    token_count = (
+                        result.token_count
+                        if hasattr(result, "token_count")
+                        else len(result.text.split())
+                    )
 
                     # No first token latency for non-streaming
                     first_token_latencies.append(0)
@@ -385,14 +387,16 @@ class TestExecutorBenchmark(BaseBenchmark):
             first_token_stats = self.calculate_statistics(first_token_latencies)
 
             # Add to results
-            results["configurations"].append({
-                "name": config_info["name"],
-                "streaming": config_info["streaming"],
-                "latency_stats": latency_stats,
-                "token_count_stats": token_count_stats,
-                "first_token_latency_stats": first_token_stats,
-                "raw_latencies_ms": latencies,
-            })
+            results["configurations"].append(
+                {
+                    "name": config_info["name"],
+                    "streaming": config_info["streaming"],
+                    "latency_stats": latency_stats,
+                    "token_count_stats": token_count_stats,
+                    "first_token_latency_stats": first_token_stats,
+                    "raw_latencies_ms": latencies,
+                }
+            )
 
             print(f"  Total latency: {latency_stats['mean']:.2f}ms")
             if config_info["streaming"]:

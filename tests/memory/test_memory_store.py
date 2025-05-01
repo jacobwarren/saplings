@@ -22,6 +22,7 @@ class TestMemoryStore:
         """Set up test environment."""
         # Register the SimpleIndexer for testing
         from saplings.memory.indexer import IndexerRegistry, SimpleIndexer
+
         IndexerRegistry()._indexers = {}
         IndexerRegistry().register_indexer("simple", SimpleIndexer)
 
@@ -283,14 +284,19 @@ class TestMemoryStore:
             # In a real-world scenario, we would update the actual implementation
             original_search = self.store.search
 
-            def patched_search(query_embedding, limit=10, filter_dict=None,
-                              include_graph_results=True, max_graph_hops=1):
+            def patched_search(
+                query_embedding,
+                limit=10,
+                filter_dict=None,
+                include_graph_results=True,
+                max_graph_hops=1,
+            ):
                 # Get vector results
                 vector_results = original_search(
                     query_embedding=query_embedding,
                     limit=limit,
                     filter_dict=filter_dict,
-                    include_graph_results=False
+                    include_graph_results=False,
                 )
 
                 if not include_graph_results:
@@ -304,13 +310,10 @@ class TestMemoryStore:
                 for doc_id in doc_ids:
                     # Get neighbors
                     try:
-                        neighbors = self.store.graph.get_neighbors(
-                            node_id=doc_id,
-                            direction="both"
-                        )
+                        neighbors = self.store.graph.get_neighbors(node_id=doc_id, direction="both")
 
                         for neighbor in neighbors:
-                            if hasattr(neighbor, 'document') and neighbor.id not in doc_ids:
+                            if hasattr(neighbor, "document") and neighbor.id not in doc_ids:
                                 connected_docs.add(neighbor.id)
                     except ValueError:
                         continue
@@ -618,6 +621,7 @@ class TestMemoryStore:
 
     def test_indexer_extensibility(self):
         """Test the extensibility of the indexer system."""
+
         # Define a custom indexer
         class CustomIndexer(Indexer):
             """Custom indexer for testing extensibility."""
@@ -686,8 +690,9 @@ class TestMemoryStore:
         # Check for the entities our custom indexer should have extracted
         # The entity names might be different based on the implementation
         # Let's check that at least some entities were extracted
-        entity_nodes = [node for node_id, node in graph.nodes.items()
-                       if isinstance(node, EntityNode)]
+        entity_nodes = [
+            node for node_id, node in graph.nodes.items() if isinstance(node, EntityNode)
+        ]
 
         assert len(entity_nodes) > 0, "No entity nodes were extracted"
 
@@ -700,8 +705,9 @@ class TestMemoryStore:
         found_entities = [node.entity.name for node in entity_nodes]
 
         # Check that at least one expected entity was found
-        assert any(entity in found_entities for entity in expected_entities), \
-            f"None of the expected entities {expected_entities} were found in {found_entities}"
+        assert any(
+            entity in found_entities for entity in expected_entities
+        ), f"None of the expected entities {expected_entities} were found in {found_entities}"
 
         # Check that at least some relationships were created
         # Get all edges in the graph

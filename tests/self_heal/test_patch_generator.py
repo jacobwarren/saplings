@@ -2,8 +2,10 @@
 Tests for the PatchGenerator class.
 """
 
+from unittest.mock import MagicMock
+from unittest.mock import patch as mock_patch
+
 import pytest
-from unittest.mock import MagicMock, patch as mock_patch
 
 from saplings.self_heal.patch_generator import PatchGenerator, PatchStatus
 
@@ -63,7 +65,7 @@ class TestPatchGenerator:
         error = "NameError: name 'bar' is not defined"
 
         # Mock the _fix_undefined_variable method to ensure it returns a fixed code
-        with mock_patch.object(patch_generator, '_fix_undefined_variable') as mock_fix:
+        with mock_patch.object(patch_generator, "_fix_undefined_variable") as mock_fix:
             # Set up the mock to return a fixed code
             fixed_code = "def foo():\n    bar = None  # TODO: Replace with appropriate value\n    print(bar)\n"
             mock_fix.return_value = fixed_code
@@ -138,12 +140,18 @@ class TestPatchGenerator:
         patch_obj = patch_generator.generate_patch(code, error)
 
         # Mock the execution function to simulate successful execution
-        with mock_patch('saplings.self_heal.patch_generator.PatchGenerator._execute_code', return_value=(True, None)):
+        with mock_patch(
+            "saplings.self_heal.patch_generator.PatchGenerator._execute_code",
+            return_value=(True, None),
+        ):
             is_valid, _ = patch_generator.validate_patch(patch_obj.patched_code)
             assert is_valid
 
         # Mock the execution function to simulate failed execution
-        with mock_patch('saplings.self_heal.patch_generator.PatchGenerator._execute_code', return_value=(False, "Error")):
+        with mock_patch(
+            "saplings.self_heal.patch_generator.PatchGenerator._execute_code",
+            return_value=(False, "Error"),
+        ):
             is_valid, error_msg = patch_generator.validate_patch(patch_obj.patched_code)
             assert not is_valid
             assert error_msg == "Error"
@@ -174,7 +182,7 @@ class TestPatchGenerator:
         error = "IndentationError: expected an indented block"
 
         # Mock the _fix_indentation method
-        with mock_patch.object(patch_generator, '_fix_indentation') as mock_fix:
+        with mock_patch.object(patch_generator, "_fix_indentation") as mock_fix:
             # Set up the mock to return a fixed code
             fixed_code = "def foo():\n    print('Hello, world!')\n"
             mock_fix.return_value = fixed_code
@@ -193,7 +201,7 @@ class TestPatchGenerator:
         error = "TypeError: foo() takes 2 positional arguments but 3 were given"
 
         # Mock the _fix_argument_error method
-        with mock_patch.object(patch_generator, '_fix_argument_error') as mock_fix:
+        with mock_patch.object(patch_generator, "_fix_argument_error") as mock_fix:
             # Set up the mock to return a fixed code
             fixed_code = "def foo(a, b):\n    return a + b\n\nresult = foo(1, 2)\n"
             mock_fix.return_value = fixed_code
@@ -207,7 +215,8 @@ class TestPatchGenerator:
             # The patched code should have the correct number of arguments
             # Use a more flexible regex pattern to match the function call with 2 arguments
             import re
-            assert re.search(r'foo\s*\(\s*1\s*,\s*2\s*\)', patch.patched_code) is not None
+
+            assert re.search(r"foo\s*\(\s*1\s*,\s*2\s*\)", patch.patched_code) is not None
         assert patch.status == PatchStatus.GENERATED
 
         # Test missing module error
@@ -215,9 +224,9 @@ class TestPatchGenerator:
         error = "ModuleNotFoundError: No module named 'nonexistent_module'"
 
         # Mock the _fix_missing_module method
-        with mock_patch.object(patch_generator, '_fix_missing_module') as mock_fix:
+        with mock_patch.object(patch_generator, "_fix_missing_module") as mock_fix:
             # Set up the mock to return a fixed code
-            fixed_code = "try:\n    import nonexistent_module\nexcept ImportError:\n    print(\"Error: The 'nonexistent_module' module is required but not installed.\")\n    print(\"Please install it using: pip install nonexistent_module\")\n    # TODO: Install the required module\n    import sys\n    sys.exit(1)\n\nprint(nonexistent_module.foo())\n"
+            fixed_code = 'try:\n    import nonexistent_module\nexcept ImportError:\n    print("Error: The \'nonexistent_module\' module is required but not installed.")\n    print("Please install it using: pip install nonexistent_module")\n    # TODO: Install the required module\n    import sys\n    sys.exit(1)\n\nprint(nonexistent_module.foo())\n'
             mock_fix.return_value = fixed_code
 
             # Generate the patch
@@ -226,7 +235,9 @@ class TestPatchGenerator:
             # Verify the patch
             assert patch.original_code == code
             assert patch.error == error
-            assert "# TODO: Install" in patch.patched_code  # Should add comment about installing the module
+            assert (
+                "# TODO: Install" in patch.patched_code
+            )  # Should add comment about installing the module
             assert patch.status == PatchStatus.GENERATED
 
     def test_reset(self, patch_generator):

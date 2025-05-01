@@ -2,8 +2,9 @@
 Tests for budget enforcement in the planner module.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.planner.config import BudgetStrategy, CostHeuristicConfig, PlannerConfig
@@ -25,7 +26,7 @@ class TestBudgetEnforcement:
             version="latest",
             roles=[ModelRole.PLANNER],
             context_window=4096,
-            max_tokens_per_request=2048
+            max_tokens_per_request=2048,
         )
 
         # Create a planner with a specific budget
@@ -200,6 +201,7 @@ Here's an optimized plan:
 
         # Make a deep copy to ensure we don't modify the original
         import copy
+
         unequal_steps_copy = copy.deepcopy(unequal_steps)
 
         # Apply simple optimization
@@ -215,7 +217,9 @@ Here's an optimized plan:
 
         # Check that the costs are more balanced than before
         original_max_diff = 0.6 - 0.1  # 0.5
-        optimized_max_diff = max(s.estimated_cost for s in optimized_steps) - min(s.estimated_cost for s in optimized_steps)
+        optimized_max_diff = max(s.estimated_cost for s in optimized_steps) - min(
+            s.estimated_cost for s in optimized_steps
+        )
         assert optimized_max_diff < original_max_diff
 
     def test_budget_strategy_proportional(self):
@@ -281,7 +285,7 @@ Here's a plan for the task:
         self.model.generate.side_effect = [response, response]  # For create_plan and optimize_plan
 
         # Create plan
-        with patch.object(self.planner, 'optimize_plan', return_value=self.steps):
+        with patch.object(self.planner, "optimize_plan", return_value=self.steps):
             steps = await self.planner.create_plan("Test task")
 
         # Check that model was called

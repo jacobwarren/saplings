@@ -10,7 +10,14 @@ import logging
 import os
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
-from saplings.core.model_adapter import LLM, LLMResponse, ModelCapability, ModelMetadata, ModelRole, ModelURI
+from saplings.core.model_adapter import (
+    LLM,
+    LLMResponse,
+    ModelCapability,
+    ModelMetadata,
+    ModelRole,
+    ModelURI,
+)
 from saplings.core.plugin import ModelAdapterPlugin, PluginType
 
 logger = logging.getLogger(__name__)
@@ -18,12 +25,11 @@ logger = logging.getLogger(__name__)
 try:
     import openai
     from openai import OpenAI
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
-    logger.warning(
-        "OpenAI not installed. Please install it with: pip install openai"
-    )
+    logger.warning("OpenAI not installed. Please install it with: pip install openai")
 
 
 class OpenAIAdapter(LLM, ModelAdapterPlugin):
@@ -42,9 +48,7 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
             **kwargs: Additional arguments for the adapter
         """
         if not OPENAI_AVAILABLE:
-            raise ImportError(
-                "OpenAI not installed. Please install it with: pip install openai"
-            )
+            raise ImportError("OpenAI not installed. Please install it with: pip install openai")
 
         # Parse the model URI
         if isinstance(model_uri, str):
@@ -103,7 +107,7 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model.
@@ -134,12 +138,14 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            **kwargs
+            **kwargs,
         }
 
         # Add functions if provided
         if functions:
-            completion_args["tools"] = [{"type": "function", "function": func} for func in functions]
+            completion_args["tools"] = [
+                {"type": "function", "function": func} for func in functions
+            ]
 
             if function_call:
                 if function_call == "auto":
@@ -149,7 +155,7 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
                 elif isinstance(function_call, dict) and "name" in function_call:
                     completion_args["tool_choice"] = {
                         "type": "function",
-                        "function": {"name": function_call["name"]}
+                        "function": {"name": function_call["name"]},
                     }
 
         # Add JSON mode if requested
@@ -157,10 +163,7 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
             completion_args["response_format"] = {"type": "json_object"}
 
         # Create the completion
-        response = await asyncio.to_thread(
-            self.client.chat.completions.create,
-            **completion_args
-        )
+        response = await asyncio.to_thread(self.client.chat.completions.create, **completion_args)
 
         # Get token usage
         prompt_tokens = response.usage.prompt_tokens
@@ -173,26 +176,34 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         generated_text = None
 
         # Check if the model returned a function call
-        if hasattr(response.choices[0].message, "tool_calls") and response.choices[0].message.tool_calls:
+        if (
+            hasattr(response.choices[0].message, "tool_calls")
+            and response.choices[0].message.tool_calls
+        ):
             tool_calls = response.choices[0].message.tool_calls
             tool_calls_result = []
 
             for tool_call in tool_calls:
                 if tool_call.type == "function":
-                    tool_calls_result.append({
-                        "id": tool_call.id,
-                        "type": tool_call.type,
-                        "function": {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments
+                    tool_calls_result.append(
+                        {
+                            "id": tool_call.id,
+                            "type": tool_call.type,
+                            "function": {
+                                "name": tool_call.function.name,
+                                "arguments": tool_call.function.arguments,
+                            },
                         }
-                    })
-        elif hasattr(response.choices[0].message, "function_call") and response.choices[0].message.function_call:
+                    )
+        elif (
+            hasattr(response.choices[0].message, "function_call")
+            and response.choices[0].message.function_call
+        ):
             # Legacy function calling format
             function_call_obj = response.choices[0].message.function_call
             function_call_result = {
                 "name": function_call_obj.name,
-                "arguments": function_call_obj.arguments
+                "arguments": function_call_obj.arguments,
             }
         else:
             # Regular text response
@@ -212,7 +223,7 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
                 "provider": "openai",
             },
             function_call=function_call_result,
-            tool_calls=tool_calls_result
+            tool_calls=tool_calls_result,
         )
 
     def _process_prompt(self, prompt: Union[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
@@ -241,7 +252,7 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
         """
         Generate text from the model with streaming output.
@@ -274,12 +285,14 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
             "max_tokens": max_tokens,
             "temperature": temperature,
             "stream": True,
-            **kwargs
+            **kwargs,
         }
 
         # Add functions if provided
         if functions:
-            completion_args["tools"] = [{"type": "function", "function": func} for func in functions]
+            completion_args["tools"] = [
+                {"type": "function", "function": func} for func in functions
+            ]
 
             if function_call:
                 if function_call == "auto":
@@ -289,7 +302,7 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
                 elif isinstance(function_call, dict) and "name" in function_call:
                     completion_args["tool_choice"] = {
                         "type": "function",
-                        "function": {"name": function_call["name"]}
+                        "function": {"name": function_call["name"]},
                     }
 
         # Add JSON mode if requested
@@ -297,10 +310,7 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
             completion_args["response_format"] = {"type": "json_object"}
 
         # Create the completion with streaming
-        response = await asyncio.to_thread(
-            self.client.chat.completions.create,
-            **completion_args
-        )
+        response = await asyncio.to_thread(self.client.chat.completions.create, **completion_args)
 
         # For tracking function calls
         current_tool_calls = {}
@@ -315,39 +325,50 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
                     # Initialize the tool call if it's new
                     if tool_id not in current_tool_calls:
                         current_tool_calls[tool_id] = {
-                            "id": tool_call.id if hasattr(tool_call, "id") and tool_call.id else f"call_{tool_id}",
+                            "id": tool_call.id
+                            if hasattr(tool_call, "id") and tool_call.id
+                            else f"call_{tool_id}",
                             "type": "function",
-                            "function": {"name": "", "arguments": ""}
+                            "function": {"name": "", "arguments": ""},
                         }
 
                     # Update the tool call with new data
                     if hasattr(tool_call, "function"):
                         if hasattr(tool_call.function, "name") and tool_call.function.name:
-                            current_tool_calls[tool_id]["function"]["name"] += tool_call.function.name
+                            current_tool_calls[tool_id]["function"][
+                                "name"
+                            ] += tool_call.function.name
 
-                        if hasattr(tool_call.function, "arguments") and tool_call.function.arguments:
-                            current_tool_calls[tool_id]["function"]["arguments"] += tool_call.function.arguments
+                        if (
+                            hasattr(tool_call.function, "arguments")
+                            and tool_call.function.arguments
+                        ):
+                            current_tool_calls[tool_id]["function"][
+                                "arguments"
+                            ] += tool_call.function.arguments
 
                     # Yield the updated tool call
                     yield {"tool_call": current_tool_calls[tool_id]}
 
             # Check for function calls (legacy format)
-            elif hasattr(chunk.choices[0].delta, "function_call") and chunk.choices[0].delta.function_call:
+            elif (
+                hasattr(chunk.choices[0].delta, "function_call")
+                and chunk.choices[0].delta.function_call
+            ):
                 function_call_delta = chunk.choices[0].delta.function_call
 
                 # Initialize the function call if it's new
                 if "function_call" not in current_tool_calls:
-                    current_tool_calls["function_call"] = {
-                        "name": "",
-                        "arguments": ""
-                    }
+                    current_tool_calls["function_call"] = {"name": "", "arguments": ""}
 
                 # Update the function call with new data
                 if hasattr(function_call_delta, "name") and function_call_delta.name:
                     current_tool_calls["function_call"]["name"] += function_call_delta.name
 
                 if hasattr(function_call_delta, "arguments") and function_call_delta.arguments:
-                    current_tool_calls["function_call"]["arguments"] += function_call_delta.arguments
+                    current_tool_calls["function_call"][
+                        "arguments"
+                    ] += function_call_delta.arguments
 
                 # Yield the updated function call
                 yield {"function_call": current_tool_calls["function_call"]}
@@ -434,12 +455,15 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         }
 
         # Get the model info or use default values
-        return model_info.get(self.model_name, {
-            "context_window": 4096,
-            "max_tokens": 2048,
-            "cost_input": 0.0,
-            "cost_output": 0.0,
-        })
+        return model_info.get(
+            self.model_name,
+            {
+                "context_window": 4096,
+                "max_tokens": 2048,
+                "cost_input": 0.0,
+                "cost_output": 0.0,
+            },
+        )
 
     def estimate_tokens(self, text: str) -> int:
         """

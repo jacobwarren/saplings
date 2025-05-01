@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 
 try:
     import opentelemetry.trace as otel_trace
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
     OTEL_AVAILABLE = True
 except ImportError:
     OTEL_AVAILABLE = False
@@ -155,9 +156,7 @@ class Span:
                     )
                 )
             elif status == "OK":
-                self.otel_span.set_status(
-                    otel_trace.Status(status_code=otel_trace.StatusCode.OK)
-                )
+                self.otel_span.set_status(otel_trace.Status(status_code=otel_trace.StatusCode.OK))
 
     def set_attribute(self, key: str, value: Any) -> None:
         """
@@ -647,8 +646,7 @@ class TraceManager:
         if not before_time:
             # Clear all inactive traces
             inactive_traces = [
-                trace_id for trace_id in self.traces
-                if trace_id not in self.active_traces
+                trace_id for trace_id in self.traces if trace_id not in self.active_traces
             ]
 
             for trace_id in inactive_traces:
@@ -658,8 +656,10 @@ class TraceManager:
         else:
             # Clear traces that ended before the specified time
             traces_to_clear = [
-                trace_id for trace_id, trace in self.traces.items()
-                if trace.end_time and trace.end_time < before_time
+                trace_id
+                for trace_id, trace in self.traces.items()
+                if trace.end_time
+                and trace.end_time < before_time
                 and trace_id not in self.active_traces
             ]
 
@@ -686,8 +686,7 @@ class TraceManager:
         # Determine which traces to export
         if trace_ids:
             traces_to_export = [
-                trace for trace_id, trace in self.traces.items()
-                if trace_id in trace_ids
+                trace for trace_id, trace in self.traces.items() if trace_id in trace_ids
             ]
         else:
             traces_to_export = list(self.traces.values())
@@ -701,32 +700,38 @@ class TraceManager:
                 # Convert events to dictionaries
                 event_dicts = []
                 for event in span.events:
-                    event_dicts.append({
-                        "name": event.name,
-                        "timestamp": event.timestamp.isoformat(),
-                        "attributes": event.attributes,
-                    })
+                    event_dicts.append(
+                        {
+                            "name": event.name,
+                            "timestamp": event.timestamp.isoformat(),
+                            "attributes": event.attributes,
+                        }
+                    )
 
-                span_dicts.append({
-                    "span_id": span.span_id,
-                    "name": span.name,
-                    "trace_id": span.trace_id,
-                    "parent_id": span.parent_id,
-                    "start_time": span.start_time.isoformat(),
-                    "end_time": span.end_time.isoformat() if span.end_time else None,
-                    "status": span.status,
-                    "attributes": span.attributes,
-                    "events": event_dicts,
-                })
+                span_dicts.append(
+                    {
+                        "span_id": span.span_id,
+                        "name": span.name,
+                        "trace_id": span.trace_id,
+                        "parent_id": span.parent_id,
+                        "start_time": span.start_time.isoformat(),
+                        "end_time": span.end_time.isoformat() if span.end_time else None,
+                        "status": span.status,
+                        "attributes": span.attributes,
+                        "events": event_dicts,
+                    }
+                )
 
-            trace_dicts.append({
-                "trace_id": trace.trace_id,
-                "start_time": trace.start_time.isoformat(),
-                "end_time": trace.end_time.isoformat() if trace.end_time else None,
-                "status": trace.status,
-                "attributes": trace.attributes,
-                "spans": span_dicts,
-            })
+            trace_dicts.append(
+                {
+                    "trace_id": trace.trace_id,
+                    "start_time": trace.start_time.isoformat(),
+                    "end_time": trace.end_time.isoformat() if trace.end_time else None,
+                    "status": trace.status,
+                    "attributes": trace.attributes,
+                    "spans": span_dicts,
+                }
+            )
 
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(output_path), exist_ok=True)

@@ -2,8 +2,9 @@
 Tests for task splitting in the planner module.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.planner.config import PlannerConfig
@@ -25,7 +26,7 @@ class TestTaskSplitting:
             version="latest",
             roles=[ModelRole.PLANNER],
             context_window=4096,
-            max_tokens_per_request=2048
+            max_tokens_per_request=2048,
         )
 
         # Create a planner with a higher max_steps value
@@ -104,7 +105,7 @@ Here's a plan for the task:
         generation_steps = [step for step in steps if step.step_type == StepType.GENERATION]
 
         assert len(retrieval_steps) == 2  # Split into two retrieval tasks
-        assert len(analysis_steps) == 3   # Split into three analysis tasks
+        assert len(analysis_steps) == 3  # Split into three analysis tasks
         assert len(generation_steps) == 1  # One generation task
 
         # Check dependencies
@@ -240,7 +241,9 @@ Here's a plan for the task:
         self.model.generate.return_value = response
 
         # Create plan
-        steps = await self.planner.create_plan("Write a comprehensive report comparing three topics")
+        steps = await self.planner.create_plan(
+            "Write a comprehensive report comparing three topics"
+        )
 
         # Check that model was called at least once
         assert self.model.generate.call_count >= 1

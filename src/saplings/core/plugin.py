@@ -53,16 +53,16 @@ class Plugin(ABC):
         pass
 
 
-T = TypeVar('T', bound=Plugin)
+T = TypeVar("T", bound=Plugin)
 
 
 class PluginRegistry:
     """Registry for plugins."""
 
-    _instance: Optional['PluginRegistry'] = None
+    _instance: Optional["PluginRegistry"] = None
     _plugins: Dict[PluginType, Dict[str, Type[Plugin]]] = {}
 
-    def __new__(cls) -> 'PluginRegistry':
+    def __new__(cls) -> "PluginRegistry":
         """Create a singleton instance of the registry."""
         if cls._instance is None:
             cls._instance = super(PluginRegistry, cls).__new__(cls)
@@ -232,6 +232,7 @@ def register_plugin(plugin_class: Type[Plugin]) -> None:
 
 
 # Type-specific plugin base classes
+
 
 class ModelAdapterPlugin(Plugin):
     """Base class for model adapter plugins."""

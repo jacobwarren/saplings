@@ -5,10 +5,12 @@ This module provides tests for the HuggingFace adapter implementation.
 """
 
 import os
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelURI
+
 from .test_base import BaseAdapterTest
 
 # Check if we should run integration tests
@@ -17,6 +19,7 @@ RUN_INTEGRATION_TESTS = os.environ.get("RUN_INTEGRATION_TESTS", "").lower() in (
 # Try to import the adapter, but don't fail if dependencies are missing
 try:
     from saplings.adapters.huggingface_adapter import HuggingFaceAdapter
+
     HUGGINGFACE_AVAILABLE = True
 except ImportError:
     HUGGINGFACE_AVAILABLE = False
@@ -55,7 +58,7 @@ class TestHuggingFaceAdapter(BaseAdapterTest):
                 metadata={
                     "model": self.model_name,
                     "provider": self.provider_name,
-                }
+                },
             )
 
         adapter.generate.side_effect = mock_generate
@@ -142,7 +145,9 @@ class TestHuggingFaceAdapter(BaseAdapterTest):
 
         # Mock the gc and torch modules
         with patch("gc.collect") as mock_gc_collect:
-            with patch("saplings.adapters.huggingface_adapter.torch.cuda.empty_cache") as mock_empty_cache:
+            with patch(
+                "saplings.adapters.huggingface_adapter.torch.cuda.empty_cache"
+            ) as mock_empty_cache:
                 # Call the real cleanup method
                 with patch.object(self.adapter_class, "cleanup", autospec=True) as mock_cleanup:
                     mock_cleanup.side_effect = lambda self: None
@@ -159,7 +164,7 @@ class TestHuggingFaceAdapter(BaseAdapterTest):
     def test_with_parameters(self):
         """Test creating the adapter with parameters."""
         # Skip the actual model loading and just test parameter parsing
-        with patch.object(HuggingFaceAdapter, '__init__', return_value=None) as mock_init:
+        with patch.object(HuggingFaceAdapter, "__init__", return_value=None) as mock_init:
             # Create a URI with parameters
             uri = f"{self.provider_name}://{self.model_name}?temperature=0.5&max_tokens=100&device=cuda&torch_dtype=float16"
 

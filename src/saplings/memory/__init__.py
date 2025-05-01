@@ -13,10 +13,10 @@ vector storage and indexing.
 
 from saplings.memory.config import MemoryConfig
 from saplings.memory.document import Document, DocumentMetadata
-from saplings.memory.graph import DependencyGraph, EntityNode, DocumentNode, Relationship
+from saplings.memory.graph import DependencyGraph, DocumentNode, EntityNode, Relationship
 from saplings.memory.indexer import Indexer
 from saplings.memory.memory_store import MemoryStore
-from saplings.memory.vector_store import VectorStore, InMemoryVectorStore, get_vector_store
+from saplings.memory.vector_store import InMemoryVectorStore, VectorStore, get_vector_store
 
 __all__ = [
     "MemoryConfig",

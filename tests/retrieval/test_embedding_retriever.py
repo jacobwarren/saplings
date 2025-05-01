@@ -61,18 +61,16 @@ class TestEmbeddingRetriever:
         self.mock_model.encode.return_value = np.array([0.8, 0.1, 0.1])
 
         # Patch the _initialize_embedding_model method instead of SentenceTransformer
-        with patch.object(EmbeddingRetriever, '_initialize_embedding_model'):
+        with patch.object(EmbeddingRetriever, "_initialize_embedding_model"):
             # Set the model attribute directly
             self.retriever = EmbeddingRetriever(self.memory_store, self.config)
             self.retriever.model = self.mock_model
 
     def test_init_with_retrieval_config(self):
         """Test initialization with RetrievalConfig."""
-        retrieval_config = RetrievalConfig(
-            embedding=EmbeddingConfig(similarity_top_k=5)
-        )
+        retrieval_config = RetrievalConfig(embedding=EmbeddingConfig(similarity_top_k=5))
 
-        with patch.object(EmbeddingRetriever, '_initialize_embedding_model'):
+        with patch.object(EmbeddingRetriever, "_initialize_embedding_model"):
             retriever = EmbeddingRetriever(self.memory_store, retrieval_config)
             retriever.model = self.mock_model
 
@@ -168,7 +166,7 @@ class TestEmbeddingRetriever:
             self.retriever.save(temp_dir)
 
             # Create a new retriever and load the saved data
-            with patch.object(EmbeddingRetriever, '_initialize_embedding_model'):
+            with patch.object(EmbeddingRetriever, "_initialize_embedding_model"):
                 new_retriever = EmbeddingRetriever(self.memory_store)
                 new_retriever.model = self.mock_model
                 new_retriever.load(temp_dir)

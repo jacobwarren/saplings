@@ -10,10 +10,10 @@ from typing import Any, Dict, List, Optional, Type
 
 from saplings.core.plugin import ToolPlugin
 from saplings.executor import Executor
-from saplings.orchestration import GraphRunner, AgentNode
-from saplings.planner import BasePlanner
-from saplings.integration.events import EventSystem, EventType, Event
+from saplings.integration.events import Event, EventSystem, EventType
 from saplings.integration.hot_loader import HotLoader, HotLoaderConfig
+from saplings.orchestration import AgentNode, GraphRunner
+from saplings.planner import BasePlanner
 
 logger = logging.getLogger(__name__)
 
@@ -278,7 +278,9 @@ class IntegrationManager:
         for agent_id, agent in self.graph_runner.agents.items():
             self.unregister_tool_from_agent(agent, tool_id)
 
-    def register_tool_with_agent(self, agent: AgentNode, tool_class: Optional[Type[ToolPlugin]] = None) -> None:
+    def register_tool_with_agent(
+        self, agent: AgentNode, tool_class: Optional[Type[ToolPlugin]] = None
+    ) -> None:
         """
         Register a tool with an agent.
 
@@ -312,11 +314,17 @@ class IntegrationManager:
             agent: Agent to unregister the tool from
             tool_id: ID of the tool to unregister
         """
-        if agent.metadata is not None and "tools" in agent.metadata and tool_id in agent.metadata["tools"]:
+        if (
+            agent.metadata is not None
+            and "tools" in agent.metadata
+            and tool_id in agent.metadata["tools"]
+        ):
             del agent.metadata["tools"][tool_id]
             logger.info(f"Unregistered tool {tool_id} from agent {agent.id}")
         else:
-            logger.warning(f"Cannot unregister tool {tool_id} from agent {agent.id}: not registered")
+            logger.warning(
+                f"Cannot unregister tool {tool_id} from agent {agent.id}: not registered"
+            )
 
     def register_tools_with_executor(self) -> None:
         """Register all tools with the executor."""

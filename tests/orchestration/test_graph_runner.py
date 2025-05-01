@@ -3,9 +3,10 @@ Tests for the GraphRunner class.
 """
 
 import asyncio
-import pytest
 from typing import Dict, List, Optional
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.memory import MemoryStore
@@ -206,7 +207,9 @@ class TestGraphRunner:
         )
 
         # Mock the debate method
-        with patch.object(graph_runner, "_run_debate", return_value="Consensus reached: This is the solution") as mock_debate:
+        with patch.object(
+            graph_runner, "_run_debate", return_value="Consensus reached: This is the solution"
+        ) as mock_debate:
             # Run the negotiation
             result = await graph_runner.negotiate(
                 task="Solve this problem",
@@ -281,7 +284,9 @@ class TestGraphRunner:
         )
 
         # Mock the contract-net method
-        with patch.object(graph_runner, "_run_contract_net", return_value="Task completed: This is the result") as mock_contract_net:
+        with patch.object(
+            graph_runner, "_run_contract_net", return_value="Task completed: This is the result"
+        ) as mock_contract_net:
             # Run the negotiation
             result = await graph_runner.negotiate(
                 task="Perform this task",

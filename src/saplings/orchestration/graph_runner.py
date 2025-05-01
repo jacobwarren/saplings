@@ -12,16 +12,16 @@ import uuid
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from saplings.core.model_adapter import LLM
-from saplings.memory import MemoryStore
-from saplings.monitoring import TraceManager, BlameGraph, MonitoringConfig
 from saplings.judge import JudgeAgent, JudgeConfig
-from saplings.self_heal import SuccessPairCollector
+from saplings.memory import MemoryStore
+from saplings.monitoring import BlameGraph, MonitoringConfig, TraceManager
 from saplings.orchestration.config import (
     AgentNode,
     CommunicationChannel,
     GraphRunnerConfig,
     NegotiationStrategy,
 )
+from saplings.self_heal import SuccessPairCollector
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,9 @@ class GraphRunner:
         # Initialize monitoring if enabled
         if self.config.enable_monitoring:
             self.trace_manager = self.config.trace_manager or TraceManager()
-            self.blame_graph = self.config.blame_graph or BlameGraph(trace_manager=self.trace_manager)
+            self.blame_graph = self.config.blame_graph or BlameGraph(
+                trace_manager=self.trace_manager
+            )
         else:
             self.trace_manager = None
             self.blame_graph = None
@@ -78,7 +80,9 @@ class GraphRunner:
 
         # Initialize self-healing if enabled
         if self.config.enable_self_healing:
-            self.success_pair_collector = self.config.success_pair_collector or SuccessPairCollector()
+            self.success_pair_collector = (
+                self.config.success_pair_collector or SuccessPairCollector()
+            )
         else:
             self.success_pair_collector = None
 
@@ -107,9 +111,13 @@ class GraphRunner:
 
         # Log additional information based on agent configuration
         if agent.agent:
-            logger.info(f"Registered agent: {agent.name} (ID: {agent.id}, Role: {agent.role}, Using base Agent)")
+            logger.info(
+                f"Registered agent: {agent.name} (ID: {agent.id}, Role: {agent.role}, Using base Agent)"
+            )
         elif agent.provider and agent.model:
-            logger.info(f"Registered agent: {agent.name} (ID: {agent.id}, Role: {agent.role}, Model: {agent.provider}/{agent.model})")
+            logger.info(
+                f"Registered agent: {agent.name} (ID: {agent.id}, Role: {agent.role}, Model: {agent.provider}/{agent.model})"
+            )
         else:
             logger.info(f"Registered agent: {agent.name} (ID: {agent.id}, Role: {agent.role})")
 
@@ -156,8 +164,7 @@ class GraphRunner:
         self.channels.append(channel)
 
         logger.info(
-            f"Created channel: {channel_type} from {source_id} to {target_id} "
-            f"({description})"
+            f"Created channel: {channel_type} from {source_id} to {target_id} " f"({description})"
         )
 
         return channel
@@ -208,10 +215,7 @@ class GraphRunner:
         """
         if self.trace_manager:
             trace_id = str(uuid.uuid4())
-            self.trace_manager.create_trace(
-                trace_id=trace_id,
-                attributes={"task": task}
-            )
+            self.trace_manager.create_trace(trace_id=trace_id, attributes={"task": task})
             logger.info(f"Created trace {trace_id} for task: {task}")
             return trace_id
         return None
@@ -239,7 +243,7 @@ class GraphRunner:
                     "agent_id": agent_id,
                     "action": action,
                     "content_length": len(content),
-                }
+                },
             )
             logger.debug(f"Added span {span_id} to trace {trace_id}")
             return span_id
@@ -279,12 +283,14 @@ class GraphRunner:
             score: Quality score
         """
         if self.success_pair_collector and score >= 0.8:  # Only collect high-quality pairs
-            self.success_pair_collector.add_pair({
-                "input": input_text,
-                "output": output_text,
-                "score": score,
-                "timestamp": time.time(),
-            })
+            self.success_pair_collector.add_pair(
+                {
+                    "input": input_text,
+                    "output": output_text,
+                    "score": score,
+                    "timestamp": time.time(),
+                }
+            )
             logger.info(f"Collected success pair with score {score}")
 
     async def negotiate(
@@ -527,17 +533,14 @@ class GraphRunner:
 
         # Identify worker agents (all agents except the manager)
         workers = {
-            agent_id: agent
-            for agent_id, agent in self.agents.items()
-            if agent_id != manager_id
+            agent_id: agent for agent_id, agent in self.agents.items() if agent_id != manager_id
         }
 
         if not workers:
             raise ValueError("Contract-net requires at least one worker agent")
 
         logger.info(
-            f"Starting contract-net with manager {manager.name} and "
-            f"{len(workers)} workers"
+            f"Starting contract-net with manager {manager.name} and " f"{len(workers)} workers"
         )
 
         # Step 1: Task announcement
@@ -681,11 +684,7 @@ class GraphRunner:
         # If the agent has a provider and model specified, create a model for it
         if agent.provider and agent.model:
             # Create a model using the new approach
-            return LLM.create(
-                provider=agent.provider,
-                model=agent.model,
-                **agent.model_parameters
-            )
+            return LLM.create(provider=agent.provider, model=agent.model, **agent.model_parameters)
 
         # Otherwise, use the default model
         return self.model
@@ -1066,7 +1065,9 @@ class GraphRunner:
             if subtask_id in results:
                 prompt += f"\n\nSubtask: {subtask['description']}\nResult: {results[subtask_id]}"
 
-        prompt += "\n\nAggregate these results into a cohesive final solution for the original task."
+        prompt += (
+            "\n\nAggregate these results into a cohesive final solution for the original task."
+        )
 
         # Use agent-specific model if available, otherwise use the default model
         model = self._get_agent_model(manager)

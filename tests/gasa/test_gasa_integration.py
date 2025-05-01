@@ -3,10 +3,11 @@ Tests for GASA integration with the Executor.
 """
 
 import asyncio
-import numpy as np
-import pytest
 from typing import AsyncGenerator, Dict, List, Optional
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
 
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.executor import Executor, ExecutorConfig
@@ -106,7 +107,9 @@ class MockTokenizerOutput:
     def __init__(self, input_ids, attention_mask=None):
         """Initialize the mock tokenizer output."""
         self.input_ids = [input_ids]
-        self.attention_mask = [attention_mask] if attention_mask is not None else [[1] * len(input_ids)]
+        self.attention_mask = (
+            [attention_mask] if attention_mask is not None else [[1] * len(input_ids)]
+        )
 
 
 class MockLLM(LLM):
@@ -125,13 +128,15 @@ class MockLLM(LLM):
     ) -> LLMResponse:
         """Generate text from the model."""
         # Record the call
-        self.generate_calls.append({
-            "prompt": prompt,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "attention_mask": attention_mask,
-            "kwargs": kwargs,
-        })
+        self.generate_calls.append(
+            {
+                "prompt": prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "attention_mask": attention_mask,
+                "kwargs": kwargs,
+            }
+        )
 
         # Store the attention mask for testing
         if attention_mask is not None:
@@ -157,14 +162,16 @@ class MockLLM(LLM):
     ) -> AsyncGenerator[str, None]:
         """Generate text from the model with streaming output."""
         # Record the call
-        self.generate_calls.append({
-            "prompt": prompt,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "attention_mask": attention_mask,
-            "kwargs": kwargs,
-            "streaming": True,
-        })
+        self.generate_calls.append(
+            {
+                "prompt": prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "attention_mask": attention_mask,
+                "kwargs": kwargs,
+                "streaming": True,
+            }
+        )
 
         # Store the attention mask for testing
         if attention_mask is not None:
@@ -172,7 +179,7 @@ class MockLLM(LLM):
 
         # Yield a mock response in chunks
         response = f"Response to: {prompt[:50]}..."
-        chunks = [response[i:i+5] for i in range(0, len(response), 5)]
+        chunks = [response[i : i + 5] for i in range(0, len(response), 5)]
 
         for chunk in chunks:
             yield chunk
@@ -256,6 +263,7 @@ class TestGASAIntegration:
     @pytest.fixture
     def mock_mask_builder(self, mock_dependency_graph):
         """Create a mock MaskBuilder for testing."""
+
         class MockMaskBuilder(MaskBuilder):
             def __init__(self, graph, config=None, tokenizer=None):
                 self.graph = graph
@@ -263,7 +271,9 @@ class TestGASAIntegration:
                 self.tokenizer = tokenizer
                 self.build_count = 0
 
-            def build_mask(self, documents, prompt, format=MaskFormat.DENSE, mask_type=MaskType.ATTENTION):
+            def build_mask(
+                self, documents, prompt, format=MaskFormat.DENSE, mask_type=MaskType.ATTENTION
+            ):
                 """Build a mock attention mask."""
                 self.build_count += 1
 
@@ -435,7 +445,9 @@ class TestGASAIntegration:
         )
 
     @pytest.mark.asyncio
-    async def test_gasa_with_different_mask_format(self, mock_llm, mock_dependency_graph, documents):
+    async def test_gasa_with_different_mask_format(
+        self, mock_llm, mock_dependency_graph, documents
+    ):
         """Test GASA with different mask formats."""
         # Create an executor with GASA configured to use sparse format
         config = ExecutorConfig(enable_gasa=True)
@@ -454,7 +466,9 @@ class TestGASAIntegration:
                 self.tokenizer = tokenizer
                 self.build_count = 0
 
-            def build_mask(self, documents, prompt, format=MaskFormat.SPARSE, mask_type=MaskType.ATTENTION):
+            def build_mask(
+                self, documents, prompt, format=MaskFormat.SPARSE, mask_type=MaskType.ATTENTION
+            ):
                 """Build a mock attention mask."""
                 self.build_count += 1
 
@@ -464,6 +478,7 @@ class TestGASAIntegration:
                 # For sparse format, return a scipy sparse matrix
                 if format == MaskFormat.SPARSE:
                     import scipy.sparse as sp
+
                     # Convert to dense first for simplicity
                     mask = np.ones((seq_len, seq_len), dtype=np.float32)
                     # Add some sparsity

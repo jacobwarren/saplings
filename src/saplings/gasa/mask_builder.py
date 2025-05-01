@@ -66,7 +66,9 @@ class ChunkInfo:
         self.node_id = node_id or chunk_id
 
     def __repr__(self) -> str:
-        return f"ChunkInfo(chunk_id={self.chunk_id}, start={self.start_token}, end={self.end_token})"
+        return (
+            f"ChunkInfo(chunk_id={self.chunk_id}, start={self.start_token}, end={self.end_token})"
+        )
 
     def contains_token(self, token_idx: int) -> bool:
         """
@@ -431,8 +433,8 @@ class MaskBuilder:
                 if chunk_adjacency[i, j] == 1:
                     # Set attention between all tokens in the connected chunks
                     token_mask[
-                        chunk_i.start_token:chunk_i.end_token,
-                        chunk_j.start_token:chunk_j.end_token,
+                        chunk_i.start_token : chunk_i.end_token,
+                        chunk_j.start_token : chunk_j.end_token,
                     ] = 1
 
         return token_mask
@@ -463,7 +465,9 @@ class MaskBuilder:
                 pass
 
         # Find positions of global tokens
-        global_positions = [i for i, token_id in enumerate(input_ids) if token_id in global_token_ids]
+        global_positions = [
+            i for i, token_id in enumerate(input_ids) if token_id in global_token_ids
+        ]
 
         # Set global attention
         for pos in global_positions:
@@ -531,13 +535,15 @@ class MaskBuilder:
 
                     # Check if block contains any 1s
                     if np.any(block):
-                        blocks.append({
-                            "row": i,
-                            "col": j,
-                            "size_row": block.shape[0],
-                            "size_col": block.shape[1],
-                            "block": block.tolist(),
-                        })
+                        blocks.append(
+                            {
+                                "row": i,
+                                "col": j,
+                                "size_row": block.shape[0],
+                                "size_col": block.shape[1],
+                                "block": block.tolist(),
+                            }
+                        )
 
             return blocks
 
@@ -588,10 +594,13 @@ class MaskBuilder:
         elif format == MaskFormat.BLOCK_SPARSE:
             # Save as JSON file
             with open(path, "w") as f:
-                json.dump({
-                    "blocks": mask,
-                    "metadata": metadata,
-                }, f)
+                json.dump(
+                    {
+                        "blocks": mask,
+                        "metadata": metadata,
+                    },
+                    f,
+                )
 
         else:
             raise ValueError(f"Unsupported format: {format}")

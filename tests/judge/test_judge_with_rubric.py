@@ -4,7 +4,7 @@ Tests for the judge module with rubrics.
 
 import asyncio
 import json
-from typing import Dict, List, Optional, Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -232,10 +232,26 @@ class TestJudgeWithRubric:
         """Test that rubric weights affect the overall score."""
         # Create dimension scores directly
         dimension_scores = [
-            {"dimension": "relevance", "score": 1.0, "explanation": "The response is completely relevant to the prompt."},
-            {"dimension": "correctness", "score": 0.5, "explanation": "The response has some factual errors."},
-            {"dimension": "coherence", "score": 0.8, "explanation": "The response is mostly coherent."},
-            {"dimension": "helpfulness", "score": 0.7, "explanation": "The response is somewhat helpful."}
+            {
+                "dimension": "relevance",
+                "score": 1.0,
+                "explanation": "The response is completely relevant to the prompt.",
+            },
+            {
+                "dimension": "correctness",
+                "score": 0.5,
+                "explanation": "The response has some factual errors.",
+            },
+            {
+                "dimension": "coherence",
+                "score": 0.8,
+                "explanation": "The response is mostly coherent.",
+            },
+            {
+                "dimension": "helpfulness",
+                "score": 0.7,
+                "explanation": "The response is somewhat helpful.",
+            },
         ]
 
         # Create two different rubrics with different weights
@@ -247,7 +263,7 @@ class TestJudgeWithRubric:
                 RubricItem(dimension=ScoringDimension.CORRECTNESS, weight=1.0),
                 RubricItem(dimension=ScoringDimension.COHERENCE, weight=1.0),
                 RubricItem(dimension=ScoringDimension.HELPFULNESS, weight=1.0),
-            ]
+            ],
         )
 
         # Rubric 2: Emphasize correctness
@@ -258,7 +274,7 @@ class TestJudgeWithRubric:
                 RubricItem(dimension=ScoringDimension.CORRECTNESS, weight=3.0),  # 3x weight
                 RubricItem(dimension=ScoringDimension.COHERENCE, weight=1.0),
                 RubricItem(dimension=ScoringDimension.HELPFULNESS, weight=1.0),
-            ]
+            ],
         )
 
         # Create a judge agent to test the calculation method directly
@@ -266,8 +282,12 @@ class TestJudgeWithRubric:
         judge_agent = JudgeAgent(model=mock_llm)
 
         # Calculate scores with different rubrics
-        equal_weights_score = judge_agent._calculate_overall_score(dimension_scores, equal_weights_rubric)
-        correctness_weighted_score = judge_agent._calculate_overall_score(dimension_scores, correctness_weighted_rubric)
+        equal_weights_score = judge_agent._calculate_overall_score(
+            dimension_scores, equal_weights_rubric
+        )
+        correctness_weighted_score = judge_agent._calculate_overall_score(
+            dimension_scores, correctness_weighted_rubric
+        )
 
         # The correctness_weighted_score should be lower because correctness has a higher weight and a lower score (0.5)
         assert equal_weights_score > correctness_weighted_score
@@ -277,7 +297,9 @@ class TestJudgeWithRubric:
         expected_equal_score = (1.0 + 0.5 + 0.8 + 0.7) / 4
 
         # Correctness weighted: (1.0*1.0 + 0.5*3.0 + 0.8*1.0 + 0.7*1.0) / (1.0 + 3.0 + 1.0 + 1.0) = 3.5/6.0 = 0.583
-        expected_weighted_score = (1.0*1.0 + 0.5*3.0 + 0.8*1.0 + 0.7*1.0) / (1.0 + 3.0 + 1.0 + 1.0)
+        expected_weighted_score = (1.0 * 1.0 + 0.5 * 3.0 + 0.8 * 1.0 + 0.7 * 1.0) / (
+            1.0 + 3.0 + 1.0 + 1.0
+        )
 
         # Check that the calculated scores match the expected scores
         assert abs(equal_weights_score - expected_equal_score) < 0.01

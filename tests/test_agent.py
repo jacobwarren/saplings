@@ -3,8 +3,9 @@ Tests for the high-level Agent class.
 """
 
 import os
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from saplings.agent import Agent, AgentConfig
 
@@ -15,7 +16,7 @@ class TestAgent:
     @pytest.fixture
     def mock_model(self):
         """Create a mock model."""
-        from saplings.core.model_adapter import ModelRole, ModelMetadata
+        from saplings.core.model_adapter import ModelMetadata, ModelRole
 
         mock = MagicMock()
         mock.generate.return_value = MagicMock(text="Test response")
@@ -55,7 +56,7 @@ class TestAgent:
     def test_agent_initialization(self, mock_llm_class, agent_config):
         """Test that the agent initializes correctly."""
         # Setup mock
-        from saplings.core.model_adapter import ModelRole, ModelMetadata
+        from saplings.core.model_adapter import ModelMetadata, ModelRole
 
         mock_model = MagicMock()
 
@@ -103,7 +104,7 @@ class TestAgent:
     def test_add_document(self, mock_get_indexer, mock_memory_store, mock_llm, agent_config):
         """Test adding a document to the agent's memory."""
         # Setup mocks
-        from saplings.core.model_adapter import ModelRole, ModelMetadata
+        from saplings.core.model_adapter import ModelMetadata, ModelRole
 
         mock_model = MagicMock()
 
@@ -144,7 +145,7 @@ class TestAgent:
     def test_retrieve(self, mock_retriever_class, mock_llm, agent_config):
         """Test retrieving documents."""
         # Setup mocks
-        from saplings.core.model_adapter import ModelRole, ModelMetadata
+        from saplings.core.model_adapter import ModelMetadata, ModelRole
 
         mock_model = MagicMock()
 
@@ -182,7 +183,7 @@ class TestAgent:
     def test_plan(self, mock_planner_class, mock_llm, agent_config):
         """Test creating a plan."""
         # Setup mocks
-        from saplings.core.model_adapter import ModelRole, ModelMetadata
+        from saplings.core.model_adapter import ModelMetadata, ModelRole
 
         mock_model = MagicMock()
 
@@ -220,7 +221,7 @@ class TestAgent:
     def test_execute(self, mock_executor_class, mock_llm, agent_config):
         """Test executing a prompt."""
         # Setup mocks
-        from saplings.core.model_adapter import ModelRole, ModelMetadata
+        from saplings.core.model_adapter import ModelMetadata, ModelRole
 
         mock_model = MagicMock()
 

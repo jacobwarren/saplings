@@ -39,7 +39,7 @@ class MockLLM(LLM):
         use_cache: bool = False,
         cache_namespace: str = "default",
         cache_ttl: Optional[int] = 3600,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """Generate text from the model."""
         self.generate_count += 1
@@ -56,7 +56,7 @@ class MockLLM(LLM):
                 use_cache=use_cache,
                 cache_namespace=cache_namespace,
                 cache_ttl=cache_ttl,
-                **kwargs
+                **kwargs,
             )
 
         # Otherwise, return a mock response
@@ -64,7 +64,7 @@ class MockLLM(LLM):
             text=f"Response to: {prompt}",
             model_uri=str(self.model_uri),
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock"}
+            metadata={"provider": "mock"},
         )
 
     async def generate_streaming(
@@ -76,7 +76,7 @@ class MockLLM(LLM):
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
         """Generate text from the model with streaming output."""
         self.generate_streaming_count += 1
@@ -108,7 +108,7 @@ class MockLLM(LLM):
             "context_window": 4096,
             "max_tokens_per_request": 2048,
             "cost_per_1k_tokens_input": 0.0001,
-            "cost_per_1k_tokens_output": 0.0002
+            "cost_per_1k_tokens_output": 0.0002,
         }
 
 
@@ -138,34 +138,30 @@ class TestLLMCaching:
             text="Response to: Hello, world!",
             model_uri="mock://model",
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock", "cached": True}
+            metadata={"provider": "mock", "cached": True},
         )
 
         # Set up the mock to return the cached response on the second call
         mock_cache.get.side_effect = [None, cached_response, None]
 
         # Mock the get_model_cache function to return our mock cache
-        monkeypatch.setattr("saplings.core.model_caching.get_model_cache", lambda **kwargs: mock_cache)
+        monkeypatch.setattr(
+            "saplings.core.model_caching.get_model_cache", lambda **kwargs: mock_cache
+        )
 
         # Generate a response with caching
         response1 = await llm.generate_with_cache(
-            prompt="Hello, world!",
-            max_tokens=100,
-            temperature=0.7
+            prompt="Hello, world!", max_tokens=100, temperature=0.7
         )
 
         # Generate the same response again
         response2 = await llm.generate_with_cache(
-            prompt="Hello, world!",
-            max_tokens=100,
-            temperature=0.7
+            prompt="Hello, world!", max_tokens=100, temperature=0.7
         )
 
         # Generate a different response
         response3 = await llm.generate_with_cache(
-            prompt="Different prompt",
-            max_tokens=100,
-            temperature=0.7
+            prompt="Different prompt", max_tokens=100, temperature=0.7
         )
 
         # Check that the responses are as expected
@@ -206,37 +202,31 @@ class TestLLMCaching:
             text="Response to: Hello, world!",
             model_uri="mock://model",
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock", "cached": True}
+            metadata={"provider": "mock", "cached": True},
         )
 
         # Set up the mock to return the cached response on the second call
         mock_cache.get.side_effect = [None, cached_response, None]
 
         # Mock the get_model_cache function to return our mock cache
-        monkeypatch.setattr("saplings.core.model_caching.get_model_cache", lambda namespace="default", **_: mock_cache)
+        monkeypatch.setattr(
+            "saplings.core.model_caching.get_model_cache",
+            lambda namespace="default", **_: mock_cache,
+        )
 
         # Generate a response with caching
         response1 = await llm.generate(
-            prompt="Hello, world!",
-            max_tokens=100,
-            temperature=0.7,
-            use_cache=True
+            prompt="Hello, world!", max_tokens=100, temperature=0.7, use_cache=True
         )
 
         # Generate the same response again
         response2 = await llm.generate(
-            prompt="Hello, world!",
-            max_tokens=100,
-            temperature=0.7,
-            use_cache=True
+            prompt="Hello, world!", max_tokens=100, temperature=0.7, use_cache=True
         )
 
         # Generate a different response
         response3 = await llm.generate(
-            prompt="Different prompt",
-            max_tokens=100,
-            temperature=0.7,
-            use_cache=True
+            prompt="Different prompt", max_tokens=100, temperature=0.7, use_cache=True
         )
 
         # Check that the responses are as expected
@@ -263,7 +253,7 @@ class TestLLMCaching:
             text="Response to: [system: You are a helpful assistant, user: Hello, world!]",
             model_uri="mock://model",
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock", "cached": True}
+            metadata={"provider": "mock", "cached": True},
         )
 
         # Set up the mock to return the cached response on the second call
@@ -275,23 +265,17 @@ class TestLLMCaching:
         # Create a message prompt
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Hello, world!"}
+            {"role": "user", "content": "Hello, world!"},
         ]
 
         # Generate a response with caching
         response1 = await llm.chat(
-            messages=messages,
-            max_tokens=100,
-            temperature=0.7,
-            use_cache=True
+            messages=messages, max_tokens=100, temperature=0.7, use_cache=True
         )
 
         # Generate the same response again
         response2 = await llm.chat(
-            messages=messages,
-            max_tokens=100,
-            temperature=0.7,
-            use_cache=True
+            messages=messages, max_tokens=100, temperature=0.7, use_cache=True
         )
 
         # Generate a different response
@@ -299,7 +283,7 @@ class TestLLMCaching:
             messages=[{"role": "user", "content": "Different prompt"}],
             max_tokens=100,
             temperature=0.7,
-            use_cache=True
+            use_cache=True,
         )
 
         # Check that the responses are as expected
@@ -326,72 +310,56 @@ class TestLLMCaching:
             text="Response to: Hello, world!",
             model_uri="mock://model",
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock", "cached": True, "params": "set1"}
+            metadata={"provider": "mock", "cached": True, "params": "set1"},
         )
 
         cached_response2 = LLMResponse(
             text="Response to: Hello, world!",
             model_uri="mock://model",
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock", "cached": True, "params": "set2"}
+            metadata={"provider": "mock", "cached": True, "params": "set2"},
         )
 
         cached_response3 = LLMResponse(
             text="Response to: Hello, world!",
             model_uri="mock://model",
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock", "cached": True, "params": "set3"}
+            metadata={"provider": "mock", "cached": True, "params": "set3"},
         )
 
         # Set up the mock to return None for first 3 calls, then cached responses
         mock_cache.get.side_effect = [
-            None, None, None,  # First round - all cache misses
-            cached_response1, cached_response2, cached_response3  # Second round - all cache hits
+            None,
+            None,
+            None,  # First round - all cache misses
+            cached_response1,
+            cached_response2,
+            cached_response3,  # Second round - all cache hits
         ]
 
         # Mock the get_model_cache function to return our mock cache
         monkeypatch.setattr("saplings.core.model_caching.get_model_cache", lambda **_: mock_cache)
 
         # Generate responses with different parameters
+        await llm.generate_with_cache(prompt="Hello, world!", max_tokens=100, temperature=0.7)
+
         await llm.generate_with_cache(
-            prompt="Hello, world!",
-            max_tokens=100,
-            temperature=0.7
+            prompt="Hello, world!", max_tokens=200, temperature=0.7  # Different max_tokens
         )
 
         await llm.generate_with_cache(
-            prompt="Hello, world!",
-            max_tokens=200,  # Different max_tokens
-            temperature=0.7
-        )
-
-        await llm.generate_with_cache(
-            prompt="Hello, world!",
-            max_tokens=100,
-            temperature=0.5  # Different temperature
+            prompt="Hello, world!", max_tokens=100, temperature=0.5  # Different temperature
         )
 
         # Check that all responses were generated (not cached)
         assert llm.generate_count == 3
 
         # Generate the same responses again
-        await llm.generate_with_cache(
-            prompt="Hello, world!",
-            max_tokens=100,
-            temperature=0.7
-        )
+        await llm.generate_with_cache(prompt="Hello, world!", max_tokens=100, temperature=0.7)
 
-        await llm.generate_with_cache(
-            prompt="Hello, world!",
-            max_tokens=200,
-            temperature=0.7
-        )
+        await llm.generate_with_cache(prompt="Hello, world!", max_tokens=200, temperature=0.7)
 
-        await llm.generate_with_cache(
-            prompt="Hello, world!",
-            max_tokens=100,
-            temperature=0.5
-        )
+        await llm.generate_with_cache(prompt="Hello, world!", max_tokens=100, temperature=0.5)
 
         # Check that no new responses were generated (all cached)
         assert llm.generate_count == 3
@@ -412,20 +380,22 @@ class TestLLMCaching:
             text="Response to: What's the weather like in San Francisco?",
             model_uri="mock://model",
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock", "cached": True, "function_call": "auto"}
+            metadata={"provider": "mock", "cached": True, "function_call": "auto"},
         )
 
         cached_response2 = LLMResponse(
             text="Response to: What's the weather like in San Francisco?",
             model_uri="mock://model",
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock", "cached": True, "function_call": "get_weather"}
+            metadata={"provider": "mock", "cached": True, "function_call": "get_weather"},
         )
 
         # Set up the mock to return None for first 2 calls, then cached responses
         mock_cache.get.side_effect = [
-            None, None,  # First round - all cache misses
-            cached_response1, cached_response2  # Second round - all cache hits
+            None,
+            None,  # First round - all cache misses
+            cached_response1,
+            cached_response2,  # Second round - all cache hits
         ]
 
         # Mock the get_model_cache function to return our mock cache
@@ -440,20 +410,20 @@ class TestLLMCaching:
                     "type": "string",
                     "description": "The city and state, e.g. San Francisco, CA",
                 }
-            }
+            },
         }
 
         # Generate responses with different function parameters
         await llm.generate_with_cache(
             prompt="What's the weather like in San Francisco?",
             functions=[function],
-            function_call="auto"
+            function_call="auto",
         )
 
         await llm.generate_with_cache(
             prompt="What's the weather like in San Francisco?",
             functions=[function],
-            function_call={"name": "get_weather"}  # Different function_call
+            function_call={"name": "get_weather"},  # Different function_call
         )
 
         # Check that both responses were generated (not cached)
@@ -463,13 +433,13 @@ class TestLLMCaching:
         await llm.generate_with_cache(
             prompt="What's the weather like in San Francisco?",
             functions=[function],
-            function_call="auto"
+            function_call="auto",
         )
 
         await llm.generate_with_cache(
             prompt="What's the weather like in San Francisco?",
             functions=[function],
-            function_call={"name": "get_weather"}
+            function_call={"name": "get_weather"},
         )
 
         # Check that no new responses were generated (all cached)
@@ -483,21 +453,27 @@ class TestLLMCaching:
 
         # Create two separate mock caches for different namespaces
         mock_cache1 = MagicMock()
-        mock_cache1.get.side_effect = [None, LLMResponse(
-            text="Response to: Hello, world!",
-            model_uri="mock://model",
-            usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock", "cached": True, "namespace": "namespace1"}
-        )]
+        mock_cache1.get.side_effect = [
+            None,
+            LLMResponse(
+                text="Response to: Hello, world!",
+                model_uri="mock://model",
+                usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+                metadata={"provider": "mock", "cached": True, "namespace": "namespace1"},
+            ),
+        ]
         mock_cache1.set = MagicMock()
 
         mock_cache2 = MagicMock()
-        mock_cache2.get.side_effect = [None, LLMResponse(
-            text="Response to: Hello, world!",
-            model_uri="mock://model",
-            usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            metadata={"provider": "mock", "cached": True, "namespace": "namespace2"}
-        )]
+        mock_cache2.get.side_effect = [
+            None,
+            LLMResponse(
+                text="Response to: Hello, world!",
+                model_uri="mock://model",
+                usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+                metadata={"provider": "mock", "cached": True, "namespace": "namespace2"},
+            ),
+        ]
         mock_cache2.set = MagicMock()
 
         # Mock the get_model_cache function to return different caches based on namespace
@@ -512,29 +488,17 @@ class TestLLMCaching:
         monkeypatch.setattr("saplings.core.model_caching.get_model_cache", mock_get_cache)
 
         # Generate responses with different namespaces
-        await llm.generate_with_cache(
-            prompt="Hello, world!",
-            cache_namespace="namespace1"
-        )
+        await llm.generate_with_cache(prompt="Hello, world!", cache_namespace="namespace1")
 
-        await llm.generate_with_cache(
-            prompt="Hello, world!",
-            cache_namespace="namespace2"
-        )
+        await llm.generate_with_cache(prompt="Hello, world!", cache_namespace="namespace2")
 
         # Check that both responses were generated (different namespaces)
         assert llm.generate_count == 2
 
         # Generate the same responses again
-        await llm.generate_with_cache(
-            prompt="Hello, world!",
-            cache_namespace="namespace1"
-        )
+        await llm.generate_with_cache(prompt="Hello, world!", cache_namespace="namespace1")
 
-        await llm.generate_with_cache(
-            prompt="Hello, world!",
-            cache_namespace="namespace2"
-        )
+        await llm.generate_with_cache(prompt="Hello, world!", cache_namespace="namespace2")
 
         # Check that no new responses were generated (all cached)
         assert llm.generate_count == 2

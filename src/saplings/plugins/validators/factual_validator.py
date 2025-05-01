@@ -53,9 +53,7 @@ class FactualValidator(RuntimeValidator):
         """Type of the plugin."""
         return PluginType.VALIDATOR
 
-    async def validate_output(
-        self, output: str, prompt: str, **kwargs
-    ) -> ValidationResult:
+    async def validate_output(self, output: str, prompt: str, **kwargs) -> ValidationResult:
         """
         Validate an output for factual accuracy.
 
@@ -113,12 +111,14 @@ class FactualValidator(RuntimeValidator):
             relevant_docs = await self.retriever.retrieve(statement)
 
             if not relevant_docs:
-                issues.append({
-                    "statement_index": i,
-                    "statement": statement,
-                    "issue": "No relevant documents found to validate this statement",
-                    "confidence": 0.0,
-                })
+                issues.append(
+                    {
+                        "statement_index": i,
+                        "statement": statement,
+                        "issue": "No relevant documents found to validate this statement",
+                        "confidence": 0.0,
+                    }
+                )
                 continue
 
             # Check if the statement is supported by the documents
@@ -127,13 +127,15 @@ class FactualValidator(RuntimeValidator):
             )
 
             if not is_supported or confidence < threshold:
-                issues.append({
-                    "statement_index": i,
-                    "statement": statement,
-                    "issue": "Statement not sufficiently supported by reference documents",
-                    "confidence": confidence,
-                    "best_match": supporting_doc.content if supporting_doc else None,
-                })
+                issues.append(
+                    {
+                        "statement_index": i,
+                        "statement": statement,
+                        "issue": "Statement not sufficiently supported by reference documents",
+                        "confidence": confidence,
+                        "best_match": supporting_doc.content if supporting_doc else None,
+                    }
+                )
 
         if issues:
             return ValidationResult(

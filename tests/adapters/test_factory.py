@@ -4,11 +4,13 @@ Tests for the LLM factory method.
 This module provides tests for the LLM.from_uri factory method.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from saplings.core.model_adapter import LLM
 from saplings.core.plugin import PluginType
+
 
 # Create mock adapter classes
 class MockVLLMAdapter(LLM):
@@ -31,14 +33,18 @@ class MockVLLMAdapter(LLM):
     def estimate_cost(self, _, __):
         pass
 
+
 class MockOpenAIAdapter(MockVLLMAdapter):
     pass
+
 
 class MockAnthropicAdapter(MockVLLMAdapter):
     pass
 
+
 class MockHuggingFaceAdapter(MockVLLMAdapter):
     pass
+
 
 # Create mock modules
 mock_vllm_module = MagicMock()
@@ -64,6 +70,7 @@ class TestLLMFactory:
     @pytest.mark.asyncio
     async def test_from_uri_vllm(self, monkeypatch):
         """Test creating a vLLM adapter from a URI."""
+
         # Mock the import system
         def mock_import(name, *args, **kwargs):
             if name == "saplings.adapters.vllm_adapter":
@@ -87,6 +94,7 @@ class TestLLMFactory:
     @pytest.mark.asyncio
     async def test_from_uri_openai(self, monkeypatch):
         """Test creating an OpenAI adapter from a URI."""
+
         # Mock the import system
         def mock_import(name, *args, **kwargs):
             if name == "saplings.adapters.openai_adapter":
@@ -109,6 +117,7 @@ class TestLLMFactory:
     @pytest.mark.asyncio
     async def test_from_uri_anthropic(self, monkeypatch):
         """Test creating an Anthropic adapter from a URI."""
+
         # Mock the import system
         def mock_import(name, *args, **kwargs):
             if name == "saplings.adapters.anthropic_adapter":
@@ -131,6 +140,7 @@ class TestLLMFactory:
     @pytest.mark.asyncio
     async def test_from_uri_huggingface(self, monkeypatch):
         """Test creating a HuggingFace adapter from a URI."""
+
         # Mock the import system
         def mock_import(name, *args, **kwargs):
             if name == "saplings.adapters.huggingface_adapter":
@@ -154,6 +164,7 @@ class TestLLMFactory:
     @pytest.mark.asyncio
     async def test_from_uri_with_parameters(self, monkeypatch):
         """Test creating an adapter from a URI with parameters."""
+
         # Mock the import system
         def mock_import(name, *args, **kwargs):
             if name == "saplings.adapters.vllm_adapter":
@@ -179,6 +190,7 @@ class TestLLMFactory:
     @pytest.mark.asyncio
     async def test_from_uri_with_version(self, monkeypatch):
         """Test creating an adapter from a URI with a version."""
+
         # Mock the import system
         def mock_import(name, *args, **kwargs):
             if name == "saplings.adapters.openai_adapter":
@@ -215,6 +227,7 @@ class TestLLMFactory:
     @pytest.mark.asyncio
     async def test_from_uri_plugin(self):
         """Test creating an adapter from a URI using a plugin."""
+
         # Create a mock adapter class
         class MockCustomAdapter(MockVLLMAdapter):
             pass

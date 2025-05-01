@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 class TFIDFConfig(BaseModel):
     """Configuration for TF-IDF retrieval."""
-    
+
     min_df: float = Field(
         0.01, description="Minimum document frequency for a term to be included in the vocabulary"
     )
@@ -22,21 +22,11 @@ class TFIDFConfig(BaseModel):
     max_features: Optional[int] = Field(
         10000, description="Maximum number of features to include in the vocabulary"
     )
-    ngram_range: tuple = Field(
-        (1, 2), description="Range of n-grams to include in the vocabulary"
-    )
-    initial_k: int = Field(
-        100, description="Initial number of documents to retrieve using TF-IDF"
-    )
-    use_idf: bool = Field(
-        True, description="Whether to use inverse document frequency weighting"
-    )
-    norm: str = Field(
-        "l2", description="Norm used to normalize term vectors"
-    )
-    analyzer: str = Field(
-        "word", description="Whether to use word or character n-grams"
-    )
+    ngram_range: tuple = Field((1, 2), description="Range of n-grams to include in the vocabulary")
+    initial_k: int = Field(100, description="Initial number of documents to retrieve using TF-IDF")
+    use_idf: bool = Field(True, description="Whether to use inverse document frequency weighting")
+    norm: str = Field("l2", description="Norm used to normalize term vectors")
+    analyzer: str = Field("word", description="Whether to use word or character n-grams")
     stop_words: Optional[Union[str, List[str]]] = Field(
         "english", description="Stop words to remove from the vocabulary"
     )
@@ -44,16 +34,10 @@ class TFIDFConfig(BaseModel):
 
 class EmbeddingConfig(BaseModel):
     """Configuration for embedding-based retrieval."""
-    
-    model_name: str = Field(
-        "all-MiniLM-L6-v2", description="Name of the embedding model to use"
-    )
-    embedding_dimension: int = Field(
-        384, description="Dimension of the embedding vectors"
-    )
-    batch_size: int = Field(
-        32, description="Batch size for embedding generation"
-    )
+
+    model_name: str = Field("all-MiniLM-L6-v2", description="Name of the embedding model to use")
+    embedding_dimension: int = Field(384, description="Dimension of the embedding vectors")
+    batch_size: int = Field(32, description="Batch size for embedding generation")
     similarity_top_k: int = Field(
         20, description="Number of documents to retrieve using embedding similarity"
     )
@@ -67,16 +51,12 @@ class EmbeddingConfig(BaseModel):
 
 class GraphConfig(BaseModel):
     """Configuration for graph-based retrieval."""
-    
-    max_hops: int = Field(
-        2, description="Maximum number of hops to traverse in the graph"
-    )
+
+    max_hops: int = Field(2, description="Maximum number of hops to traverse in the graph")
     max_nodes: int = Field(
         50, description="Maximum number of nodes to include in the expanded results"
     )
-    min_edge_weight: float = Field(
-        0.5, description="Minimum edge weight for traversal"
-    )
+    min_edge_weight: float = Field(0.5, description="Minimum edge weight for traversal")
     relationship_types: Optional[List[str]] = Field(
         None, description="Types of relationships to traverse"
     )
@@ -90,58 +70,42 @@ class GraphConfig(BaseModel):
 
 class EntropyConfig(BaseModel):
     """Configuration for entropy-based termination."""
-    
-    threshold: float = Field(
-        0.1, description="Entropy threshold for termination"
-    )
-    max_iterations: int = Field(
-        3, description="Maximum number of iterations"
-    )
-    min_documents: int = Field(
-        5, description="Minimum number of documents to retrieve"
-    )
-    max_documents: int = Field(
-        50, description="Maximum number of documents to retrieve"
-    )
-    use_normalized_entropy: bool = Field(
-        True, description="Whether to use normalized entropy"
-    )
-    window_size: int = Field(
-        3, description="Window size for entropy calculation"
-    )
+
+    threshold: float = Field(0.1, description="Entropy threshold for termination")
+    max_iterations: int = Field(3, description="Maximum number of iterations")
+    min_documents: int = Field(5, description="Minimum number of documents to retrieve")
+    max_documents: int = Field(50, description="Maximum number of documents to retrieve")
+    use_normalized_entropy: bool = Field(True, description="Whether to use normalized entropy")
+    window_size: int = Field(3, description="Window size for entropy calculation")
 
 
 class RetrievalConfig(BaseModel):
     """Configuration for the retrieval module."""
-    
-    tfidf: TFIDFConfig = Field(
-        default_factory=TFIDFConfig, description="TF-IDF configuration"
-    )
+
+    tfidf: TFIDFConfig = Field(default_factory=TFIDFConfig, description="TF-IDF configuration")
     embedding: EmbeddingConfig = Field(
         default_factory=EmbeddingConfig, description="Embedding configuration"
     )
-    graph: GraphConfig = Field(
-        default_factory=GraphConfig, description="Graph configuration"
-    )
+    graph: GraphConfig = Field(default_factory=GraphConfig, description="Graph configuration")
     entropy: EntropyConfig = Field(
         default_factory=EntropyConfig, description="Entropy configuration"
     )
-    
+
     @classmethod
     def default(cls) -> "RetrievalConfig":
         """
         Create a default configuration.
-        
+
         Returns:
             RetrievalConfig: Default configuration
         """
         return cls()
-    
+
     @classmethod
     def minimal(cls) -> "RetrievalConfig":
         """
         Create a minimal configuration with only essential features enabled.
-        
+
         Returns:
             RetrievalConfig: Minimal configuration
         """
@@ -162,12 +126,12 @@ class RetrievalConfig(BaseModel):
                 max_documents=20,
             ),
         )
-    
+
     @classmethod
     def comprehensive(cls) -> "RetrievalConfig":
         """
         Create a comprehensive configuration with all features enabled.
-        
+
         Returns:
             RetrievalConfig: Comprehensive configuration
         """

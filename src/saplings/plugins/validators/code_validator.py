@@ -48,9 +48,7 @@ class CodeValidator(RuntimeValidator):
         """Type of the plugin."""
         return PluginType.VALIDATOR
 
-    async def validate_output(
-        self, output: str, prompt: str, **kwargs
-    ) -> ValidationResult:
+    async def validate_output(self, output: str, prompt: str, **kwargs) -> ValidationResult:
         """
         Validate a code output.
 
@@ -78,11 +76,13 @@ class CodeValidator(RuntimeValidator):
         for i, (language, code) in enumerate(code_blocks):
             block_issues = self._check_code_block(code, language)
             if block_issues:
-                issues.append({
-                    "block_index": i,
-                    "language": language,
-                    "issues": block_issues,
-                })
+                issues.append(
+                    {
+                        "block_index": i,
+                        "language": language,
+                        "issues": block_issues,
+                    }
+                )
 
         if issues:
             return ValidationResult(
@@ -152,12 +152,14 @@ class CodeValidator(RuntimeValidator):
         try:
             ast.parse(code)
         except SyntaxError as e:
-            issues.append({
-                "type": "syntax_error",
-                "message": str(e),
-                "line": e.lineno,
-                "offset": e.offset,
-            })
+            issues.append(
+                {
+                    "type": "syntax_error",
+                    "message": str(e),
+                    "line": e.lineno,
+                    "offset": e.offset,
+                }
+            )
             # Don't continue checking if there are syntax errors
             return issues
 
@@ -185,17 +187,24 @@ class CodeValidator(RuntimeValidator):
 
         # Check for dangerous imports
         dangerous_imports = [
-            "os.system", "subprocess", "eval", "exec", "pickle.loads",
-            "__import__", "importlib.import_module"
+            "os.system",
+            "subprocess",
+            "eval",
+            "exec",
+            "pickle.loads",
+            "__import__",
+            "importlib.import_module",
         ]
 
         for dangerous_import in dangerous_imports:
             if dangerous_import in code:
-                issues.append({
-                    "type": "security_issue",
-                    "message": f"Potentially dangerous import or function: {dangerous_import}",
-                    "severity": "high",
-                })
+                issues.append(
+                    {
+                        "type": "security_issue",
+                        "message": f"Potentially dangerous import or function: {dangerous_import}",
+                        "severity": "high",
+                    }
+                )
 
         # Check for hardcoded credentials
         credential_patterns = [
@@ -208,11 +217,13 @@ class CodeValidator(RuntimeValidator):
         for pattern in credential_patterns:
             matches = re.findall(pattern, code, re.IGNORECASE)
             for match in matches:
-                issues.append({
-                    "type": "security_issue",
-                    "message": f"Hardcoded credential found: {match}",
-                    "severity": "medium",
-                })
+                issues.append(
+                    {
+                        "type": "security_issue",
+                        "message": f"Hardcoded credential found: {match}",
+                        "severity": "medium",
+                    }
+                )
 
         return issues
 
@@ -232,22 +243,26 @@ class CodeValidator(RuntimeValidator):
         lines = code.split("\n")
         for i, line in enumerate(lines):
             if len(line) > 100:
-                issues.append({
-                    "type": "quality_issue",
-                    "message": f"Line {i+1} is too long ({len(line)} > 100 characters)",
-                    "line": i + 1,
-                    "severity": "low",
-                })
+                issues.append(
+                    {
+                        "type": "quality_issue",
+                        "message": f"Line {i+1} is too long ({len(line)} > 100 characters)",
+                        "line": i + 1,
+                        "severity": "low",
+                    }
+                )
 
         # Check for TODO comments
         todo_pattern = r"#\s*TODO"
         for i, line in enumerate(lines):
             if re.search(todo_pattern, line):
-                issues.append({
-                    "type": "quality_issue",
-                    "message": f"TODO comment found on line {i+1}",
-                    "line": i + 1,
-                    "severity": "low",
-                })
+                issues.append(
+                    {
+                        "type": "quality_issue",
+                        "message": f"TODO comment found on line {i+1}",
+                        "line": i + 1,
+                        "severity": "low",
+                    }
+                )
 
         return issues

@@ -61,7 +61,9 @@ class PlanStep(BaseModel):
     actual_cost: Optional[float] = Field(None, description="Actual cost of the step in USD")
     estimated_tokens: int = Field(0, description="Estimated number of tokens required")
     actual_tokens: Optional[int] = Field(None, description="Actual number of tokens used")
-    dependencies: List[str] = Field(default_factory=list, description="IDs of steps this step depends on")
+    dependencies: List[str] = Field(
+        default_factory=list, description="IDs of steps this step depends on"
+    )
     status: PlanStepStatus = Field(PlanStepStatus.PENDING, description="Current status of the step")
     result: Optional[Any] = Field(None, description="Result of the step execution")
     error: Optional[str] = Field(None, description="Error message if the step failed")
@@ -102,7 +104,11 @@ class PlanStep(BaseModel):
         Returns:
             bool: True if the step is complete, False otherwise
         """
-        return self.status in (PlanStepStatus.COMPLETED, PlanStepStatus.FAILED, PlanStepStatus.SKIPPED)
+        return self.status in (
+            PlanStepStatus.COMPLETED,
+            PlanStepStatus.FAILED,
+            PlanStepStatus.SKIPPED,
+        )
 
     def is_successful(self) -> bool:
         """
@@ -226,7 +232,9 @@ class PlanStep(BaseModel):
         self.actual_cost = actual_cost
         self.actual_tokens = actual_tokens
 
-    def fail(self, error: str, actual_cost: Optional[float] = None, actual_tokens: Optional[int] = None) -> None:
+    def fail(
+        self, error: str, actual_cost: Optional[float] = None, actual_tokens: Optional[int] = None
+    ) -> None:
         """
         Mark this step as failed.
 

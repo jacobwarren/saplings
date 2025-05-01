@@ -4,9 +4,10 @@ Tests for the SuccessPairCollector class.
 
 import json
 import os
-import pytest
 import tempfile
 from unittest.mock import MagicMock
+
+import pytest
 
 from saplings.self_heal.patch_generator import Patch, PatchStatus
 from saplings.self_heal.success_pair_collector import SuccessPairCollector
@@ -87,27 +88,27 @@ class TestSuccessPairCollector:
     def test_save_and_load_pairs(self, collector, sample_patch, temp_dir):
         """Test saving and loading pairs."""
         collector.collect(sample_patch)
-        
+
         # Create a new collector to load the pairs
         new_collector = SuccessPairCollector(storage_dir=temp_dir, max_pairs=5)
-        
+
         assert len(new_collector.pairs) == 1
         assert new_collector.pairs[0]["original_code"] == sample_patch.original_code
 
     def test_export_to_jsonl(self, collector, sample_patch, temp_dir):
         """Test exporting pairs to a JSONL file."""
         collector.collect(sample_patch)
-        
+
         output_file = os.path.join(temp_dir, "export.jsonl")
         collector.export_to_jsonl(output_file)
-        
+
         assert os.path.exists(output_file)
-        
+
         # Check the content of the file
         with open(output_file, "r") as f:
             lines = f.readlines()
             assert len(lines) == 1
-            
+
             # Parse the JSON line
             pair = json.loads(lines[0])
             assert pair["original_code"] == sample_patch.original_code
@@ -117,22 +118,27 @@ class TestSuccessPairCollector:
         # Create a JSONL file
         input_file = os.path.join(temp_dir, "import.jsonl")
         with open(input_file, "w") as f:
-            f.write(json.dumps({
-                "original_code": "def test():\n    print(x)\n",
-                "patched_code": "def test():\n    x = None\n    print(x)\n",
-                "error": "NameError: name 'x' is not defined",
-                "error_info": {
-                    "type": "NameError",
-                    "message": "name 'x' is not defined",
-                    "patterns": ["undefined_variable"],
-                    "variable": "x",
-                },
-                "timestamp": "2023-01-01T00:00:00",
-            }) + "\n")
-        
+            f.write(
+                json.dumps(
+                    {
+                        "original_code": "def test():\n    print(x)\n",
+                        "patched_code": "def test():\n    x = None\n    print(x)\n",
+                        "error": "NameError: name 'x' is not defined",
+                        "error_info": {
+                            "type": "NameError",
+                            "message": "name 'x' is not defined",
+                            "patterns": ["undefined_variable"],
+                            "variable": "x",
+                        },
+                        "timestamp": "2023-01-01T00:00:00",
+                    }
+                )
+                + "\n"
+            )
+
         # Import the pairs
         collector.import_from_jsonl(input_file)
-        
+
         assert len(collector.pairs) == 1
         assert collector.pairs[0]["original_code"] == "def test():\n    print(x)\n"
 
@@ -140,26 +146,31 @@ class TestSuccessPairCollector:
         """Test importing pairs from a JSONL file with append=True."""
         # Collect a pair
         collector.collect(sample_patch)
-        
+
         # Create a JSONL file
         input_file = os.path.join(temp_dir, "import.jsonl")
         with open(input_file, "w") as f:
-            f.write(json.dumps({
-                "original_code": "def test():\n    print(x)\n",
-                "patched_code": "def test():\n    x = None\n    print(x)\n",
-                "error": "NameError: name 'x' is not defined",
-                "error_info": {
-                    "type": "NameError",
-                    "message": "name 'x' is not defined",
-                    "patterns": ["undefined_variable"],
-                    "variable": "x",
-                },
-                "timestamp": "2023-01-01T00:00:00",
-            }) + "\n")
-        
+            f.write(
+                json.dumps(
+                    {
+                        "original_code": "def test():\n    print(x)\n",
+                        "patched_code": "def test():\n    x = None\n    print(x)\n",
+                        "error": "NameError: name 'x' is not defined",
+                        "error_info": {
+                            "type": "NameError",
+                            "message": "name 'x' is not defined",
+                            "patterns": ["undefined_variable"],
+                            "variable": "x",
+                        },
+                        "timestamp": "2023-01-01T00:00:00",
+                    }
+                )
+                + "\n"
+            )
+
         # Import the pairs with append=True
         collector.import_from_jsonl(input_file, append=True)
-        
+
         assert len(collector.pairs) == 2
         assert collector.pairs[0]["original_code"] == sample_patch.original_code
         assert collector.pairs[1]["original_code"] == "def test():\n    print(x)\n"
@@ -167,9 +178,9 @@ class TestSuccessPairCollector:
     def test_get_statistics(self, collector, sample_patch):
         """Test getting statistics about collected pairs."""
         collector.collect(sample_patch)
-        
+
         stats = collector.get_statistics()
-        
+
         assert stats["total_pairs"] == 1
         assert stats["error_types"]["NameError"] == 1
         assert stats["error_patterns"]["undefined_variable"] == 1

@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-from saplings.memory import Document, DocumentMetadata, DependencyGraph
+from saplings.memory import DependencyGraph, Document, DocumentMetadata
 
 
 class TestDatasets:
@@ -112,27 +112,23 @@ class TestDatasets:
             # Connect to previous document
             if i > 0:
                 graph.add_edge(
-                    source_id=nodes[i].id,
-                    target_id=nodes[i-1].id,
-                    relationship_type="references"
+                    source_id=nodes[i].id, target_id=nodes[i - 1].id, relationship_type="references"
                 )
 
             # Connect to next document
             if i < num_documents - 1:
                 graph.add_edge(
-                    source_id=nodes[i].id,
-                    target_id=nodes[i+1].id,
-                    relationship_type="references"
+                    source_id=nodes[i].id, target_id=nodes[i + 1].id, relationship_type="references"
                 )
 
             # Add random connections based on density
             for j in range(num_documents):
-                if i != j and i != j-1 and i != j+1:  # Skip already connected nodes
+                if i != j and i != j - 1 and i != j + 1:  # Skip already connected nodes
                     if np.random.random() < connection_density:
                         graph.add_edge(
                             source_id=nodes[i].id,
                             target_id=nodes[j].id,
-                            relationship_type="references"
+                            relationship_type="references",
                         )
 
         return graph
@@ -386,13 +382,13 @@ def fibonacci(n):
             {
                 "task": "Summarize the following text: {text}",
                 "text": "The artificial intelligence field has seen rapid advancement in recent years, "
-                        "particularly in the areas of deep learning and natural language processing. "
-                        "These technologies have enabled new applications such as autonomous vehicles, "
-                        "virtual assistants, and advanced recommendation systems.",
+                "particularly in the areas of deep learning and natural language processing. "
+                "These technologies have enabled new applications such as autonomous vehicles, "
+                "virtual assistants, and advanced recommendation systems.",
                 "responses": [
                     {
                         "response": "AI has advanced quickly, especially in deep learning and NLP, "
-                                    "enabling autonomous vehicles, virtual assistants, and recommendation systems.",
+                        "enabling autonomous vehicles, virtual assistants, and recommendation systems.",
                         "score": 5,
                         "feedback": "Concise and captures all key points.",
                     },
@@ -403,8 +399,8 @@ def fibonacci(n):
                     },
                     {
                         "response": "Artificial intelligence has advanced rapidly, with deep learning and NLP "
-                                    "being key areas of progress. These technologies have led to applications "
-                                    "like self-driving cars, virtual assistants, and recommendation systems.",
+                        "being key areas of progress. These technologies have led to applications "
+                        "like self-driving cars, virtual assistants, and recommendation systems.",
                         "score": 4,
                         "feedback": "Good coverage but could be more concise.",
                     },
@@ -435,15 +431,15 @@ def fibonacci(n):
                 "responses": [
                     {
                         "response": "Machine learning is a type of artificial intelligence that allows computers "
-                                    "to learn from data without being explicitly programmed. It's like teaching "
-                                    "a child to recognize animals by showing them many examples, rather than "
-                                    "giving them specific rules.",
+                        "to learn from data without being explicitly programmed. It's like teaching "
+                        "a child to recognize animals by showing them many examples, rather than "
+                        "giving them specific rules.",
                         "score": 5,
                         "feedback": "Clear explanation with a relatable analogy.",
                     },
                     {
                         "response": "Machine learning involves training models on data using algorithms like "
-                                    "gradient descent to minimize loss functions and optimize parameters.",
+                        "gradient descent to minimize loss functions and optimize parameters.",
                         "score": 1,
                         "feedback": "Too technical for a non-technical audience.",
                     },

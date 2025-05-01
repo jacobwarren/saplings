@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
+
     _HAS_SCHEDULER_DEPS = True
 except ImportError:
     _HAS_SCHEDULER_DEPS = False
@@ -33,21 +34,17 @@ try:
     import pandas as pd
     import torch
     from datasets import Dataset
-    from peft import (
-        LoraConfig as PeftLoraConfig,
-        TaskType,
-        get_peft_model,
-        PeftModel,
-        prepare_model_for_kbit_training,
-    )
+    from peft import LoraConfig as PeftLoraConfig
+    from peft import PeftModel, TaskType, get_peft_model, prepare_model_for_kbit_training
     from transformers import (
         AutoModelForCausalLM,
         AutoTokenizer,
         BitsAndBytesConfig,
+        DataCollatorForLanguageModeling,
         Trainer,
         TrainingArguments,
-        DataCollatorForLanguageModeling,
     )
+
     _HAS_LORA_DEPS = True
 except ImportError:
     _HAS_LORA_DEPS = False
@@ -167,10 +164,12 @@ class LoRaTrainer:
         data = []
         for pair in pairs:
             # Create input-output pairs
-            data.append({
-                "input": f"Error: {pair['error']}\nCode: {pair['original_code']}",
-                "output": pair["patched_code"],
-            })
+            data.append(
+                {
+                    "input": f"Error: {pair['error']}\nCode: {pair['original_code']}",
+                    "output": pair["patched_code"],
+                }
+            )
 
         # Convert to a pandas DataFrame
         df = pd.DataFrame(data)
@@ -414,11 +413,16 @@ class LoRaTrainer:
                 # Save training record
                 record_path = os.path.join(self.output_dir, "training_history.jsonl")
                 with open(record_path, "a") as f:
-                    f.write(json.dumps({
-                        "timestamp": datetime.now().isoformat(),
-                        "data_path": data_path,
-                        "metrics": metrics.to_dict()
-                    }) + "\n")
+                    f.write(
+                        json.dumps(
+                            {
+                                "timestamp": datetime.now().isoformat(),
+                                "data_path": data_path,
+                                "metrics": metrics.to_dict(),
+                            }
+                        )
+                        + "\n"
+                    )
             except Exception as e:
                 logger.error(f"Error in scheduled training: {e}")
 
@@ -428,7 +432,7 @@ class LoRaTrainer:
             CronTrigger.from_crontab(cron_expression),
             id="nightly_training",
             replace_existing=True,
-            misfire_grace_time=3600  # Allow job to be missed by up to 1 hour
+            misfire_grace_time=3600,  # Allow job to be missed by up to 1 hour
         )
 
         # Start the scheduler if it's not already running

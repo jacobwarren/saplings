@@ -48,6 +48,7 @@ class TestStreamingFunctionCaller:
     @pytest.mark.asyncio
     async def test_call_function_streaming(self, registry, caller):
         """Test calling a streaming function."""
+
         # Define a test async generator function
         async def generate_numbers(count: int) -> AsyncGenerator[int, None]:
             """Generate a sequence of numbers."""
@@ -68,6 +69,7 @@ class TestStreamingFunctionCaller:
     @pytest.mark.asyncio
     async def test_call_function_streaming_with_sync_generator(self, registry, caller):
         """Test calling a synchronous generator function."""
+
         # Define a test generator function with a small count to avoid hanging
         def generate_numbers(count: int):
             """Generate a sequence of numbers."""
@@ -83,7 +85,9 @@ class TestStreamingFunctionCaller:
         # Set a timeout to prevent hanging
         with pytest.raises(asyncio.TimeoutError):
             async with asyncio.timeout(0.5):  # 500ms timeout
-                async for result in caller.call_function_streaming("generate_numbers", {"count": 2}):
+                async for result in caller.call_function_streaming(
+                    "generate_numbers", {"count": 2}
+                ):
                     results.append(result)
 
         # We might get partial results before the timeout
@@ -94,6 +98,7 @@ class TestStreamingFunctionCaller:
     @pytest.mark.asyncio
     async def test_call_function_streaming_with_non_generator(self, registry, caller):
         """Test calling a non-generator function."""
+
         # Define a test function
         def add(a: int, b: int) -> int:
             """Add two numbers."""
@@ -110,6 +115,7 @@ class TestStreamingFunctionCaller:
     @pytest.mark.asyncio
     async def test_call_functions_streaming(self, registry, caller):
         """Test calling multiple streaming functions."""
+
         # Define test functions
         async def generate_numbers(count: int) -> AsyncGenerator[int, None]:
             """Generate a sequence of numbers."""
@@ -147,6 +153,7 @@ class TestStreamingFunctionCaller:
     @pytest.mark.asyncio
     async def test_call_function_streaming_convenience(self, registry):
         """Test the convenience function for streaming function calling."""
+
         # Define a test async generator function
         async def generate_numbers(count: int) -> AsyncGenerator[int, None]:
             """Generate a sequence of numbers."""
@@ -167,6 +174,7 @@ class TestStreamingFunctionCaller:
     @pytest.mark.asyncio
     async def test_call_functions_streaming_convenience(self, registry):
         """Test the convenience function for streaming multiple functions."""
+
         # Define test functions
         async def generate_numbers(count: int) -> AsyncGenerator[int, None]:
             """Generate a sequence of numbers."""

@@ -18,6 +18,7 @@ from saplings.gasa.config import GASAConfig
 from saplings.gasa.mask_builder import MaskBuilder, MaskType
 from saplings.monitoring.config import MonitoringConfig, VisualizationFormat
 
+
 # Define MaskFormat enum locally to avoid import issues
 class MaskFormat(str, Enum):
     """Format of attention masks."""
@@ -26,11 +27,13 @@ class MaskFormat(str, Enum):
     SPARSE = "sparse"  # Sparse matrix (scipy.sparse)
     SPARSE_TENSOR = "sparse_tensor"  # Sparse tensor format (list of dicts)
 
+
 logger = logging.getLogger(__name__)
 
 try:
-    import matplotlib.pyplot as plt
     import matplotlib.colors as mcolors
+    import matplotlib.pyplot as plt
+
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
@@ -40,9 +43,10 @@ except ImportError:
     )
 
 try:
-    import plotly.graph_objects as go
     import plotly.express as px
+    import plotly.graph_objects as go
     from plotly.subplots import make_subplots
+
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
@@ -169,7 +173,9 @@ class GASAHeatmap:
                 show=show,
             )
         else:
-            logger.warning("Neither Plotly nor Matplotlib is installed. Cannot visualize mask comparison.")
+            logger.warning(
+                "Neither Plotly nor Matplotlib is installed. Cannot visualize mask comparison."
+            )
             return None
 
     def visualize_mask_sparsity(
@@ -211,14 +217,18 @@ class GASAHeatmap:
             fig = go.Figure()
 
             # Add bar chart
-            fig.add_trace(go.Bar(
-                x=["Non-zero", "Zero"],
-                y=[nonzero_elements, zero_elements],
-                marker_color=["#1f77b4", "#ff7f0e"],
-                text=[f"{nonzero_elements} ({nonzero_elements / total_elements:.2%})",
-                      f"{zero_elements} ({sparsity:.2%})"],
-                textposition="auto",
-            ))
+            fig.add_trace(
+                go.Bar(
+                    x=["Non-zero", "Zero"],
+                    y=[nonzero_elements, zero_elements],
+                    marker_color=["#1f77b4", "#ff7f0e"],
+                    text=[
+                        f"{nonzero_elements} ({nonzero_elements / total_elements:.2%})",
+                        f"{zero_elements} ({sparsity:.2%})",
+                    ],
+                    textposition="auto",
+                )
+            )
 
             # Update layout
             fig.update_layout(
@@ -279,7 +289,9 @@ class GASAHeatmap:
             return fig
 
         else:
-            logger.warning("Neither Plotly nor Matplotlib is installed. Cannot visualize mask sparsity.")
+            logger.warning(
+                "Neither Plotly nor Matplotlib is installed. Cannot visualize mask sparsity."
+            )
             return None
 
     def _visualize_mask_interactive(
@@ -316,14 +328,16 @@ class GASAHeatmap:
         fig = go.Figure()
 
         # Add heatmap
-        fig.add_trace(go.Heatmap(
-            z=dense_mask,
-            x=token_labels or list(range(dense_mask.shape[1])),
-            y=token_labels or list(range(dense_mask.shape[0])),
-            colorscale="Blues",
-            showscale=True,
-            hovertemplate="From: %{y}<br>To: %{x}<br>Value: %{z}<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Heatmap(
+                z=dense_mask,
+                x=token_labels or list(range(dense_mask.shape[1])),
+                y=token_labels or list(range(dense_mask.shape[0])),
+                colorscale="Blues",
+                showscale=True,
+                hovertemplate="From: %{y}<br>To: %{x}<br>Value: %{z}<extra></extra>",
+            )
+        )
 
         # Highlight tokens
         if highlight_tokens:
@@ -424,8 +438,12 @@ class GASAHeatmap:
                 if indices[-1] != len(token_labels) - 1:
                     indices.append(len(token_labels) - 1)
 
-                x_labels = [token_labels[i] if i in indices else "" for i in range(len(token_labels))]
-                y_labels = [token_labels[i] if i in indices else "" for i in range(len(token_labels))]
+                x_labels = [
+                    token_labels[i] if i in indices else "" for i in range(len(token_labels))
+                ]
+                y_labels = [
+                    token_labels[i] if i in indices else "" for i in range(len(token_labels))
+                ]
             else:
                 x_labels = token_labels
                 y_labels = token_labels
@@ -481,7 +499,8 @@ class GASAHeatmap:
         # Create figure
         n_masks = len(masks)
         fig = make_subplots(
-            rows=1, cols=n_masks,
+            rows=1,
+            cols=n_masks,
             subplot_titles=[label for _, _, _, label in masks],
         )
 
@@ -497,7 +516,8 @@ class GASAHeatmap:
                     colorscale="Blues",
                     showscale=(i == n_masks - 1),  # Only show colorbar for last mask
                 ),
-                row=1, col=i+1,
+                row=1,
+                col=i + 1,
             )
 
         # Update layout
@@ -710,13 +730,15 @@ class PerformanceVisualizer:
 
             # Add box plots for each component
             for component, values in latencies.items():
-                fig.add_trace(go.Box(
-                    y=values,
-                    name=component,
-                    boxpoints="all",
-                    jitter=0.3,
-                    pointpos=-1.8,
-                ))
+                fig.add_trace(
+                    go.Box(
+                        y=values,
+                        name=component,
+                        boxpoints="all",
+                        jitter=0.3,
+                        pointpos=-1.8,
+                    )
+                )
 
             # Update layout
             fig.update_layout(
@@ -803,16 +825,14 @@ class PerformanceVisualizer:
 
             # Add bar charts for each component
             for component, values in throughputs.items():
-                fig.add_trace(go.Bar(
-                    y=[np.mean(values)],
-                    x=[component],
-                    name=component,
-                    error_y=dict(
-                        type='data',
-                        array=[np.std(values)],
-                        visible=True
+                fig.add_trace(
+                    go.Bar(
+                        y=[np.mean(values)],
+                        x=[component],
+                        name=component,
+                        error_y=dict(type="data", array=[np.std(values)], visible=True),
                     )
-                ))
+                )
 
             # Update layout
             fig.update_layout(
@@ -870,7 +890,9 @@ class PerformanceVisualizer:
             return fig
 
         else:
-            logger.warning("Neither Plotly nor Matplotlib is installed. Cannot visualize throughput.")
+            logger.warning(
+                "Neither Plotly nor Matplotlib is installed. Cannot visualize throughput."
+            )
             return None
 
     def visualize_error_rate(
@@ -900,11 +922,13 @@ class PerformanceVisualizer:
 
             # Add line charts for each component
             for component, values in error_rates.items():
-                fig.add_trace(go.Scatter(
-                    y=values,
-                    mode='lines+markers',
-                    name=component,
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        y=values,
+                        mode="lines+markers",
+                        name=component,
+                    )
+                )
 
             # Update layout
             fig.update_layout(
@@ -913,9 +937,9 @@ class PerformanceVisualizer:
                 height=600,
                 width=800,
                 yaxis=dict(
-                    tickformat='.1%',
-                    range=[0, max([max(rates) for rates in error_rates.values()]) * 1.1]
-                )
+                    tickformat=".1%",
+                    range=[0, max([max(rates) for rates in error_rates.values()]) * 1.1],
+                ),
             )
 
             # Save figure
@@ -934,7 +958,7 @@ class PerformanceVisualizer:
 
             # Plot error rates for each component
             for component, values in error_rates.items():
-                ax.plot(range(len(values)), values, marker='o', label=component)
+                ax.plot(range(len(values)), values, marker="o", label=component)
 
             # Set title and labels
             if title:
@@ -966,7 +990,9 @@ class PerformanceVisualizer:
             return fig
 
         else:
-            logger.warning("Neither Plotly nor Matplotlib is installed. Cannot visualize error rate.")
+            logger.warning(
+                "Neither Plotly nor Matplotlib is installed. Cannot visualize error rate."
+            )
             return None
 
     def _save_visualization(

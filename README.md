@@ -3,6 +3,7 @@
 A graph-first, self-improving agent framework that takes root in your repository or knowledge base, builds a structural map, and grows smarter each day through automated critique → fine-tune loops—all without locking you to a single model provider.
 
 <img src="logo.svg" alt="Saplings - A graph-first, self-improving agent framework for building AI agents" width="200">
+
 - Provided by [Fine-Tuna](https://fine-tuna.ai): A dataset creation and fine-tuning agency.
 
 ## What is Saplings?

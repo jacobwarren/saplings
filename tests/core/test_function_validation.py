@@ -44,6 +44,7 @@ class TestFunctionValidator:
 
     def test_validate_function_call(self, registry, validator):
         """Test validating a function call."""
+
         # Define a test function
         def add(a: int, b: int) -> int:
             """Add two numbers."""
@@ -70,6 +71,7 @@ class TestFunctionValidator:
 
     def test_validate_function_call_with_default_values(self, registry, validator):
         """Test validating a function call with default values."""
+
         # Define a test function with default values
         def greet(name: str, greeting: str = "Hello") -> str:
             """Greet someone."""
@@ -88,6 +90,7 @@ class TestFunctionValidator:
 
     def test_validate_function_call_with_complex_types(self, registry, validator):
         """Test validating a function call with complex types."""
+
         # Define a test function with complex types
         def process_data(items: str, options: str = None) -> Dict:
             """Process data.
@@ -106,26 +109,26 @@ class TestFunctionValidator:
         # Validate with valid arguments
         validated = validator.validate_function_call(
             "process_data",
-            {"items": json.dumps([1, 2, 3]), "options": json.dumps({"mode": "fast"})}
+            {"items": json.dumps([1, 2, 3]), "options": json.dumps({"mode": "fast"})},
         )
-        assert validated == {"items": json.dumps([1, 2, 3]), "options": json.dumps({"mode": "fast"})}
+        assert validated == {
+            "items": json.dumps([1, 2, 3]),
+            "options": json.dumps({"mode": "fast"}),
+        }
 
         # Validate with type conversion
         validated = validator.validate_function_call(
-            "process_data",
-            {"items": json.dumps(["1", "2", "3"])}
+            "process_data", {"items": json.dumps(["1", "2", "3"])}
         )
         assert validated == {"items": json.dumps(["1", "2", "3"]), "options": None}
 
         # Validate with invalid arguments
         with pytest.raises(ValidationError):
-            validator.validate_function_call(
-                "process_data",
-                {"items": 123}  # Not a string
-            )
+            validator.validate_function_call("process_data", {"items": 123})  # Not a string
 
     def test_validate_function_call_with_json_string(self, registry, validator):
         """Test validating a function call with a JSON string."""
+
         # Define a test function
         def add(a: int, b: int) -> int:
             """Add two numbers."""
@@ -145,6 +148,7 @@ class TestFunctionValidator:
 
     def test_validate_function_call_convenience(self, registry):
         """Test the convenience function for validating function calls."""
+
         # Define a test function
         def add(a: int, b: int) -> int:
             """Add two numbers."""

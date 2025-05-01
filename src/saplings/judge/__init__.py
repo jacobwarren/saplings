@@ -8,7 +8,7 @@ This module provides the judge functionality for Saplings, including:
 - Budget enforcement
 """
 
-from saplings.judge.config import JudgeConfig, CritiqueFormat, ScoringDimension
+from saplings.judge.config import CritiqueFormat, JudgeConfig, ScoringDimension
 from saplings.judge.judge_agent import JudgeAgent, JudgeResult
 
 __all__ = [

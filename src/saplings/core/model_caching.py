@@ -41,7 +41,9 @@ class CacheStats(BaseModel):
     evictions: int = Field(0, description="Number of cache evictions")
     size: int = Field(0, description="Current number of items in the cache")
     max_size: int = Field(0, description="Maximum number of items in the cache")
-    created_at: datetime = Field(default_factory=datetime.now, description="When the cache was created")
+    created_at: datetime = Field(
+        default_factory=datetime.now, description="When the cache was created"
+    )
     last_hit_at: Optional[datetime] = Field(None, description="When the cache was last hit")
     last_miss_at: Optional[datetime] = Field(None, description="When the cache was last missed")
 
@@ -73,7 +75,7 @@ class ModelCache:
         namespace: str = "default",
         strategy: CacheStrategy = CacheStrategy.LRU,
         persist: bool = False,
-        persist_path: Optional[str] = None
+        persist_path: Optional[str] = None,
     ):
         """
         Initialize the model cache.
@@ -152,7 +154,7 @@ class ModelCache:
                 "cache": self._cache,
                 "access_times": self._access_times,
                 "access_counts": self._access_counts,
-                "insertion_order": self._insertion_order
+                "insertion_order": self._insertion_order,
             }
 
             with open(self.cache_file, "wb") as f:
@@ -168,10 +170,7 @@ class ModelCache:
             return
 
         now = time.time()
-        expired_keys = [
-            key for key, (_, expiration) in self._cache.items()
-            if now > expiration
-        ]
+        expired_keys = [key for key, (_, expiration) in self._cache.items() if now > expiration]
 
         for key in expired_keys:
             self.delete(key)
@@ -285,7 +284,9 @@ class ModelCache:
         if key_to_evict:
             self.delete(key_to_evict)
             self.stats.evictions += 1
-            logger.debug(f"Cache evicted item with key: {key_to_evict} using {self.strategy} strategy")
+            logger.debug(
+                f"Cache evicted item with key: {key_to_evict} using {self.strategy} strategy"
+            )
 
     def delete(self, key: str) -> bool:
         """
@@ -367,7 +368,7 @@ class ModelCacheManager:
         ttl: Optional[int] = 3600,
         strategy: CacheStrategy = CacheStrategy.LRU,
         persist: bool = False,
-        persist_path: Optional[str] = None
+        persist_path: Optional[str] = None,
     ) -> ModelCache:
         """
         Get a cache by namespace.
@@ -390,7 +391,7 @@ class ModelCacheManager:
                 namespace=namespace,
                 strategy=strategy,
                 persist=persist,
-                persist_path=persist_path
+                persist_path=persist_path,
             )
         return self._caches[namespace]
 
@@ -416,10 +417,7 @@ class ModelCacheManager:
         Returns:
             Dict[str, Dict[str, Any]]: Statistics for all caches
         """
-        return {
-            namespace: cache.get_stats()
-            for namespace, cache in self._caches.items()
-        }
+        return {namespace: cache.get_stats() for namespace, cache in self._caches.items()}
 
 
 # Create a singleton instance
@@ -431,7 +429,7 @@ def generate_cache_key(
     prompt: Union[str, List[Dict[str, Any]]],
     max_tokens: Optional[int] = None,
     temperature: Optional[float] = None,
-    **kwargs
+    **kwargs,
 ) -> str:
     """
     Generate a cache key for a model request.
@@ -500,7 +498,7 @@ def get_model_cache(
     ttl: Optional[int] = 3600,
     strategy: CacheStrategy = CacheStrategy.LRU,
     persist: bool = False,
-    persist_path: Optional[str] = None
+    persist_path: Optional[str] = None,
 ) -> ModelCache:
     """
     Get a model cache by namespace.
@@ -522,7 +520,7 @@ def get_model_cache(
         ttl=ttl,
         strategy=strategy,
         persist=persist,
-        persist_path=persist_path
+        persist_path=persist_path,
     )
 
 
@@ -563,7 +561,7 @@ def cached_model_response(
     ttl: Optional[int] = 3600,
     strategy: CacheStrategy = CacheStrategy.LRU,
     persist: bool = False,
-    persist_path: Optional[str] = None
+    persist_path: Optional[str] = None,
 ):
     """
     Decorator for caching model responses.
@@ -581,6 +579,7 @@ def cached_model_response(
     Returns:
         Callable: Decorated function
     """
+
     def decorator(func):
         @functools.wraps(func)
         async def async_wrapper(self, *args, **kwargs):
@@ -590,7 +589,7 @@ def cached_model_response(
                 ttl=ttl,
                 strategy=strategy,
                 persist=persist,
-                persist_path=persist_path
+                persist_path=persist_path,
             )
 
             # Generate a cache key
@@ -609,11 +608,7 @@ def cached_model_response(
                 if k not in ["prompt", "max_tokens", "temperature"]:
                     params[k] = v
 
-            cache_key = generate_cache_key(
-                model_uri=model_uri,
-                prompt=prompt,
-                **params
-            )
+            cache_key = generate_cache_key(model_uri=model_uri, prompt=prompt, **params)
 
             # Check if the response is in the cache
             cached_response = cache.get(cache_key)
@@ -637,7 +632,7 @@ def cached_model_response(
                 ttl=ttl,
                 strategy=strategy,
                 persist=persist,
-                persist_path=persist_path
+                persist_path=persist_path,
             )
 
             # Generate a cache key
@@ -656,11 +651,7 @@ def cached_model_response(
                 if k not in ["prompt", "max_tokens", "temperature"]:
                     params[k] = v
 
-            cache_key = generate_cache_key(
-                model_uri=model_uri,
-                prompt=prompt,
-                **params
-            )
+            cache_key = generate_cache_key(model_uri=model_uri, prompt=prompt, **params)
 
             # Check if the response is in the cache
             cached_response = cache.get(cache_key)

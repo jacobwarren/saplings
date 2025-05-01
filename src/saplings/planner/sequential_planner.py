@@ -251,7 +251,9 @@ Please provide a plan for the task above.
                 # Convert step type string to enum
                 step_type_str = step_data.get("step_type", "TASK")
                 if isinstance(step_type_str, str):
-                    step_type_str = step_type_str.lower()  # Convert to lowercase for case-insensitive matching
+                    step_type_str = (
+                        step_type_str.lower()
+                    )  # Convert to lowercase for case-insensitive matching
                 try:
                     step_type = StepType(step_type_str)
                 except ValueError:
@@ -359,7 +361,9 @@ Please provide an optimized plan as a JSON array of steps, where each step has t
 Format your response as a JSON array.
 """
 
-    def _parse_optimization_response(self, response: LLMResponse, original_steps: List[PlanStep]) -> List[PlanStep]:
+    def _parse_optimization_response(
+        self, response: LLMResponse, original_steps: List[PlanStep]
+    ) -> List[PlanStep]:
         """
         Parse an optimization response into plan steps.
 
@@ -395,7 +399,9 @@ Format your response as a JSON array.
                 # Convert step type string to enum
                 step_type_str = step_data.get("step_type", "TASK")
                 if isinstance(step_type_str, str):
-                    step_type_str = step_type_str.lower()  # Convert to lowercase for case-insensitive matching
+                    step_type_str = (
+                        step_type_str.lower()
+                    )  # Convert to lowercase for case-insensitive matching
                 try:
                     step_type = StepType(step_type_str)
                 except ValueError:
@@ -404,11 +410,19 @@ Format your response as a JSON array.
                 # Create PlanStep
                 if original_step:
                     # Update existing step
-                    original_step.task_description = step_data.get("task_description", original_step.task_description)
+                    original_step.task_description = step_data.get(
+                        "task_description", original_step.task_description
+                    )
                     original_step.step_type = step_type
-                    original_step.estimated_cost = float(step_data.get("estimated_cost", original_step.estimated_cost))
-                    original_step.estimated_tokens = int(step_data.get("estimated_tokens", original_step.estimated_tokens))
-                    original_step.dependencies = step_data.get("dependencies", original_step.dependencies)
+                    original_step.estimated_cost = float(
+                        step_data.get("estimated_cost", original_step.estimated_cost)
+                    )
+                    original_step.estimated_tokens = int(
+                        step_data.get("estimated_tokens", original_step.estimated_tokens)
+                    )
+                    original_step.dependencies = step_data.get(
+                        "dependencies", original_step.dependencies
+                    )
                     steps.append(original_step)
                 else:
                     # Create new step
@@ -459,7 +473,7 @@ Format your response as a JSON array.
         if len(optimized_steps) > self.config.max_steps:
             # Remove steps with highest cost
             optimized_steps.sort(key=lambda s: s.estimated_cost, reverse=True)
-            optimized_steps = optimized_steps[:(self.config.max_steps)]
+            optimized_steps = optimized_steps[: (self.config.max_steps)]
             # Sort back by dependencies
             optimized_steps.sort(key=lambda s: len(s.dependencies))
 
@@ -513,7 +527,7 @@ Format your response as a JSON array.
             if cycle:
                 # Break the cycle by removing the last dependency
                 for i, step_id in enumerate(cycle[:-1]):
-                    next_id = cycle[i+1]
+                    next_id = cycle[i + 1]
                     step_obj = next((s for s in optimized_steps if s.id == step_id), None)
                     if step_obj and next_id in step_obj.dependencies:
                         step_obj.dependencies.remove(next_id)
@@ -546,7 +560,9 @@ Format your response as a JSON array.
         for step in optimized_steps:
             if step.estimated_cost > max_step_cost:
                 step.estimated_cost = max_step_cost
-                step.estimated_tokens = int(step.estimated_tokens * (max_step_cost / step.estimated_cost))
+                step.estimated_tokens = int(
+                    step.estimated_tokens * (max_step_cost / step.estimated_cost)
+                )
 
         return optimized_steps
 
@@ -775,7 +791,9 @@ Based on the information above, make a clear decision.
 Explain your reasoning and the factors you considered.
 """
 
-    def _create_verification_prompt(self, step: PlanStep, dependency_results: Dict[str, Any]) -> str:
+    def _create_verification_prompt(
+        self, step: PlanStep, dependency_results: Dict[str, Any]
+    ) -> str:
         """
         Create a prompt for a verification step.
 

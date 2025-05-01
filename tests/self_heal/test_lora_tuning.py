@@ -4,11 +4,12 @@ Tests for the LoRA fine-tuning pipeline.
 
 import json
 import os
-import pytest
 import tempfile
 from unittest.mock import MagicMock, patch
 
-from saplings.self_heal.lora_tuning import LoRaTrainer, LoRaConfig, TrainingMetrics
+import pytest
+
+from saplings.self_heal.lora_tuning import LoRaConfig, LoRaTrainer, TrainingMetrics
 
 # Check if LoRA dependencies are installed
 try:
@@ -19,7 +20,7 @@ except ImportError:
 # Skip all tests if LoRA dependencies are not installed
 pytestmark = pytest.mark.skipif(
     not _HAS_LORA_DEPS,
-    reason="LoRA fine-tuning dependencies not found. Install them with 'pip install saplings[lora]' or 'poetry install --extras lora'."
+    reason="LoRA fine-tuning dependencies not found. Install them with 'pip install saplings[lora]' or 'poetry install --extras lora'.",
 )
 
 
@@ -37,30 +38,40 @@ class TestLoRaTrainer:
         """Create sample success pairs for testing."""
         pairs_file = os.path.join(temp_dir, "success_pairs.jsonl")
         with open(pairs_file, "w") as f:
-            f.write(json.dumps({
-                "original_code": "def foo():\n    print(bar)\n",
-                "patched_code": "def foo():\n    bar = None\n    print(bar)\n",
-                "error": "NameError: name 'bar' is not defined",
-                "error_info": {
-                    "type": "NameError",
-                    "message": "name 'bar' is not defined",
-                    "patterns": ["undefined_variable"],
-                    "variable": "bar",
-                },
-                "timestamp": "2023-01-01T00:00:00",
-            }) + "\n")
-            f.write(json.dumps({
-                "original_code": "def test():\n    print(x)\n",
-                "patched_code": "def test():\n    x = None\n    print(x)\n",
-                "error": "NameError: name 'x' is not defined",
-                "error_info": {
-                    "type": "NameError",
-                    "message": "name 'x' is not defined",
-                    "patterns": ["undefined_variable"],
-                    "variable": "x",
-                },
-                "timestamp": "2023-01-01T00:00:00",
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "original_code": "def foo():\n    print(bar)\n",
+                        "patched_code": "def foo():\n    bar = None\n    print(bar)\n",
+                        "error": "NameError: name 'bar' is not defined",
+                        "error_info": {
+                            "type": "NameError",
+                            "message": "name 'bar' is not defined",
+                            "patterns": ["undefined_variable"],
+                            "variable": "bar",
+                        },
+                        "timestamp": "2023-01-01T00:00:00",
+                    }
+                )
+                + "\n"
+            )
+            f.write(
+                json.dumps(
+                    {
+                        "original_code": "def test():\n    print(x)\n",
+                        "patched_code": "def test():\n    x = None\n    print(x)\n",
+                        "error": "NameError: name 'x' is not defined",
+                        "error_info": {
+                            "type": "NameError",
+                            "message": "name 'x' is not defined",
+                            "patterns": ["undefined_variable"],
+                            "variable": "x",
+                        },
+                        "timestamp": "2023-01-01T00:00:00",
+                    }
+                )
+                + "\n"
+            )
         return pairs_file
 
     @pytest.fixture
@@ -115,7 +126,9 @@ class TestLoRaTrainer:
         mock_dataset = MagicMock()
         mock_dataset.map.return_value = MagicMock()
 
-        with patch("saplings.self_heal.lora_tuning.AutoTokenizer.from_pretrained") as mock_tokenizer:
+        with patch(
+            "saplings.self_heal.lora_tuning.AutoTokenizer.from_pretrained"
+        ) as mock_tokenizer:
             mock_tokenizer.return_value = MagicMock()
 
             processed_dataset = lora_trainer.preprocess_data(mock_dataset)
@@ -125,12 +138,17 @@ class TestLoRaTrainer:
 
     def test_train(self, lora_trainer, sample_pairs):
         """Test training the LoRA model."""
-        with patch("saplings.self_heal.lora_tuning.AutoModelForCausalLM.from_pretrained") as mock_model, \
-             patch("saplings.self_heal.lora_tuning.AutoTokenizer.from_pretrained") as mock_tokenizer, \
-             patch("saplings.self_heal.lora_tuning.get_peft_model") as mock_get_peft_model, \
-             patch("saplings.self_heal.lora_tuning.Trainer") as mock_trainer, \
-             patch("saplings.self_heal.lora_tuning.Dataset.from_pandas") as mock_from_pandas:
-
+        with patch(
+            "saplings.self_heal.lora_tuning.AutoModelForCausalLM.from_pretrained"
+        ) as mock_model, patch(
+            "saplings.self_heal.lora_tuning.AutoTokenizer.from_pretrained"
+        ) as mock_tokenizer, patch(
+            "saplings.self_heal.lora_tuning.get_peft_model"
+        ) as mock_get_peft_model, patch(
+            "saplings.self_heal.lora_tuning.Trainer"
+        ) as mock_trainer, patch(
+            "saplings.self_heal.lora_tuning.Dataset.from_pandas"
+        ) as mock_from_pandas:
             # Mock the model and tokenizer
             mock_model.return_value = MagicMock()
             mock_tokenizer.return_value = MagicMock()
@@ -160,12 +178,17 @@ class TestLoRaTrainer:
         # Enable GASA tuning
         lora_trainer.gasa_tune = True
 
-        with patch("saplings.self_heal.lora_tuning.AutoModelForCausalLM.from_pretrained") as mock_model, \
-             patch("saplings.self_heal.lora_tuning.AutoTokenizer.from_pretrained") as mock_tokenizer, \
-             patch("saplings.self_heal.lora_tuning.get_peft_model") as mock_get_peft_model, \
-             patch("saplings.self_heal.lora_tuning.Trainer") as mock_trainer, \
-             patch("saplings.self_heal.lora_tuning.Dataset.from_pandas") as mock_from_pandas:
-
+        with patch(
+            "saplings.self_heal.lora_tuning.AutoModelForCausalLM.from_pretrained"
+        ) as mock_model, patch(
+            "saplings.self_heal.lora_tuning.AutoTokenizer.from_pretrained"
+        ) as mock_tokenizer, patch(
+            "saplings.self_heal.lora_tuning.get_peft_model"
+        ) as mock_get_peft_model, patch(
+            "saplings.self_heal.lora_tuning.Trainer"
+        ) as mock_trainer, patch(
+            "saplings.self_heal.lora_tuning.Dataset.from_pandas"
+        ) as mock_from_pandas:
             # Mock the model and tokenizer
             mock_model.return_value = MagicMock()
             mock_tokenizer.return_value = MagicMock()
@@ -196,10 +219,13 @@ class TestLoRaTrainer:
 
     def test_save_and_load(self, lora_trainer, temp_dir):
         """Test saving and loading the LoRA model."""
-        with patch("saplings.self_heal.lora_tuning.AutoModelForCausalLM.from_pretrained") as mock_model, \
-             patch("saplings.self_heal.lora_tuning.AutoTokenizer.from_pretrained") as mock_tokenizer, \
-             patch("saplings.self_heal.lora_tuning.PeftModel.from_pretrained") as mock_peft_model:
-
+        with patch(
+            "saplings.self_heal.lora_tuning.AutoModelForCausalLM.from_pretrained"
+        ) as mock_model, patch(
+            "saplings.self_heal.lora_tuning.AutoTokenizer.from_pretrained"
+        ) as mock_tokenizer, patch(
+            "saplings.self_heal.lora_tuning.PeftModel.from_pretrained"
+        ) as mock_peft_model:
             # Mock the model and tokenizer
             mock_model.return_value = MagicMock()
             mock_tokenizer.return_value = MagicMock()
@@ -225,17 +251,14 @@ class TestLoRaTrainer:
 
     def test_integration_with_patch_generator(self, lora_trainer, sample_pairs, temp_dir):
         """Test integration with PatchGenerator."""
-        from saplings.self_heal.patch_generator import PatchGenerator, Patch, PatchStatus
+        from saplings.self_heal.patch_generator import Patch, PatchGenerator, PatchStatus
         from saplings.self_heal.success_pair_collector import SuccessPairCollector
 
         # Create a success pair collector
         collector = SuccessPairCollector(storage_dir=os.path.join(temp_dir, "success_pairs"))
 
         # Create a patch generator with the collector
-        patch_generator = PatchGenerator(
-            max_retries=3,
-            success_pair_collector=collector
-        )
+        patch_generator = PatchGenerator(max_retries=3, success_pair_collector=collector)
 
         # Create a sample patch
         patch = Patch(
@@ -263,12 +286,17 @@ class TestLoRaTrainer:
         collector.export_to_jsonl(pairs_file)
 
         # Mock the training process
-        with patch("saplings.self_heal.lora_tuning.AutoModelForCausalLM.from_pretrained") as mock_model, \
-             patch("saplings.self_heal.lora_tuning.AutoTokenizer.from_pretrained") as mock_tokenizer, \
-             patch("saplings.self_heal.lora_tuning.get_peft_model") as mock_get_peft_model, \
-             patch("saplings.self_heal.lora_tuning.Trainer") as mock_trainer, \
-             patch("saplings.self_heal.lora_tuning.Dataset.from_pandas") as mock_from_pandas:
-
+        with patch(
+            "saplings.self_heal.lora_tuning.AutoModelForCausalLM.from_pretrained"
+        ) as mock_model, patch(
+            "saplings.self_heal.lora_tuning.AutoTokenizer.from_pretrained"
+        ) as mock_tokenizer, patch(
+            "saplings.self_heal.lora_tuning.get_peft_model"
+        ) as mock_get_peft_model, patch(
+            "saplings.self_heal.lora_tuning.Trainer"
+        ) as mock_trainer, patch(
+            "saplings.self_heal.lora_tuning.Dataset.from_pandas"
+        ) as mock_from_pandas:
             # Mock the model and tokenizer
             mock_model.return_value = MagicMock()
             mock_tokenizer.return_value = MagicMock()

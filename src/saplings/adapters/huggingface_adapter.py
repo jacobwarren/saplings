@@ -11,7 +11,14 @@ import os
 import re
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
-from saplings.core.model_adapter import LLM, LLMResponse, ModelCapability, ModelMetadata, ModelRole, ModelURI
+from saplings.core.model_adapter import (
+    LLM,
+    LLMResponse,
+    ModelCapability,
+    ModelMetadata,
+    ModelRole,
+    ModelURI,
+)
 from saplings.core.plugin import ModelAdapterPlugin, PluginType
 
 logger = logging.getLogger(__name__)
@@ -20,6 +27,7 @@ try:
     import torch
     import transformers
     from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
+
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
@@ -111,7 +119,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model.
@@ -145,20 +153,15 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
             "max_new_tokens": max_tokens,
             "temperature": temperature,
             "do_sample": temperature > 0,
-            **kwargs
+            **kwargs,
         }
 
         # Run the generation in a separate thread to avoid blocking
-        outputs = await asyncio.to_thread(
-            self.model.generate,
-            **inputs,
-            **generation_kwargs
-        )
+        outputs = await asyncio.to_thread(self.model.generate, **inputs, **generation_kwargs)
 
         # Decode the generated text
         generated_text = self.tokenizer.decode(
-            outputs[0][inputs.input_ids.shape[1]:],
-            skip_special_tokens=True
+            outputs[0][inputs.input_ids.shape[1] :], skip_special_tokens=True
         )
 
         # Count tokens
@@ -187,7 +190,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
                 "provider": "huggingface",
             },
             function_call=function_call_result,
-            tool_calls=tool_calls_result
+            tool_calls=tool_calls_result,
         )
 
     def _process_prompt(
@@ -195,7 +198,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
         prompt: Union[str, List[Dict[str, Any]]],
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
-        json_mode: bool = False
+        json_mode: bool = False,
     ) -> str:
         """
         Process the prompt to include functions and other features.
@@ -237,7 +240,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
                     "\nYou have access to the following functions. Use them when appropriate:\n"
                     f"{functions_str}\n\n"
                     "To call a function, respond with a JSON object with 'name' and 'arguments' keys.\n"
-                    "Example: {\"name\": \"function_name\", \"arguments\": {\"arg1\": \"value1\"}}\n"
+                    'Example: {"name": "function_name", "arguments": {"arg1": "value1"}}\n'
                 )
             elif isinstance(function_call, dict) and "name" in function_call:
                 function_name = function_call["name"]
@@ -247,7 +250,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
                         f"\nYou must call the function '{function_name}'.\n"
                         f"Function definition: {json.dumps(function_def, indent=2)}\n\n"
                         "Respond with a JSON object with 'name' and 'arguments' keys.\n"
-                        f"Example: {{\"name\": \"{function_name}\", \"arguments\": {{\"arg1\": \"value1\"}}}}\n"
+                        f'Example: {{"name": "{function_name}", "arguments": {{"arg1": "value1"}}}}\n'
                     )
                 else:
                     function_instructions = ""
@@ -258,9 +261,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
 
         # Add JSON mode instructions if needed
         if json_mode:
-            json_instructions = (
-                "\nYou must respond with valid JSON only. Do not include any explanatory text or markdown formatting.\n"
-            )
+            json_instructions = "\nYou must respond with valid JSON only. Do not include any explanatory text or markdown formatting.\n"
             processed_prompt += json_instructions
 
         return processed_prompt
@@ -305,7 +306,9 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
 
         return "\n".join(prompt_parts)
 
-    def _extract_function_calls(self, text: str) -> Tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, Any]]]]:
+    def _extract_function_calls(
+        self, text: str
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, Any]]]]:
         """
         Extract function calls from generated text.
 
@@ -320,7 +323,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
         # ```json
         # {"name": "function_name", "arguments": {...}}
         # ```
-        function_pattern = r'```(?:json)?\s*({[\s\S]*?})\s*```'
+        function_pattern = r"```(?:json)?\s*({[\s\S]*?})\s*```"
         matches = re.findall(function_pattern, text)
 
         if matches:
@@ -333,7 +336,9 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
                     # Single function call
                     return {
                         "name": func_data["name"],
-                        "arguments": json.dumps(func_data["arguments"]) if isinstance(func_data["arguments"], dict) else func_data["arguments"]
+                        "arguments": json.dumps(func_data["arguments"])
+                        if isinstance(func_data["arguments"], dict)
+                        else func_data["arguments"],
                     }, None
                 elif "tool_calls" in func_data:
                     # Multiple tool calls
@@ -342,7 +347,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
                 pass
 
         # Try to find function calls in a more relaxed format
-        function_pattern = r'function\s*:\s*(\w+).*?arguments\s*:\s*({[\s\S]*?})(?=\n\w+\s*:|$)'
+        function_pattern = r"function\s*:\s*(\w+).*?arguments\s*:\s*({[\s\S]*?})(?=\n\w+\s*:|$)"
         matches = re.findall(function_pattern, text, re.IGNORECASE)
 
         if matches:
@@ -351,7 +356,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
                 args = json.loads(args_str)
                 return {
                     "name": name,
-                    "arguments": json.dumps(args) if isinstance(args, dict) else args
+                    "arguments": json.dumps(args) if isinstance(args, dict) else args,
                 }, None
             except (json.JSONDecodeError, ValueError):
                 pass
@@ -367,7 +372,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
         """
         Generate text from the model with streaming output.
@@ -403,7 +408,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
             "temperature": temperature,
             "do_sample": temperature > 0,
             "streamer": self.streamer,
-            **kwargs
+            **kwargs,
         }
 
         # Start generation in a separate thread
@@ -417,7 +422,9 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
             # If we're using function calling, we need to check for function calls
             if functions and (function_call == "auto" or isinstance(function_call, dict)):
                 accumulated_text += new_text
-                function_call_result, tool_calls_result = self._extract_function_calls(accumulated_text)
+                function_call_result, tool_calls_result = self._extract_function_calls(
+                    accumulated_text
+                )
 
                 if function_call_result:
                     yield {"function_call": function_call_result}
@@ -526,7 +533,7 @@ class HuggingFaceAdapter(LLM, ModelAdapterPlugin):
 
         This method should be called when the model is no longer needed.
         """
-        if hasattr(self, 'model') and self.model is not None:
+        if hasattr(self, "model") and self.model is not None:
             import gc
 
             # Delete the model

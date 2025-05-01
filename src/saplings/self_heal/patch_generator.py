@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # Check if pylint is available
 try:
     import pylint
+
     PYLINT_AVAILABLE = True
 except ImportError:
     PYLINT_AVAILABLE = False
@@ -26,6 +27,7 @@ except ImportError:
 # Check if pyflakes is available
 try:
     import pyflakes
+
     PYFLAKES_AVAILABLE = True
 except ImportError:
     PYFLAKES_AVAILABLE = False
@@ -36,9 +38,9 @@ class PatchStatus(str, Enum):
     """Status of a patch."""
 
     GENERATED = "generated"  # Patch has been generated
-    APPLIED = "applied"      # Patch has been applied
+    APPLIED = "applied"  # Patch has been applied
     VALIDATED = "validated"  # Patch has been validated
-    FAILED = "failed"        # Patch generation or application failed
+    FAILED = "failed"  # Patch generation or application failed
 
 
 class PatchResult:
@@ -129,11 +131,7 @@ class PatchGenerator:
         Returns:
             Dict with analysis results
         """
-        analysis_results = {
-            "pylint": [],
-            "pyflakes": [],
-            "ast": {"valid": False, "errors": []}
-        }
+        analysis_results = {"pylint": [], "pyflakes": [], "ast": {"valid": False, "errors": []}}
 
         # Try to parse with AST first
         try:
@@ -141,11 +139,9 @@ class PatchGenerator:
             analysis_results["ast"]["valid"] = True
         except SyntaxError as e:
             analysis_results["ast"]["valid"] = False
-            analysis_results["ast"]["errors"].append({
-                "line": e.lineno,
-                "column": e.offset,
-                "message": str(e)
-            })
+            analysis_results["ast"]["errors"].append(
+                {"line": e.lineno, "column": e.offset, "message": str(e)}
+            )
 
         # Use pylint for static analysis if available
         if PYLINT_AVAILABLE:
@@ -163,8 +159,8 @@ class PatchGenerator:
 
                 reporter = CustomReporter()
                 # Write code to a temporary file
-                with tempfile.NamedTemporaryFile(suffix='.py', delete=False) as temp_file:
-                    temp_file.write(code.encode('utf-8'))
+                with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
+                    temp_file.write(code.encode("utf-8"))
                     temp_path = temp_file.name
 
                 # Run pylint with custom reporter
@@ -173,13 +169,15 @@ class PatchGenerator:
 
                 # Process messages
                 for msg in reporter.messages:
-                    analysis_results["pylint"].append({
-                        'line': msg.line,
-                        'column': msg.column,
-                        'message': msg.msg,
-                        'symbol': msg.symbol,
-                        'msg_id': msg.msg_id
-                    })
+                    analysis_results["pylint"].append(
+                        {
+                            "line": msg.line,
+                            "column": msg.column,
+                            "message": msg.msg,
+                            "symbol": msg.symbol,
+                            "msg_id": msg.msg_id,
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"Error running pylint: {e}")
 
@@ -197,33 +195,37 @@ class PatchGenerator:
                         self.messages.append({"type": "unexpected", "message": str(msg)})
 
                     def syntaxError(self, filename, msg, lineno, offset, text):
-                        self.messages.append({
-                            "type": "syntax",
-                            "message": str(msg),
-                            "line": lineno,
-                            "offset": offset,
-                            "text": text
-                        })
+                        self.messages.append(
+                            {
+                                "type": "syntax",
+                                "message": str(msg),
+                                "line": lineno,
+                                "offset": offset,
+                                "text": text,
+                            }
+                        )
 
                     def flake(self, message):
-                        self.messages.append({
-                            "type": "flake",
-                            "message": str(message),
-                            "line": message.lineno,
-                            "col": message.col
-                        })
+                        self.messages.append(
+                            {
+                                "type": "flake",
+                                "message": str(message),
+                                "line": message.lineno,
+                                "col": message.col,
+                            }
+                        )
 
                 reporter = CustomFlakesReporter()
                 # Write code to a temporary file
-                with tempfile.NamedTemporaryFile(suffix='.py', delete=False) as temp_file:
-                    temp_file.write(code.encode('utf-8'))
+                with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
+                    temp_file.write(code.encode("utf-8"))
                     temp_path = temp_file.name
 
                 # Run pyflakes
                 check(temp_path, reporter)
                 os.unlink(temp_path)
 
-                analysis_results['pyflakes'] = reporter.messages
+                analysis_results["pyflakes"] = reporter.messages
             except Exception as e:
                 logger.warning(f"Error running pyflakes: {e}")
 
@@ -342,7 +344,10 @@ class PatchGenerator:
             elif "undefined_variable" in error_info["patterns"] and "variable" in error_info:
                 patched_code = self._fix_undefined_variable(code, error_info["variable"])
 
-            elif "indentation_error" in error_info["patterns"] or "expected an indented block" in error:
+            elif (
+                "indentation_error" in error_info["patterns"]
+                or "expected an indented block" in error
+            ):
                 patched_code = self._fix_indentation(code)
 
             elif "invalid_syntax" in error_info["patterns"]:
@@ -366,13 +371,15 @@ class PatchGenerator:
             status=PatchStatus.GENERATED,
             metadata={
                 "retry_count": self.retry_count,
-                "used_static_analysis": used_static_analysis
+                "used_static_analysis": used_static_analysis,
             },
         )
 
         return patch
 
-    def _can_fix_with_static_analysis(self, static_analysis: Dict[str, Any], error_info: Dict[str, Any]) -> bool:
+    def _can_fix_with_static_analysis(
+        self, static_analysis: Dict[str, Any], error_info: Dict[str, Any]
+    ) -> bool:
         """
         Determine if we can fix the error using static analysis results.
 
@@ -397,7 +404,9 @@ class PatchGenerator:
 
         return False
 
-    def _fix_with_static_analysis(self, code: str, static_analysis: Dict[str, Any], error_info: Dict[str, Any]) -> str:
+    def _fix_with_static_analysis(
+        self, code: str, static_analysis: Dict[str, Any], error_info: Dict[str, Any]
+    ) -> str:
         """
         Fix code using static analysis results.
 
@@ -422,7 +431,9 @@ class PatchGenerator:
 
                 if line_num is not None:
                     # Try to fix the syntax error
-                    if "unexpected EOF" in error.get("message", "") or "unexpected end of file" in error.get("message", ""):
+                    if "unexpected EOF" in error.get(
+                        "message", ""
+                    ) or "unexpected end of file" in error.get("message", ""):
                         fixed_code = self._fix_missing_parenthesis(code)
                     elif "invalid syntax" in error.get("message", ""):
                         fixed_code = self._fix_invalid_syntax(code)
@@ -675,8 +686,8 @@ class PatchGenerator:
             ast.parse(code)
 
             # Create a temporary file to execute the code
-            with tempfile.NamedTemporaryFile(suffix='.py', delete=False) as temp_file:
-                temp_file.write(code.encode('utf-8'))
+            with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
+                temp_file.write(code.encode("utf-8"))
                 temp_path = temp_file.name
 
             try:
@@ -684,11 +695,12 @@ class PatchGenerator:
 
                 # Use subprocess to execute with timeout and isolation
                 import subprocess
+
                 result = subprocess.run(
                     [sys.executable, temp_path],
                     capture_output=True,
                     text=True,
-                    timeout=5  # 5 second timeout
+                    timeout=5,  # 5 second timeout
                 )
 
                 # Check for errors
@@ -798,9 +810,9 @@ class PatchGenerator:
                 def visit_FunctionDef(self, node):
                     # Check if any variable uses are within this function
                     for var_node in variable_uses:
-                        if (hasattr(var_node, 'lineno') and
-                            node.lineno <= var_node.lineno <=
-                            (node.end_lineno if hasattr(node, 'end_lineno') else float('inf'))):
+                        if hasattr(var_node, "lineno") and node.lineno <= var_node.lineno <= (
+                            node.end_lineno if hasattr(node, "end_lineno") else float("inf")
+                        ):
                             function_scopes.append(node)
                             break
                     self.generic_visit(node)
@@ -808,9 +820,9 @@ class PatchGenerator:
                 def visit_ClassDef(self, node):
                     # Check if any variable uses are within this class
                     for var_node in variable_uses:
-                        if (hasattr(var_node, 'lineno') and
-                            node.lineno <= var_node.lineno <=
-                            (node.end_lineno if hasattr(node, 'end_lineno') else float('inf'))):
+                        if hasattr(var_node, "lineno") and node.lineno <= var_node.lineno <= (
+                            node.end_lineno if hasattr(node, "end_lineno") else float("inf")
+                        ):
                             class_scopes.append(node)
                             break
                     self.generic_visit(node)
@@ -820,15 +832,23 @@ class PatchGenerator:
 
             # Determine the appropriate definition based on usage context
             if variable_type == "function":
-                definition = f"{variable} = lambda *args, **kwargs: None  # TODO: Implement this function"
+                definition = (
+                    f"{variable} = lambda *args, **kwargs: None  # TODO: Implement this function"
+                )
             elif variable_type == "object":
                 definition = f"{variable} = type('DummyObject', (), {{}})()  # TODO: Replace with appropriate object"
             elif variable_type == "container":
                 # Check if it's used like a dict or list
                 is_dict = False
                 for node in variable_uses:
-                    parent = next((p for p in ast.walk(tree) if hasattr(p, 'value') and p.value == node), None)
-                    if parent and isinstance(parent, ast.Subscript) and isinstance(parent.slice, ast.Constant):
+                    parent = next(
+                        (p for p in ast.walk(tree) if hasattr(p, "value") and p.value == node), None
+                    )
+                    if (
+                        parent
+                        and isinstance(parent, ast.Subscript)
+                        and isinstance(parent.slice, ast.Constant)
+                    ):
                         if isinstance(parent.slice.value, str):
                             is_dict = True
                             break
@@ -861,9 +881,12 @@ class PatchGenerator:
                 # Check if it might be a self attribute
                 is_self_attr = False
                 for node in variable_uses:
-                    parent = next((p for p in ast.walk(tree) if hasattr(p, 'body') and node in ast.walk(p)), None)
+                    parent = next(
+                        (p for p in ast.walk(tree) if hasattr(p, "body") and node in ast.walk(p)),
+                        None,
+                    )
                     if parent and isinstance(parent, ast.FunctionDef):
-                        if parent.args.args and parent.args.args[0].arg == 'self':
+                        if parent.args.args and parent.args.args[0].arg == "self":
                             is_self_attr = True
                             break
 
@@ -881,19 +904,22 @@ class PatchGenerator:
                         # Find where to insert in __init__
                         for i in range(init_line, len(lines)):
                             if ":" in lines[i]:
-                                lines.insert(i + 1, f"{init_indent}self.{variable} = None  # TODO: Initialize properly")
+                                lines.insert(
+                                    i + 1,
+                                    f"{init_indent}self.{variable} = None  # TODO: Initialize properly",
+                                )
                                 return "\n".join(lines)
                     else:
                         # Create __init__ method
                         class_line = class_node.lineno
-                        class_indent = re.match(r"^(\s*)", lines[class_line-1]).group(1)
+                        class_indent = re.match(r"^(\s*)", lines[class_line - 1]).group(1)
                         method_indent = class_indent + "    "
                         body_indent = method_indent + "    "
 
                         init_method = [
                             f"{method_indent}def __init__(self):",
                             f"{body_indent}super().__init__()",
-                            f"{body_indent}self.{variable} = None  # TODO: Initialize properly"
+                            f"{body_indent}self.{variable} = None  # TODO: Initialize properly",
                         ]
 
                         # Find where to insert the __init__ method
@@ -905,7 +931,7 @@ class PatchGenerator:
                 else:
                     # Regular class variable
                     class_line = class_node.lineno
-                    class_indent = re.match(r"^(\s*)", lines[class_line-1]).group(1) + "    "
+                    class_indent = re.match(r"^(\s*)", lines[class_line - 1]).group(1) + "    "
 
                     # Insert after class definition
                     for i in range(class_line, len(lines)):
@@ -1044,7 +1070,7 @@ class PatchGenerator:
 
                 # Check if the string ends on this line
                 for j, char in enumerate(line):
-                    if char == string_char and (j == 0 or line[j-1] != '\\'):
+                    if char == string_char and (j == 0 or line[j - 1] != "\\"):
                         in_string = False
                         string_char = None
                         break
@@ -1053,13 +1079,13 @@ class PatchGenerator:
 
             # Check for string start
             for j, char in enumerate(line):
-                if char in ['"', "'"] and (j == 0 or line[j-1] != '\\'):
+                if char in ['"', "'"] and (j == 0 or line[j - 1] != "\\"):
                     # Check if it's a triple quote
-                    if j + 2 < len(line) and line[j:j+3] in ['"""', "'''"]:
+                    if j + 2 < len(line) and line[j : j + 3] in ['"""', "'''"]:
                         if not in_string:
                             in_string = True
                             string_char = line[j]
-                        elif string_char == line[j] and line[j:j+3] in ['"""', "'''"]:
+                        elif string_char == line[j] and line[j : j + 3] in ['"""', "'''"]:
                             in_string = False
                             string_char = None
                     # Single quote
@@ -1080,35 +1106,37 @@ class PatchGenerator:
                 line = line + ":"
 
             # Fix common comparison operator typos
-            line = re.sub(r'\s+=\s+=\s+', ' == ', line)
-            line = re.sub(r'\s+!\s+=\s+', ' != ', line)
-            line = re.sub(r'\s+<\s+=\s+', ' <= ', line)
-            line = re.sub(r'\s+>\s+=\s+', ' >= ', line)
+            line = re.sub(r"\s+=\s+=\s+", " == ", line)
+            line = re.sub(r"\s+!\s+=\s+", " != ", line)
+            line = re.sub(r"\s+<\s+=\s+", " <= ", line)
+            line = re.sub(r"\s+>\s+=\s+", " >= ", line)
 
             # Fix missing parentheses in print statements (Python 3)
-            if re.search(r'^\s*print\s+[^(]', line):
+            if re.search(r"^\s*print\s+[^(]", line):
                 # Don't match if it's already a valid print function call
-                if not re.search(r'^\s*print\s*\(', line):
-                    content = line.split('print', 1)[1].strip()
-                    line = line.split('print', 1)[0] + 'print(' + content + ')'
+                if not re.search(r"^\s*print\s*\(", line):
+                    content = line.split("print", 1)[1].strip()
+                    line = line.split("print", 1)[0] + "print(" + content + ")"
 
             # Fix missing commas in lists, tuples, and dicts
-            if '[' in line or '(' in line or '{' in line:
+            if "[" in line or "(" in line or "{" in line:
                 # Track brackets for this line
                 line_brackets = []
                 in_container = False
                 container_type = None
 
                 for j, char in enumerate(line):
-                    if char in '([{':
+                    if char in "([{":
                         line_brackets.append(char)
                         if not in_container:
                             in_container = True
                             container_type = char
-                    elif char in ')]}':
-                        if line_brackets and ((char == ')' and line_brackets[-1] == '(') or
-                                             (char == ']' and line_brackets[-1] == '[') or
-                                             (char == '}' and line_brackets[-1] == '{')):
+                    elif char in ")]}":
+                        if line_brackets and (
+                            (char == ")" and line_brackets[-1] == "(")
+                            or (char == "]" and line_brackets[-1] == "[")
+                            or (char == "}" and line_brackets[-1] == "{")
+                        ):
                             line_brackets.pop()
                             if not line_brackets:
                                 in_container = False
@@ -1116,39 +1144,41 @@ class PatchGenerator:
 
                     # Check for missing commas between items
                     if in_container and j > 0 and j < len(line) - 1:
-                        prev_char = line[j-1]
-                        next_char = line[j+1]
+                        prev_char = line[j - 1]
+                        next_char = line[j + 1]
 
                         # Look for patterns like "item1" "item2" or 1 2 or True False
-                        if ((prev_char.isalnum() or prev_char in '"\']})') and
-                            (char.isspace() or char == '#') and
-                            (next_char.isalnum() or next_char in '"\'[({') and
-                            char != ',' and char != ':'):
-
+                        if (
+                            (prev_char.isalnum() or prev_char in "\"']})")
+                            and (char.isspace() or char == "#")
+                            and (next_char.isalnum() or next_char in "\"'[({")
+                            and char != ","
+                            and char != ":"
+                        ):
                             # Don't add comma if it's a dict key-value pair
-                            if not (container_type == '{' and ':' in line[j:]):
-                                line = line[:j] + ',' + line[j:]
+                            if not (container_type == "{" and ":" in line[j:]):
+                                line = line[:j] + "," + line[j:]
 
             # Fix unclosed brackets/parentheses/braces
             for char in line:
-                if char == '(':
+                if char == "(":
                     paren_stack.append(char)
-                elif char == ')':
+                elif char == ")":
                     if paren_stack:
                         paren_stack.pop()
-                elif char == '[':
+                elif char == "[":
                     bracket_stack.append(char)
-                elif char == ']':
+                elif char == "]":
                     if bracket_stack:
                         bracket_stack.pop()
-                elif char == '{':
+                elif char == "{":
                     brace_stack.append(char)
-                elif char == '}':
+                elif char == "}":
                     if brace_stack:
                         brace_stack.pop()
 
             # Check if this line ends with a continuation character
-            if stripped.endswith('\\'):
+            if stripped.endswith("\\"):
                 continued_line = True
             else:
                 continued_line = False
@@ -1158,10 +1188,10 @@ class PatchGenerator:
             if current_indent != expected_indent and not continued_line:
                 # Only fix indentation if it's clearly wrong
                 if abs(current_indent - expected_indent) % 4 == 0:
-                    line = ' ' * expected_indent + line.lstrip()
+                    line = " " * expected_indent + line.lstrip()
 
             # Update expected indentation for next line
-            if stripped.endswith(':'):
+            if stripped.endswith(":"):
                 expected_indent = current_indent + 4
 
             # Add the fixed line
@@ -1170,7 +1200,7 @@ class PatchGenerator:
             # Check if the line is significantly different and add a comment
             if line != original_line:
                 # Add a comment explaining the fix
-                indent = re.match(r'^(\s*)', line).group(1)
+                indent = re.match(r"^(\s*)", line).group(1)
                 fixed_lines.append(f"{indent}# Fixed syntax: {original_line.strip()}")
 
         # Fix unclosed brackets at the end of the file
@@ -1203,10 +1233,18 @@ class PatchGenerator:
         lines = code.split("\n")
 
         # Common error patterns
-        too_many_args_pattern = re.search(r"([a-zA-Z0-9_]+)\(\) takes (\d+) .* but (\d+) .* given", error)
-        missing_required_pattern = re.search(r"([a-zA-Z0-9_]+)\(\) missing (\d+) required positional argument", error)
-        unexpected_keyword_pattern = re.search(r"([a-zA-Z0-9_]+)\(\) got an unexpected keyword argument '([^']+)'", error)
-        multiple_values_pattern = re.search(r"([a-zA-Z0-9_]+)\(\) got multiple values for argument '([^']+)'", error)
+        too_many_args_pattern = re.search(
+            r"([a-zA-Z0-9_]+)\(\) takes (\d+) .* but (\d+) .* given", error
+        )
+        missing_required_pattern = re.search(
+            r"([a-zA-Z0-9_]+)\(\) missing (\d+) required positional argument", error
+        )
+        unexpected_keyword_pattern = re.search(
+            r"([a-zA-Z0-9_]+)\(\) got an unexpected keyword argument '([^']+)'", error
+        )
+        multiple_values_pattern = re.search(
+            r"([a-zA-Z0-9_]+)\(\) got multiple values for argument '([^']+)'", error
+        )
 
         try:
             # Parse the code to analyze it
@@ -1297,7 +1335,7 @@ class PatchGenerator:
                             param_names = [arg.arg for arg in func_def.args.args]
 
                             # Keep required positional arguments
-                            new_pos_args = pos_args[:len(param_names)]
+                            new_pos_args = pos_args[: len(param_names)]
 
                             # Keep valid keyword arguments
                             new_kw_args = []
@@ -1333,7 +1371,9 @@ class PatchGenerator:
                                 param_name = param_names[j]
                                 if param_name not in provided_kw_names:
                                     # Add as a keyword argument
-                                    kw_args.append(f"{param_name}=None  # TODO: Provide appropriate value")
+                                    kw_args.append(
+                                        f"{param_name}=None  # TODO: Provide appropriate value"
+                                    )
 
                             # Combine arguments
                             new_args = pos_args + kw_args
@@ -1377,7 +1417,9 @@ class PatchGenerator:
                     # Add the missing argument
                     if missing_arg:
                         if args_str.strip():
-                            new_args_str = f"{args_str}, {missing_arg}=None  # TODO: Provide appropriate value"
+                            new_args_str = (
+                                f"{args_str}, {missing_arg}=None  # TODO: Provide appropriate value"
+                            )
                         else:
                             new_args_str = f"{missing_arg}=None  # TODO: Provide appropriate value"
                     else:
@@ -1385,9 +1427,16 @@ class PatchGenerator:
                         if args_str.strip():
                             new_args_str = args_str
                             for j in range(missing_count):
-                                new_args_str += f", arg{j+1}=None  # TODO: Provide appropriate value"
+                                new_args_str += (
+                                    f", arg{j+1}=None  # TODO: Provide appropriate value"
+                                )
                         else:
-                            new_args_str = ", ".join([f"arg{j+1}=None  # TODO: Provide appropriate value" for j in range(missing_count)])
+                            new_args_str = ", ".join(
+                                [
+                                    f"arg{j+1}=None  # TODO: Provide appropriate value"
+                                    for j in range(missing_count)
+                                ]
+                            )
 
                     # Replace the arguments in the line
                     new_line = line.replace(args_str, new_args_str)
@@ -1502,7 +1551,9 @@ class PatchGenerator:
 
                     # Add a comment explaining the change
                     indent = re.match(r"^(\s*)", line).group(1)
-                    lines.insert(i, f"{indent}# Fixed multiple values for argument: {duplicate_arg}")
+                    lines.insert(
+                        i, f"{indent}# Fixed multiple values for argument: {duplicate_arg}"
+                    )
 
                 return "\n".join(lines)
 
@@ -1526,10 +1577,10 @@ class PatchGenerator:
                                 f"{indent}try:",
                                 f"{indent}    {line}",
                                 f"{indent}except TypeError as e:",
-                                f"{indent}    print(f\"Argument error: {{e}}\")",
-                                f"{indent}    # TODO: Fix the function arguments"
+                                f'{indent}    print(f"Argument error: {{e}}")',
+                                f"{indent}    # TODO: Fix the function arguments",
                             ]
-                            lines[i:i+1] = try_block
+                            lines[i : i + 1] = try_block
                             return "\n".join(lines)
 
         except Exception as e:
@@ -1583,8 +1634,13 @@ class PatchGenerator:
             type_info = {}
 
             # Common error patterns
-            str_int_pattern = re.search(r"(str|int|float|list|dict|tuple|bool|set)\s+(?:and|,)\s+(str|int|float|list|dict|tuple|bool|set)", error)
-            cannot_convert_pattern = re.search(r"cannot convert (.*?) to (.*?)( implicitly)?", error)
+            str_int_pattern = re.search(
+                r"(str|int|float|list|dict|tuple|bool|set)\s+(?:and|,)\s+(str|int|float|list|dict|tuple|bool|set)",
+                error,
+            )
+            cannot_convert_pattern = re.search(
+                r"cannot convert (.*?) to (.*?)( implicitly)?", error
+            )
             expected_got_pattern = re.search(r"expected (.*?), got (.*)", error)
 
             if str_int_pattern:
@@ -1617,7 +1673,11 @@ class PatchGenerator:
 
                 # Case 1: String concatenation with numbers
                 for i, line in enumerate(lines):
-                    if "+" in line and not re.search(r'"\s*\+\s*"', line) and not re.search(r"'\s*\+\s*'", line):
+                    if (
+                        "+" in line
+                        and not re.search(r'"\s*\+\s*"', line)
+                        and not re.search(r"'\s*\+\s*'", line)
+                    ):
                         # Check for string concatenation with numbers
                         parts = []
                         current_part = ""
@@ -1650,10 +1710,10 @@ class PatchGenerator:
                         for j, part in enumerate(parts):
                             part = part.strip()
                             # Check if it's a numeric literal
-                            if re.match(r'^-?\d+(\.\d+)?$', part):
+                            if re.match(r"^-?\d+(\.\d+)?$", part):
                                 parts[j] = f"str({part})"
                             # Check if it's a variable that might need conversion
-                            elif re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', part):
+                            elif re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", part):
                                 # This is a variable name, might need conversion
                                 # Look for variable definitions to determine type
                                 var_name = part
@@ -1670,7 +1730,7 @@ class PatchGenerator:
                     line = lines[line_idx]
 
                     # Look for function calls
-                    func_call_match = re.search(r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)', line)
+                    func_call_match = re.search(r"([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)", line)
                     if func_call_match:
                         func_name = func_call_match.group(1)
                         args = func_call_match.group(2)
@@ -1679,23 +1739,25 @@ class PatchGenerator:
                         if func_name == "int" and ("str" in type_info.get("from_type", "")):
                             # Trying to convert non-numeric string to int
                             # Add error handling
-                            indent = re.match(r'^(\s*)', line).group(1)
+                            indent = re.match(r"^(\s*)", line).group(1)
                             try_block = [
                                 f"{indent}try:",
                                 f"{indent}    {line}",
                                 f"{indent}except ValueError:",
-                                f"{indent}    print(f\"Error: Could not convert to integer. Using default value.\")",
-                                f"{indent}    # TODO: Handle the error appropriately"
+                                f'{indent}    print(f"Error: Could not convert to integer. Using default value.")',
+                                f"{indent}    # TODO: Handle the error appropriately",
                             ]
-                            lines[line_idx:line_idx+1] = try_block
+                            lines[line_idx : line_idx + 1] = try_block
                             return "\n".join(lines)
 
-                        elif func_name in ["open", "read", "write"] and "int" in type_info.get("got", ""):
+                        elif func_name in ["open", "read", "write"] and "int" in type_info.get(
+                            "got", ""
+                        ):
                             # File operations expecting string but got number
                             new_args = []
                             for arg in args.split(","):
                                 arg = arg.strip()
-                                if re.match(r'^-?\d+(\.\d+)?$', arg):
+                                if re.match(r"^-?\d+(\.\d+)?$", arg):
                                     new_args.append(f"str({arg})")
                                 else:
                                     new_args.append(arg)
@@ -1707,7 +1769,7 @@ class PatchGenerator:
                 # List and string type mismatch
                 for i, line in enumerate(lines):
                     # Check for attempts to index into a string as if it were a list
-                    list_index_match = re.search(r'([a-zA-Z_][a-zA-Z0-9_]*)\[(\d+)\]', line)
+                    list_index_match = re.search(r"([a-zA-Z_][a-zA-Z0-9_]*)\[(\d+)\]", line)
                     if list_index_match:
                         var_name = list_index_match.group(1)
                         var_type = self._infer_variable_type(code, var_name)
@@ -1720,22 +1782,22 @@ class PatchGenerator:
                 # None type errors
                 for i, line in enumerate(lines):
                     # Check for operations on potentially None variables
-                    for var_match in re.finditer(r'([a-zA-Z_][a-zA-Z0-9_]*)(\.|\[|\()', line):
+                    for var_match in re.finditer(r"([a-zA-Z_][a-zA-Z0-9_]*)(\.|\[|\()", line):
                         var_name = var_match.group(1)
                         operation = var_match.group(2)
 
                         # Add None check
-                        indent = re.match(r'^(\s*)', line).group(1)
+                        indent = re.match(r"^(\s*)", line).group(1)
                         if operation == ".":
                             # Attribute access on potentially None
                             try_block = [
                                 f"{indent}if {var_name} is not None:",
                                 f"{indent}    {line}",
                                 f"{indent}else:",
-                                f"{indent}    print(f\"Error: {var_name} is None. Cannot perform operation.\")",
-                                f"{indent}    # TODO: Initialize {var_name} properly"
+                                f'{indent}    print(f"Error: {var_name} is None. Cannot perform operation.")',
+                                f"{indent}    # TODO: Initialize {var_name} properly",
                             ]
-                            lines[i:i+1] = try_block
+                            lines[i : i + 1] = try_block
                             return "\n".join(lines)
 
             # If we couldn't apply a specific fix, try a generic approach
@@ -1744,15 +1806,15 @@ class PatchGenerator:
                 line = lines[line_idx]
 
                 # Add a generic try-except block
-                indent = re.match(r'^(\s*)', line).group(1)
+                indent = re.match(r"^(\s*)", line).group(1)
                 try_block = [
                     f"{indent}try:",
                     f"{indent}    {line}",
                     f"{indent}except TypeError as e:",
-                    f"{indent}    print(f\"Type error: {{e}}. Check variable types.\")",
-                    f"{indent}    # TODO: Fix the type mismatch"
+                    f'{indent}    print(f"Type error: {{e}}. Check variable types.")',
+                    f"{indent}    # TODO: Fix the type mismatch",
                 ]
-                lines[line_idx:line_idx+1] = try_block
+                lines[line_idx : line_idx + 1] = try_block
                 return "\n".join(lines)
 
         except Exception as e:
@@ -1820,26 +1882,41 @@ class PatchGenerator:
             for node in ast.walk(tree):
                 if isinstance(node, ast.BinOp):
                     # Check binary operations for clues
-                    if (isinstance(node.left, ast.Name) and node.left.id == variable) or \
-                       (isinstance(node.right, ast.Name) and node.right.id == variable):
+                    if (isinstance(node.left, ast.Name) and node.left.id == variable) or (
+                        isinstance(node.right, ast.Name) and node.right.id == variable
+                    ):
                         # Variable used in an operation
                         if isinstance(node.op, ast.Add):
                             # Addition could be string concatenation or numeric addition
-                            other_side = node.right if isinstance(node.left, ast.Name) and node.left.id == variable else node.left
+                            other_side = (
+                                node.right
+                                if isinstance(node.left, ast.Name) and node.left.id == variable
+                                else node.left
+                            )
                             if isinstance(other_side, ast.Constant):
                                 if isinstance(other_side.value, str):
                                     return "str"
                                 elif isinstance(other_side.value, (int, float)):
                                     return "numeric"
-                        elif isinstance(node.op, (ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod)):
+                        elif isinstance(
+                            node.op, (ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod)
+                        ):
                             # These operations suggest numeric types
                             return "numeric"
 
-                elif isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id == variable:
+                elif (
+                    isinstance(node, ast.Subscript)
+                    and isinstance(node.value, ast.Name)
+                    and node.value.id == variable
+                ):
                     # Variable used as a container (list, dict, etc.)
                     return "container"
 
-                elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == variable:
+                elif (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id == variable
+                ):
                     # Variable used as a function
                     return "function"
 
@@ -1863,8 +1940,18 @@ class PatchGenerator:
 
         # Common module mappings for standard library and popular packages
         std_lib_modules = {
-            "math", "os", "sys", "datetime", "time", "random", "json",
-            "re", "collections", "itertools", "functools", "pathlib"
+            "math",
+            "os",
+            "sys",
+            "datetime",
+            "time",
+            "random",
+            "json",
+            "re",
+            "collections",
+            "itertools",
+            "functools",
+            "pathlib",
         }
 
         popular_modules = {
@@ -1879,11 +1966,11 @@ class PatchGenerator:
             "django": "django",
             "flask": "Flask",
             "sqlalchemy": "sqlalchemy",
-            "pytest": "pytest"
+            "pytest": "pytest",
         }
 
         # Check if the module is a submodule
-        module_parts = module.split('.')
+        module_parts = module.split(".")
         base_module = module_parts[0]
 
         # Find the import statement or where it should be inserted
@@ -1899,7 +1986,12 @@ class PatchGenerator:
         if import_line == -1:
             for i, line in enumerate(lines):
                 stripped = line.strip()
-                if stripped and not stripped.startswith('#') and not stripped.startswith('"""') and not stripped.startswith("'''"):
+                if (
+                    stripped
+                    and not stripped.startswith("#")
+                    and not stripped.startswith('"""')
+                    and not stripped.startswith("'''")
+                ):
                     import_line = i
                     break
 
@@ -1913,7 +2005,7 @@ class PatchGenerator:
             import_statement = f"import {module}"
         elif base_module in popular_modules:
             # Popular module with common alias
-            if '.' in module:
+            if "." in module:
                 # Submodule of a popular package
                 import_statement = f"from {base_module} import {'.'.join(module_parts[1:])}"
             else:
@@ -1930,9 +2022,9 @@ class PatchGenerator:
             f"    {import_statement}",
             f"except ImportError:",
             f"    print(f\"Error: The '{module}' module is required but not installed.\")",
-            f"    print(f\"Please install it using: pip install {base_module}\")",
+            f'    print(f"Please install it using: pip install {base_module}")',
             f"    import sys",
-            f"    sys.exit(1)"
+            f"    sys.exit(1)",
         ]
 
         # Insert the try-except block

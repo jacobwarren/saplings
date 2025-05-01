@@ -10,13 +10,7 @@ import pytest
 
 from saplings.memory.config import MemoryConfig
 from saplings.memory.document import Document, DocumentMetadata
-from saplings.memory.graph import (
-    DependencyGraph,
-    DocumentNode,
-    Edge,
-    EntityNode,
-    Node,
-)
+from saplings.memory.graph import DependencyGraph, DocumentNode, Edge, EntityNode, Node
 from saplings.memory.indexer import Entity
 
 
@@ -231,7 +225,10 @@ class TestDependencyGraph:
         assert ("doc1", "entity:person:John Doe", "mentions") in self.graph.edges
         assert self.graph.edges[("doc1", "entity:person:John Doe", "mentions")] == edge
         assert self.graph.graph.has_edge("doc1", "entity:person:John Doe")
-        assert self.graph.graph.get_edge_data("doc1", "entity:person:John Doe")["relationship_type"] == "mentions"
+        assert (
+            self.graph.graph.get_edge_data("doc1", "entity:person:John Doe")["relationship_type"]
+            == "mentions"
+        )
         assert self.graph.graph.get_edge_data("doc1", "entity:person:John Doe")["weight"] == 0.9
         assert self.graph.graph.get_edge_data("doc1", "entity:person:John Doe")["key"] == "value"
 
@@ -326,7 +323,10 @@ class TestDependencyGraph:
         neighbors = self.graph.get_neighbors("doc1", direction="outgoing")
 
         assert len(neighbors) == 2
-        assert set(node.id for node in neighbors) == {"entity:person:John Doe", "entity:organization:Acme Corp"}
+        assert set(node.id for node in neighbors) == {
+            "entity:person:John Doe",
+            "entity:organization:Acme Corp",
+        }
 
         # Get incoming neighbors
         neighbors = self.graph.get_neighbors("entity:person:John Doe", direction="incoming")
@@ -338,7 +338,11 @@ class TestDependencyGraph:
         neighbors = self.graph.get_neighbors("entity:person:John Doe", direction="both")
 
         assert len(neighbors) == 3
-        assert set(node.id for node in neighbors) == {"doc1", "doc2", "entity:organization:Acme Corp"}
+        assert set(node.id for node in neighbors) == {
+            "doc1",
+            "doc2",
+            "entity:organization:Acme Corp",
+        }
 
         # Get neighbors with specific relationship type
         neighbors = self.graph.get_neighbors(
@@ -389,7 +393,11 @@ class TestDependencyGraph:
         subgraph = self.graph.get_subgraph(["doc1"], max_hops=1)
 
         assert len(subgraph.nodes) == 3
-        assert set(subgraph.nodes.keys()) == {"doc1", "entity:person:John Doe", "entity:organization:Acme Corp"}
+        assert set(subgraph.nodes.keys()) == {
+            "doc1",
+            "entity:person:John Doe",
+            "entity:organization:Acme Corp",
+        }
 
         # Get subgraph with max_hops=2
         subgraph = self.graph.get_subgraph(["doc2"], max_hops=2)
@@ -410,7 +418,10 @@ class TestDependencyGraph:
         )
 
         assert len(subgraph.nodes) == 2
-        assert set(subgraph.nodes.keys()) == {"entity:person:John Doe", "entity:organization:Acme Corp"}
+        assert set(subgraph.nodes.keys()) == {
+            "entity:person:John Doe",
+            "entity:organization:Acme Corp",
+        }
 
     def test_find_paths(self):
         """Test finding paths between nodes."""

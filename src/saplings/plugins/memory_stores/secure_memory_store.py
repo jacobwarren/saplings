@@ -14,7 +14,7 @@ import numpy as np
 from saplings.core.plugin import MemoryStorePlugin, PluginType
 from saplings.memory.config import MemoryConfig, PrivacyLevel
 from saplings.memory.document import Document
-from saplings.memory.vector_store import VectorStore, InMemoryVectorStore
+from saplings.memory.vector_store import InMemoryVectorStore, VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,7 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
     def plugin_type(self) -> PluginType:
         """Type of the plugin."""
         from saplings.core.plugin import PluginType
+
         return PluginType.MEMORY_STORE
 
     def _hash_document_content(self, content: str) -> str:

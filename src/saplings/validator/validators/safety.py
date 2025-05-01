@@ -38,7 +38,9 @@ class ProfanityValidator(RuntimeValidator):
 
         # Default profanity list (very limited for demonstration purposes)
         self._profanity_list = {
-            "badword1", "badword2", "badword3",
+            "badword1",
+            "badword2",
+            "badword3",
         }
 
         # Add custom profanity words
@@ -79,7 +81,7 @@ class ProfanityValidator(RuntimeValidator):
         """
         # Simple profanity detection based on word matching
         # In a real implementation, you would use a more sophisticated approach
-        words = re.findall(r'\b\w+\b', output.lower())
+        words = re.findall(r"\b\w+\b", output.lower())
         profanity_words = [word for word in words if word in self._profanity_list]
 
         # Calculate profanity score
@@ -148,16 +150,20 @@ class PiiValidator(RuntimeValidator):
         self._patterns = {}
 
         if check_emails:
-            self._patterns["email"] = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
+            self._patterns["email"] = re.compile(
+                r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+            )
 
         if check_phone_numbers:
-            self._patterns["phone"] = re.compile(r'\b(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b')
+            self._patterns["phone"] = re.compile(
+                r"\b(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b"
+            )
 
         if check_credit_cards:
-            self._patterns["credit_card"] = re.compile(r'\b(?:\d{4}[- ]?){3}\d{4}\b')
+            self._patterns["credit_card"] = re.compile(r"\b(?:\d{4}[- ]?){3}\d{4}\b")
 
         if check_ssns:
-            self._patterns["ssn"] = re.compile(r'\b\d{3}-\d{2}-\d{4}\b')
+            self._patterns["ssn"] = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 
         # Add custom patterns
         for name, pattern in self._custom_patterns.items():
@@ -181,7 +187,9 @@ class PiiValidator(RuntimeValidator):
     @property
     def description(self) -> str:
         """Description of the validator."""
-        return "Validates that the output does not contain personally identifiable information (PII)"
+        return (
+            "Validates that the output does not contain personally identifiable information (PII)"
+        )
 
     async def validate_output(self, output: str, prompt: str, **kwargs) -> ValidationResult:
         """

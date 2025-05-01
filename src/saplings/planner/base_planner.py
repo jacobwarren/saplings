@@ -27,7 +27,7 @@ class BasePlanner(ABC):
         self,
         config: Optional[PlannerConfig] = None,
         model: Optional[LLM] = None,
-        trace_manager: Optional["TraceManager"] = None
+        trace_manager: Optional["TraceManager"] = None,
     ):
         """
         Initialize the planner.
@@ -121,16 +121,12 @@ class BasePlanner(ABC):
 
         # Check if the plan has too many steps
         if len(steps) > self.config.max_steps:
-            logger.warning(
-                f"Plan has too many steps: {len(steps)} > {self.config.max_steps}"
-            )
+            logger.warning(f"Plan has too many steps: {len(steps)} > {self.config.max_steps}")
             return False
 
         # Check if the plan has too few steps
         if len(steps) < self.config.min_steps:
-            logger.warning(
-                f"Plan has too few steps: {len(steps)} < {self.config.min_steps}"
-            )
+            logger.warning(f"Plan has too few steps: {len(steps)} < {self.config.min_steps}")
             return False
 
         # Check for circular dependencies

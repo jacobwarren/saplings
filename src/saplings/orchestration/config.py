@@ -7,7 +7,7 @@ This module defines the configuration classes for the orchestration system.
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class NegotiationStrategy(str, Enum):
@@ -30,33 +30,24 @@ class AgentNode(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     # Fields for model specification
-    provider: Optional[str] = Field(None, description="Model provider (e.g., 'vllm', 'openai', 'anthropic')")
+    provider: Optional[str] = Field(
+        None, description="Model provider (e.g., 'vllm', 'openai', 'anthropic')"
+    )
     model: Optional[str] = Field(None, description="Model name")
-    model_parameters: Dict[str, Any] = Field(default_factory=dict, description="Additional model parameters")
+    model_parameters: Dict[str, Any] = Field(
+        default_factory=dict, description="Additional model parameters"
+    )
 
     # Fields for component integration
-    memory_store: Optional[Any] = Field(
-        default=None,
-        description="Memory store for this agent"
-    )
-    retriever: Optional[Any] = Field(
-        default=None,
-        description="Retriever for this agent"
-    )
-    enable_gasa: bool = Field(
-        default=False,
-        description="Whether to enable GASA for this agent"
-    )
+    memory_store: Optional[Any] = Field(default=None, description="Memory store for this agent")
+    retriever: Optional[Any] = Field(default=None, description="Retriever for this agent")
+    enable_gasa: bool = Field(default=False, description="Whether to enable GASA for this agent")
     gasa_config: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="GASA configuration for this agent"
+        default=None, description="GASA configuration for this agent"
     )
 
     # Field for agent composition
-    agent: Optional[Any] = Field(
-        default=None,
-        description="Base Agent instance for this node"
-    )
+    agent: Optional[Any] = Field(default=None, description="Base Agent instance for this node")
 
     @field_validator("id")
     @classmethod

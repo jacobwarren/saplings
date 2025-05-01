@@ -12,12 +12,12 @@ The retrieval module is designed to be efficient and context-aware,
 with a cascaded approach that progressively refines results.
 """
 
-from saplings.retrieval.config import RetrievalConfig
-from saplings.retrieval.tfidf_retriever import TFIDFRetriever
-from saplings.retrieval.embedding_retriever import EmbeddingRetriever
-from saplings.retrieval.graph_expander import GraphExpander
-from saplings.retrieval.entropy_calculator import EntropyCalculator
 from saplings.retrieval.cascade_retriever import CascadeRetriever
+from saplings.retrieval.config import RetrievalConfig
+from saplings.retrieval.embedding_retriever import EmbeddingRetriever
+from saplings.retrieval.entropy_calculator import EntropyCalculator
+from saplings.retrieval.graph_expander import GraphExpander
+from saplings.retrieval.tfidf_retriever import TFIDFRetriever
 
 __all__ = [
     "RetrievalConfig",

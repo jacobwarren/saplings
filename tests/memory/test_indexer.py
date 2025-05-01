@@ -313,7 +313,8 @@ class TestSimpleIndexer:
 
         # Check that document-entity relationships were created
         doc_entity_rels = [
-            r for r in result.relationships
+            r
+            for r in result.relationships
             if r.source_id == "doc1" and r.relationship_type == "mentions"
         ]
         assert len(doc_entity_rels) > 0
@@ -386,9 +387,7 @@ class TestGetIndexer:
 
     def test_get_with_config(self):
         """Test getting an indexer with a specific configuration."""
-        config = MemoryConfig(
-            graph={"entity_types": ["person", "organization"]}
-        )
+        config = MemoryConfig(graph={"entity_types": ["person", "organization"]})
 
         indexer = get_indexer(config=config)
 

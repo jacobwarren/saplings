@@ -340,6 +340,7 @@ class TestValidatorRegistry:
     @pytest.mark.asyncio
     async def test_validate_with_failing_validators(self, registry):
         """Test validating with validators that fail."""
+
         # Create custom validator classes for this test
         class CustomStaticValidator(MockStaticValidator):
             async def validate_prompt(self, prompt: str, **kwargs) -> ValidationResult:
@@ -511,7 +512,8 @@ class TestValidatorRegistry:
             # Create a Python module with a validator
             module_path = os.path.join(temp_dir, "test_validator_module.py")
             with open(module_path, "w") as f:
-                f.write("""
+                f.write(
+                    """
 from saplings.validator.validator import RuntimeValidator, ValidationResult, ValidationStatus
 
 class TestValidator(RuntimeValidator):
@@ -537,7 +539,8 @@ class TestValidator(RuntimeValidator):
             status=ValidationStatus.PASSED,
             message="Test validation",
         )
-""")
+"""
+                )
 
             # Configure the registry to discover validators from the directory
             config = ValidatorConfig(
@@ -566,6 +569,7 @@ class TestValidator(RuntimeValidator):
 
     def test_discover_validators_from_entry_points(self, registry, monkeypatch):
         """Test discovering validators from entry points."""
+
         # Mock the get_plugins_by_type function
         def mock_get_plugins_by_type(plugin_type):
             if plugin_type == PluginType.VALIDATOR:
@@ -573,7 +577,9 @@ class TestValidator(RuntimeValidator):
             return {}
 
         # Apply the mock
-        monkeypatch.setattr("saplings.validator.registry.get_plugins_by_type", mock_get_plugins_by_type)
+        monkeypatch.setattr(
+            "saplings.validator.registry.get_plugins_by_type", mock_get_plugins_by_type
+        )
 
         # Configure the registry to use entry points
         config = ValidatorConfig(
@@ -589,6 +595,7 @@ class TestValidator(RuntimeValidator):
 
     def test_discover_validators_from_entry_points_with_error(self, registry, monkeypatch):
         """Test discovering validators from entry points with an error."""
+
         # Mock the entry_points function
         def mock_entry_points(group=None):
             class MockEntryPoint:
@@ -631,10 +638,12 @@ class TestValidator(RuntimeValidator):
             # Create a Python module with a syntax error
             module_path = os.path.join(temp_dir, "error_module.py")
             with open(module_path, "w") as f:
-                f.write("""
+                f.write(
+                    """
 # This module has a syntax error
 class TestValidator(
-""")
+"""
+                )
 
             # Mock importlib.import_module to raise an exception
             def mock_import_module(name):
@@ -661,6 +670,7 @@ class TestValidator(
     @pytest.mark.asyncio
     async def test_budget_enforcement(self, registry):
         """Test that budget constraints are enforced."""
+
         # Create a validator that tracks validation calls
         class BudgetTrackingValidator(RuntimeValidator):
             def __init__(self):

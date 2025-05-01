@@ -5,7 +5,7 @@ Tests for cross-component integration in the Saplings framework.
 import asyncio
 import os
 import tempfile
-from typing import Dict, List, Optional, Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,33 +13,25 @@ import pytest
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.core.plugin import PluginType, ToolPlugin
 from saplings.executor import Executor, ExecutorConfig
-from saplings.orchestration.config import AgentNode, GraphRunnerConfig, CommunicationChannel
-from saplings.orchestration import GraphRunner
-from saplings.planner import SequentialPlanner, PlannerConfig
-from saplings.tool_factory import (
-    ToolFactory,
-    ToolFactoryConfig,
-    ToolTemplate,
-    ToolSpecification,
-    SecurityLevel,
-)
+from saplings.gasa import GASAConfig, MaskBuilder
 from saplings.integration import (
     HotLoader,
     HotLoaderConfig,
-    ToolLifecycleManager,
     IntegrationManager,
+    ToolLifecycleManager,
 )
-from saplings.memory import (
-    MemoryConfig,
-    Document,
-    MemoryStore,
+from saplings.memory import Document, MemoryConfig, MemoryStore
+from saplings.monitoring import BlameGraph, MonitoringConfig, TraceManager
+from saplings.orchestration import GraphRunner
+from saplings.orchestration.config import AgentNode, CommunicationChannel, GraphRunnerConfig
+from saplings.planner import PlannerConfig, SequentialPlanner
+from saplings.tool_factory import (
+    SecurityLevel,
+    ToolFactory,
+    ToolFactoryConfig,
+    ToolSpecification,
+    ToolTemplate,
 )
-from saplings.monitoring import (
-    TraceManager,
-    MonitoringConfig,
-    BlameGraph,
-)
-from saplings.gasa import GASAConfig, MaskBuilder
 
 
 class MockLLM(LLM):
@@ -52,17 +44,17 @@ class MockLLM(LLM):
         self.generate_calls = []
         self.streaming_calls = []
 
-    async def generate(
-        self, prompt, max_tokens=None, temperature=None, **kwargs
-    ) -> LLMResponse:
+    async def generate(self, prompt, max_tokens=None, temperature=None, **kwargs) -> LLMResponse:
         """Generate text from the model."""
         # Record the call
-        self.generate_calls.append({
-            "prompt": prompt,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "kwargs": kwargs,
-        })
+        self.generate_calls.append(
+            {
+                "prompt": prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "kwargs": kwargs,
+            }
+        )
 
         # Return a mock response
         return LLMResponse(
@@ -84,16 +76,18 @@ class MockLLM(LLM):
     ) -> AsyncGenerator[str, None]:
         """Generate text from the model with streaming output."""
         # Record the call
-        self.streaming_calls.append({
-            "prompt": prompt,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "kwargs": kwargs,
-        })
+        self.streaming_calls.append(
+            {
+                "prompt": prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "kwargs": kwargs,
+            }
+        )
 
         # Create a response
         response = f"Response to: {prompt[:50]}..."
-        chunks = [response[i:i+5] for i in range(0, len(response), 5)]
+        chunks = [response[i : i + 5] for i in range(0, len(response), 5)]
 
         # Return chunks as an async generator
         for chunk in chunks:
@@ -284,6 +278,7 @@ class TestCrossComponentIntegration:
                 # Create a simple square mask of ones
                 seq_len = len(prompt.split()) + 10  # Add some padding
                 import numpy as np
+
                 mask = np.ones((seq_len, seq_len), dtype=np.float32)
 
                 # Add some structure to the mask based on documents
@@ -360,7 +355,9 @@ class TestCrossComponentIntegration:
         assert len(mock_llm.generate_calls) > 0
 
     @pytest.mark.asyncio
-    async def test_graph_runner_tool_integration(self, mock_llm, graph_runner, tool_factory, hot_loader, memory_store):
+    async def test_graph_runner_tool_integration(
+        self, mock_llm, graph_runner, tool_factory, hot_loader, memory_store
+    ):
         """Test integration between graph runner and tools."""
         # Register a template
         template = ToolTemplate(

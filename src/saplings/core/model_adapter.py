@@ -39,7 +39,9 @@ class ModelURI(BaseModel):
     - local://mistral-7b/gguf?quantization=q4_k_m
     """
 
-    provider: str = Field(..., description="Model provider (e.g., 'openai', 'anthropic', 'huggingface')")
+    provider: str = Field(
+        ..., description="Model provider (e.g., 'openai', 'anthropic', 'huggingface')"
+    )
     model_name: str = Field(..., description="Name of the model")
     version: str = Field("latest", description="Model version")
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Additional parameters")
@@ -93,7 +95,9 @@ class ModelURI(BaseModel):
             if len(path_components) >= 2 and provider_part.lower() in ["vllm", "huggingface"]:
                 # Check if the last component looks like a version (e.g., "v1.0", "latest")
                 last_component = path_components[-1].lower()
-                if last_component in ["latest", "main"] or (last_component.startswith("v") and any(c.isdigit() for c in last_component)):
+                if last_component in ["latest", "main"] or (
+                    last_component.startswith("v") and any(c.isdigit() for c in last_component)
+                ):
                     # This is likely a version
                     version = path_components[-1]
                     model_name = "/".join(path_components[:-1])
@@ -131,10 +135,7 @@ class ModelURI(BaseModel):
             version = "latest"
 
         return cls(
-            provider=provider_part,
-            model_name=model_name,
-            version=version,
-            parameters=parameters
+            provider=provider_part, model_name=model_name, version=version, parameters=parameters
         )
 
     def __str__(self) -> str:
@@ -193,12 +194,8 @@ class ModelMetadata(BaseModel):
     )
     context_window: int = Field(..., description="Context window size in tokens")
     max_tokens_per_request: int = Field(..., description="Maximum tokens per request")
-    cost_per_1k_tokens_input: float = Field(
-        0.0, description="Cost per 1000 input tokens in USD"
-    )
-    cost_per_1k_tokens_output: float = Field(
-        0.0, description="Cost per 1000 output tokens in USD"
-    )
+    cost_per_1k_tokens_input: float = Field(0.0, description="Cost per 1000 input tokens in USD")
+    cost_per_1k_tokens_output: float = Field(0.0, description="Cost per 1000 output tokens in USD")
 
 
 class LLMResponse(BaseModel):
@@ -208,11 +205,10 @@ class LLMResponse(BaseModel):
     model_uri: str = Field(..., description="URI of the model used")
     usage: Dict[str, int] = Field(
         default_factory=dict,
-        description="Token usage statistics (prompt_tokens, completion_tokens, total_tokens)"
+        description="Token usage statistics (prompt_tokens, completion_tokens, total_tokens)",
     )
     metadata: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional metadata about the response"
+        default_factory=dict, description="Additional metadata about the response"
     )
     function_call: Optional[Dict[str, Any]] = Field(
         None, description="Function call information if the model decided to call a function"
@@ -276,7 +272,8 @@ class LLM(ABC):
         provider = model_uri.provider.lower()
 
         # Try to find a plugin for this provider
-        from saplings.core.plugin import get_plugin_registry, PluginType
+        from saplings.core.plugin import PluginType, get_plugin_registry
+
         registry = get_plugin_registry()
 
         # Look for a plugin with the provider name
@@ -289,14 +286,14 @@ class LLM(ABC):
         if provider == "vllm":
             try:
                 from saplings.adapters.vllm_adapter import VLLMAdapter
+
                 return VLLMAdapter(model_uri, **kwargs)
             except ImportError:
-                raise ImportError(
-                    "vLLM not installed. Please install it with: pip install vllm"
-                )
+                raise ImportError("vLLM not installed. Please install it with: pip install vllm")
         elif provider == "openai":
             try:
                 from saplings.adapters.openai_adapter import OpenAIAdapter
+
                 return OpenAIAdapter(model_uri, **kwargs)
             except ImportError:
                 raise ImportError(
@@ -305,6 +302,7 @@ class LLM(ABC):
         elif provider == "anthropic":
             try:
                 from saplings.adapters.anthropic_adapter import AnthropicAdapter
+
                 return AnthropicAdapter(model_uri, **kwargs)
             except ImportError:
                 raise ImportError(
@@ -313,6 +311,7 @@ class LLM(ABC):
         elif provider == "huggingface":
             try:
                 from saplings.adapters.huggingface_adapter import HuggingFaceAdapter
+
                 return HuggingFaceAdapter(model_uri, **kwargs)
             except ImportError:
                 raise ImportError(
@@ -363,7 +362,7 @@ class LLM(ABC):
         use_cache: bool = False,
         cache_namespace: str = "default",
         cache_ttl: Optional[int] = 3600,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model.
@@ -396,7 +395,7 @@ class LLM(ABC):
         json_mode: bool = False,
         cache_namespace: str = "default",
         cache_ttl: Optional[int] = 3600,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model with caching.
@@ -428,7 +427,7 @@ class LLM(ABC):
             functions=functions,
             function_call=function_call,
             json_mode=json_mode,
-            **kwargs
+            **kwargs,
         )
 
         # Get the cache
@@ -447,7 +446,7 @@ class LLM(ABC):
             functions=functions,
             function_call=function_call,
             json_mode=json_mode,
-            **kwargs
+            **kwargs,
         )
 
         # Cache the response
@@ -465,7 +464,7 @@ class LLM(ABC):
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
         """
         Generate text from the model with streaming output.
@@ -493,7 +492,7 @@ class LLM(ABC):
             functions=functions,
             function_call=function_call,
             json_mode=json_mode,
-            **kwargs
+            **kwargs,
         )
         if response.text:
             yield response.text
@@ -514,7 +513,7 @@ class LLM(ABC):
         use_cache: bool = False,
         cache_namespace: str = "default",
         cache_ttl: Optional[int] = 3600,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate a response to a conversation.
@@ -545,7 +544,7 @@ class LLM(ABC):
                 json_mode=json_mode,
                 cache_namespace=cache_namespace,
                 cache_ttl=cache_ttl,
-                **kwargs
+                **kwargs,
             )
         else:
             return await self.generate(
@@ -555,7 +554,7 @@ class LLM(ABC):
                 functions=functions,
                 function_call=function_call,
                 json_mode=json_mode,
-                **kwargs
+                **kwargs,
             )
 
     async def chat_streaming(
@@ -567,7 +566,7 @@ class LLM(ABC):
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
         """
         Generate a streaming response to a conversation.
@@ -594,7 +593,7 @@ class LLM(ABC):
             functions=functions,
             function_call=function_call,
             json_mode=json_mode,
-            **kwargs
+            **kwargs,
         ):
             yield chunk
 

@@ -4,10 +4,10 @@ Tests for the TF-IDF retriever module.
 
 import os
 import tempfile
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
 
 from saplings.memory.document import Document, DocumentMetadata
 from saplings.memory.memory_store import MemoryStore
@@ -62,9 +62,7 @@ class TestTFIDFRetriever:
 
     def test_init_with_retrieval_config(self):
         """Test initialization with RetrievalConfig."""
-        retrieval_config = RetrievalConfig(
-            tfidf=TFIDFConfig(initial_k=5)
-        )
+        retrieval_config = RetrievalConfig(tfidf=TFIDFConfig(initial_k=5))
         retriever = TFIDFRetriever(self.memory_store, retrieval_config)
 
         assert retriever.config.initial_k == 5
@@ -143,8 +141,7 @@ class TestTFIDFRetriever:
 
         # Retrieve documents with filter
         results = self.retriever.retrieve(
-            "artificial intelligence",
-            filter_dict={"metadata.source": "test1.txt"}
+            "artificial intelligence", filter_dict={"metadata.source": "test1.txt"}
         )
 
         assert len(results) == 1

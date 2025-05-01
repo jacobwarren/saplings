@@ -11,13 +11,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from saplings.monitoring.config import MonitoringConfig
-from saplings.monitoring.trace import TraceManager, Trace, Span, SpanContext
 from saplings.monitoring.langsmith import LangSmithExporter
-
+from saplings.monitoring.trace import Span, SpanContext, Trace, TraceManager
 
 # Check if langsmith is available
 try:
     import langsmith
+
     LANGSMITH_AVAILABLE = True
 except ImportError:
     LANGSMITH_AVAILABLE = False
@@ -94,7 +94,7 @@ def llm_trace(trace_manager):
         attributes={
             "component": "agent",
             "agent_type": "reasoning",
-            "user_query": "What is the capital of France?"
+            "user_query": "What is the capital of France?",
         },
     )
 
@@ -109,7 +109,7 @@ def llm_trace(trace_manager):
             "prompt": "Answer the following question: What is the capital of France?",
             "completion": "The capital of France is Paris.",
             "tokens": 15,
-            "temperature": 0.7
+            "temperature": 0.7,
         },
     )
 
@@ -122,7 +122,7 @@ def llm_trace(trace_manager):
             "component": "tool",
             "tool_name": "search",
             "input": "capital of France",
-            "output": "Paris is the capital of France."
+            "output": "Paris is the capital of France.",
         },
     )
 
@@ -363,7 +363,10 @@ def test_convert_llm_trace_to_langsmith(trace_manager, llm_trace):
     assert llm_run["run_type"] == "llm"
     assert "prompt" in llm_run["inputs"]
     assert "completion" in llm_run["outputs"]
-    assert llm_run["inputs"]["prompt"] == "Answer the following question: What is the capital of France?"
+    assert (
+        llm_run["inputs"]["prompt"]
+        == "Answer the following question: What is the capital of France?"
+    )
     assert llm_run["outputs"]["completion"] == "The capital of France is Paris."
 
     # Find the tool run

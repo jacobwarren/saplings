@@ -5,17 +5,19 @@ This module provides tests for the OpenAI adapter implementation.
 """
 
 import asyncio
-import pytest
 from typing import Any, Dict, List, Optional, Type, Union
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 # Import the necessary modules
 from saplings.core.model_adapter import LLM, LLMResponse, ModelURI
+
 from .test_base import BaseAdapterTest
 
 # Check if OpenAI is available
 try:
-    from saplings.adapters.openai_adapter import OpenAIAdapter, OPENAI_AVAILABLE
+    from saplings.adapters.openai_adapter import OPENAI_AVAILABLE, OpenAIAdapter
 except ImportError:
     OPENAI_AVAILABLE = False
 
@@ -160,11 +162,11 @@ class TestOpenAIAdapter(BaseAdapterTest):
                 metadata={
                     "model": adapter.model_name,
                     "provider": "openai",
-                }
+                },
             )
 
         # Replace the generate method with our mock
-        with patch.object(adapter, 'generate', side_effect=mock_generate_method):
+        with patch.object(adapter, "generate", side_effect=mock_generate_method):
             response = await adapter.generate(self.test_prompt)
 
             # Check that the response is correct
@@ -180,13 +182,14 @@ class TestOpenAIAdapter(BaseAdapterTest):
     @pytest.mark.asyncio
     async def test_generate_streaming(self, adapter: LLM):
         """Test the generate_streaming method."""
+
         # Create a custom generate_streaming method that returns text chunks
         async def mock_streaming_method(*args, **kwargs):
             for text in ["This ", "is ", "a ", "test ", "response."]:
                 yield text
 
         # Replace the generate_streaming method with our mock
-        with patch.object(adapter, 'generate_streaming', side_effect=mock_streaming_method):
+        with patch.object(adapter, "generate_streaming", side_effect=mock_streaming_method):
             chunks = []
             async for chunk in adapter.generate_streaming(self.test_prompt):
                 chunks.append(chunk)
@@ -219,8 +222,10 @@ class TestOpenAIAdapter(BaseAdapterTest):
         mock_client = MagicMock()
 
         # Set up the mock
-        with patch.dict('sys.modules', {'openai': mock_openai_module}):
-            with patch("saplings.adapters.openai_adapter.OpenAI", return_value=mock_client) as mock_openai:
+        with patch.dict("sys.modules", {"openai": mock_openai_module}):
+            with patch(
+                "saplings.adapters.openai_adapter.OpenAI", return_value=mock_client
+            ) as mock_openai:
                 with patch("saplings.adapters.openai_adapter.OPENAI_AVAILABLE", True):
                     # Create a URI with parameters
                     uri = f"{self.provider_name}://{self.model_name}?temperature=0.5&max_tokens=100&api_key=test-key&api_base=https://test.com"
@@ -251,8 +256,10 @@ class TestOpenAIAdapter(BaseAdapterTest):
         mock_client = MagicMock()
 
         # Set up the mock
-        with patch.dict('sys.modules', {'openai': mock_openai_module}):
-            with patch("saplings.adapters.openai_adapter.OpenAI", return_value=mock_client) as mock_openai:
+        with patch.dict("sys.modules", {"openai": mock_openai_module}):
+            with patch(
+                "saplings.adapters.openai_adapter.OpenAI", return_value=mock_client
+            ) as mock_openai:
                 with patch("saplings.adapters.openai_adapter.OPENAI_AVAILABLE", True):
                     # Create the adapter
                     adapter = self.adapter_class(f"{self.provider_name}://{self.model_name}")

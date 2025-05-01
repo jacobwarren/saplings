@@ -13,22 +13,22 @@ import pytest
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.core.plugin import PluginType, ToolPlugin
 from saplings.executor import Executor, ExecutorConfig
-from saplings.memory import MemoryStore
-from saplings.orchestration.config import AgentNode, GraphRunnerConfig
-from saplings.orchestration import GraphRunner
-from saplings.planner import SequentialPlanner, PlannerConfig
-from saplings.tool_factory import (
-    ToolFactory,
-    ToolFactoryConfig,
-    ToolTemplate,
-    ToolSpecification,
-    SecurityLevel,
-)
 from saplings.integration import (
     HotLoader,
     HotLoaderConfig,
-    ToolLifecycleManager,
     IntegrationManager,
+    ToolLifecycleManager,
+)
+from saplings.memory import MemoryStore
+from saplings.orchestration import GraphRunner
+from saplings.orchestration.config import AgentNode, GraphRunnerConfig
+from saplings.planner import PlannerConfig, SequentialPlanner
+from saplings.tool_factory import (
+    SecurityLevel,
+    ToolFactory,
+    ToolFactoryConfig,
+    ToolSpecification,
+    ToolTemplate,
 )
 
 
@@ -372,7 +372,9 @@ def {{function_name}}({{parameters}}):
         assert spec.id in integration_manager.planner.tools
 
     @pytest.mark.asyncio
-    async def test_integration_with_graph_runner(self, integration_manager, tool_factory, memory_store):
+    async def test_integration_with_graph_runner(
+        self, integration_manager, tool_factory, memory_store
+    ):
         """Test integration with graph runner."""
         # Register a template
         template = ToolTemplate(
@@ -526,8 +528,13 @@ class HotLoadedTool(ToolPlugin):
 
             # Check that the tool was updated
             assert "hot_loaded_tool" in integration_manager.hot_loader.tools
-            assert integration_manager.hot_loader.tools["hot_loaded_tool"] == UpdatedMockHotLoadedTool
-            assert integration_manager.hot_loader.tools["hot_loaded_tool"].name == "Hot Loaded Tool (Updated)"
+            assert (
+                integration_manager.hot_loader.tools["hot_loaded_tool"] == UpdatedMockHotLoadedTool
+            )
+            assert (
+                integration_manager.hot_loader.tools["hot_loaded_tool"].name
+                == "Hot Loaded Tool (Updated)"
+            )
             assert integration_manager.hot_loader.tools["hot_loaded_tool"].version == "1.1.0"
 
         finally:
@@ -602,8 +609,9 @@ def {{function_name}}({{parameters}}):
         # Create and load all tools
         tool_classes = []
         for spec in specs:
-            with patch.object(tool_factory, "_validate_tool_code", return_value=(True, "")), \
-                 patch.object(tool_factory, "_perform_security_checks", return_value=(True, "")):
+            with patch.object(
+                tool_factory, "_validate_tool_code", return_value=(True, "")
+            ), patch.object(tool_factory, "_perform_security_checks", return_value=(True, "")):
                 tool_class = await tool_factory.create_tool(spec)
                 tool_classes.append(tool_class)
                 integration_manager.hot_loader.load_tool(tool_class)
@@ -637,7 +645,7 @@ def {{function_name}}({{parameters}}):
             # Execute a task using the executor
             result = await integration_manager.executor.execute(
                 "Process the data and calculate statistics",
-                tools=integration_manager.executor.tools
+                tools=integration_manager.executor.tools,
             )
 
             assert "Executed task" in result
@@ -649,8 +657,7 @@ def {{function_name}}({{parameters}}):
         with patch.object(integration_manager.planner, "create_plan", side_effect=mock_create_plan):
             # Create a plan using the planner
             result = await integration_manager.planner.create_plan(
-                "Process the data and calculate statistics",
-                tools=integration_manager.planner.tools
+                "Process the data and calculate statistics", tools=integration_manager.planner.tools
             )
 
             assert "Created plan for" in result
@@ -659,11 +666,12 @@ def {{function_name}}({{parameters}}):
         async def mock_negotiate(task, **kwargs):
             return f"Negotiated solution for: {task}"
 
-        with patch.object(integration_manager.graph_runner, "negotiate", side_effect=mock_negotiate):
+        with patch.object(
+            integration_manager.graph_runner, "negotiate", side_effect=mock_negotiate
+        ):
             # Run a negotiation using the graph runner
             result = await integration_manager.graph_runner.negotiate(
-                "Process the data and calculate statistics",
-                context="Using data processing tools"
+                "Process the data and calculate statistics", context="Using data processing tools"
             )
 
             assert "Negotiated solution for" in result

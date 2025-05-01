@@ -5,10 +5,11 @@ This module provides tests to verify that GASA reduces FLOPs by at least 35%
 as claimed in the framework's value proposition.
 """
 
-import numpy as np
-import pytest
 from typing import List, Tuple
 from unittest.mock import MagicMock
+
+import numpy as np
+import pytest
 
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.memory import DependencyGraph, Document, DocumentMetadata
@@ -73,9 +74,9 @@ class TestGASAFlopReduction:
             doc = Document(
                 id=f"doc_{i+1}",
                 content=f"This is test document {i+1} with some content for testing. "
-                        f"It contains information that relates to other documents in the set. "
-                        f"Specifically, it references concepts from documents {max(1, i-1)} "
-                        f"and {min(num_documents, i+2)}.",
+                f"It contains information that relates to other documents in the set. "
+                f"Specifically, it references concepts from documents {max(1, i-1)} "
+                f"and {min(num_documents, i+2)}.",
                 metadata=DocumentMetadata(
                     source=f"test_doc_{i+1}.txt",
                 ),
@@ -98,25 +99,19 @@ class TestGASAFlopReduction:
             # Connect to previous document
             if i > 0:
                 graph.add_edge(
-                    source_id=nodes[i].id,
-                    target_id=nodes[i-1].id,
-                    relationship_type="references"
+                    source_id=nodes[i].id, target_id=nodes[i - 1].id, relationship_type="references"
                 )
 
             # Connect to next document
             if i < len(nodes) - 1:
                 graph.add_edge(
-                    source_id=nodes[i].id,
-                    target_id=nodes[i+1].id,
-                    relationship_type="references"
+                    source_id=nodes[i].id, target_id=nodes[i + 1].id, relationship_type="references"
                 )
 
             # Add some long-range connections
             if i % 3 == 0 and i + 3 < len(nodes):
                 graph.add_edge(
-                    source_id=nodes[i].id,
-                    target_id=nodes[i+3].id,
-                    relationship_type="references"
+                    source_id=nodes[i].id, target_id=nodes[i + 3].id, relationship_type="references"
                 )
 
         return documents, graph
@@ -158,13 +153,13 @@ class TestGASAFlopReduction:
 
         # Add attention to nearby tokens (simulating h=1)
         for i in range(seq_len):
-            for j in range(max(0, i-5), min(seq_len, i+6)):
+            for j in range(max(0, i - 5), min(seq_len, i + 6)):
                 gasa_mask[i, j] = 1
 
         # Add some longer-range connections (simulating h=2)
         # These would be tokens that are connected through the graph
         for i in range(0, seq_len, 10):
-            for j in range(max(0, i-20), min(seq_len, i+21)):
+            for j in range(max(0, i - 20), min(seq_len, i + 21)):
                 if abs(i - j) <= 5:
                     continue  # Skip nearby tokens already covered
                 gasa_mask[i, j] = 1
@@ -181,7 +176,9 @@ class TestGASAFlopReduction:
         print(f"FLOP reduction: {flop_reduction:.2f}%")
 
         # Verify reduction is at least 35%
-        assert flop_reduction >= 35, f"FLOP reduction is only {flop_reduction:.2f}%, expected at least 35%"
+        assert (
+            flop_reduction >= 35
+        ), f"FLOP reduction is only {flop_reduction:.2f}%, expected at least 35%"
 
     def test_flop_reduction_with_different_hop_values(self):
         """Test FLOP reduction with different hop values."""
@@ -210,14 +207,16 @@ class TestGASAFlopReduction:
                 # h=1: Attend to tokens within a small window
                 if hops >= 1:
                     window_size = 5
-                    for j in range(max(0, i-window_size), min(seq_len, i+window_size+1)):
+                    for j in range(max(0, i - window_size), min(seq_len, i + window_size + 1)):
                         gasa_mask[i, j] = 1
 
                 # h=2: Add some medium-range connections
                 if hops >= 2:
                     if i % 5 == 0:  # Simulate graph connections at regular intervals
                         medium_range = 20
-                        for j in range(max(0, i-medium_range), min(seq_len, i+medium_range+1)):
+                        for j in range(
+                            max(0, i - medium_range), min(seq_len, i + medium_range + 1)
+                        ):
                             if abs(i - j) <= window_size:
                                 continue  # Skip nearby tokens already covered
                             gasa_mask[i, j] = 1
@@ -226,7 +225,7 @@ class TestGASAFlopReduction:
                 if hops >= 3:
                     if i % 10 == 0:  # Fewer long-range connections
                         long_range = 40
-                        for j in range(max(0, i-long_range), min(seq_len, i+long_range+1)):
+                        for j in range(max(0, i - long_range), min(seq_len, i + long_range + 1)):
                             if abs(i - j) <= medium_range:
                                 continue  # Skip tokens already covered
                             gasa_mask[i, j] = 1
@@ -243,8 +242,12 @@ class TestGASAFlopReduction:
 
         # Verify reductions
         assert all(reduction > 0 for reduction in reductions), "GASA should always reduce FLOPs"
-        assert reductions[0] > reductions[1] > reductions[2], "Lower hop values should provide greater FLOP reductions"
-        assert reductions[1] >= 35, f"FLOP reduction with h=2 is only {reductions[1]:.2f}%, expected at least 35%"
+        assert (
+            reductions[0] > reductions[1] > reductions[2]
+        ), "Lower hop values should provide greater FLOP reductions"
+        assert (
+            reductions[1] >= 35
+        ), f"FLOP reduction with h=2 is only {reductions[1]:.2f}%, expected at least 35%"
 
     def test_flop_reduction_with_executor(self):
         """Test FLOP reduction when using the Executor with GASA."""
@@ -262,12 +265,12 @@ class TestGASAFlopReduction:
 
         # Add attention to nearby tokens (simulating h=1)
         for i in range(seq_len):
-            for j in range(max(0, i-5), min(seq_len, i+6)):
+            for j in range(max(0, i - 5), min(seq_len, i + 6)):
                 gasa_mask[i, j] = 1
 
         # Add some longer-range connections (simulating h=2)
         for i in range(0, seq_len, 10):
-            for j in range(max(0, i-20), min(seq_len, i+21)):
+            for j in range(max(0, i - 20), min(seq_len, i + 21)):
                 if abs(i - j) <= 5:
                     continue  # Skip nearby tokens already covered
                 gasa_mask[i, j] = 1
@@ -284,4 +287,6 @@ class TestGASAFlopReduction:
         print(f"FLOP reduction: {flop_reduction:.2f}%")
 
         # Verify reduction is at least 35%
-        assert flop_reduction >= 35, f"FLOP reduction is only {flop_reduction:.2f}%, expected at least 35%"
+        assert (
+            flop_reduction >= 35
+        ), f"FLOP reduction is only {flop_reduction:.2f}%, expected at least 35%"

@@ -154,7 +154,10 @@ class EventSystem:
             return
 
         if is_async:
-            if event_type in self._async_listeners and listener in self._async_listeners[event_type]:
+            if (
+                event_type in self._async_listeners
+                and listener in self._async_listeners[event_type]
+            ):
                 self._async_listeners[event_type].remove(listener)
                 logger.debug(f"Removed async listener for {event_type}: {listener.__name__}")
         else:
@@ -232,7 +235,9 @@ class EventSystem:
             try:
                 await listener(event)
             except Exception as e:
-                logger.exception(f"Error in async listener {listener.__name__} for {event.type}: {e}")
+                logger.exception(
+                    f"Error in async listener {listener.__name__} for {event.type}: {e}"
+                )
 
         # Call async listeners for all events
         for listener in self._all_async_listeners:

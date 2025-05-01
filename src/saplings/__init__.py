@@ -31,33 +31,20 @@ from saplings.core import (
 
 # Import adapters if available
 try:
-    from saplings.adapters import (
-        VLLMAdapter,
-        OpenAIAdapter,
-        AnthropicAdapter,
-        HuggingFaceAdapter,
-    )
+    from saplings.adapters import AnthropicAdapter, HuggingFaceAdapter, OpenAIAdapter, VLLMAdapter
 except ImportError:
     pass
 
-# Import memory modules
-from saplings.memory import (
-    Document,
-    DocumentMetadata,
-    DependencyGraph,
-    MemoryConfig,
-    MemoryStore,
-    VectorStore,
-)
+# Import high-level agent
+from saplings.agent import Agent, AgentConfig
 
-# Import retrieval modules
-from saplings.retrieval import (
-    CascadeRetriever,
-    EmbeddingRetriever,
-    EntropyCalculator,
-    GraphExpander,
-    RetrievalConfig,
-    TFIDFRetriever,
+# Import executor modules
+from saplings.executor import (
+    ExecutionResult,
+    Executor,
+    ExecutorConfig,
+    RefinementStrategy,
+    VerificationStrategy,
 )
 
 # Import GASA modules
@@ -70,76 +57,84 @@ from saplings.gasa import (
     MaskVisualizer,
 )
 
-# Import planner modules
-from saplings.planner import (
-    BasePlanner,
-    BudgetStrategy,
-    OptimizationStrategy,
-    PlanStep,
-    PlanStepStatus,
-    PlannerConfig,
-    SequentialPlanner,
-    StepPriority,
-    StepType,
+# Import integration modules
+from saplings.integration import (
+    Event,
+    EventListener,
+    EventSystem,
+    EventType,
+    HotLoader,
+    HotLoaderConfig,
+    IntegrationManager,
+    ToolLifecycleManager,
 )
 
-# Import executor modules
-from saplings.executor import (
-    Executor,
-    ExecutionResult,
-    ExecutorConfig,
-    RefinementStrategy,
-    VerificationStrategy,
-)
-
-# Import self-healing modules
-from saplings.self_heal import (
-    PatchGenerator,
-    PatchResult,
-    PatchStatus,
-    Patch,
-    SuccessPairCollector,
-    LoRaTrainer,
-    LoRaConfig,
-    TrainingMetrics,
-    AdapterManager,
-    AdapterMetadata,
-    AdapterPriority,
-    Adapter,
+# Import memory modules
+from saplings.memory import (
+    DependencyGraph,
+    Document,
+    DocumentMetadata,
+    MemoryConfig,
+    MemoryStore,
+    VectorStore,
 )
 
 # Import orchestration modules
 from saplings.orchestration import (
     AgentNode,
     CommunicationChannel,
-    GraphRunnerConfig,
     GraphRunner,
+    GraphRunnerConfig,
     NegotiationStrategy,
+)
+
+# Import planner modules
+from saplings.planner import (
+    BasePlanner,
+    BudgetStrategy,
+    OptimizationStrategy,
+    PlannerConfig,
+    PlanStep,
+    PlanStepStatus,
+    SequentialPlanner,
+    StepPriority,
+    StepType,
+)
+
+# Import retrieval modules
+from saplings.retrieval import (
+    CascadeRetriever,
+    EmbeddingRetriever,
+    EntropyCalculator,
+    GraphExpander,
+    RetrievalConfig,
+    TFIDFRetriever,
+)
+
+# Import self-healing modules
+from saplings.self_heal import (
+    Adapter,
+    AdapterManager,
+    AdapterMetadata,
+    AdapterPriority,
+    LoRaConfig,
+    LoRaTrainer,
+    Patch,
+    PatchGenerator,
+    PatchResult,
+    PatchStatus,
+    SuccessPairCollector,
+    TrainingMetrics,
 )
 
 # Import tool factory modules
 from saplings.tool_factory import (
-    ToolSpecification,
-    ToolFactoryConfig,
-    ToolTemplate,
     SecurityLevel,
     ToolFactory,
+    ToolFactoryConfig,
+    ToolSpecification,
+    ToolTemplate,
 )
-
-# Import integration modules
-from saplings.integration import (
-    HotLoader,
-    HotLoaderConfig,
-    ToolLifecycleManager,
-    IntegrationManager,
-    EventSystem,
-    EventType,
-    Event,
-    EventListener,
-)
-
-# Import high-level agent
-from saplings.agent import Agent, AgentConfig
 
 # Initialize plugins on import
 discover_plugins()
@@ -147,7 +142,6 @@ discover_plugins()
 __all__ = [
     # Version
     "__version__",
-
     # Core classes
     "LLM",
     "LLMResponse",
@@ -159,13 +153,11 @@ __all__ = [
     "PluginRegistry",
     "PluginType",
     "discover_plugins",
-
     # Adapter classes
     "VLLMAdapter",
     "OpenAIAdapter",
     "AnthropicAdapter",
     "HuggingFaceAdapter",
-
     # Memory classes
     "Document",
     "DocumentMetadata",
@@ -173,7 +165,6 @@ __all__ = [
     "MemoryConfig",
     "MemoryStore",
     "VectorStore",
-
     # Retrieval classes
     "CascadeRetriever",
     "EmbeddingRetriever",
@@ -181,7 +172,6 @@ __all__ = [
     "GraphExpander",
     "RetrievalConfig",
     "TFIDFRetriever",
-
     # GASA classes
     "BlockDiagonalPacker",
     "GASAConfig",
@@ -189,7 +179,6 @@ __all__ = [
     "MaskFormat",
     "MaskType",
     "MaskVisualizer",
-
     # Planner classes
     "BasePlanner",
     "BudgetStrategy",
@@ -200,14 +189,12 @@ __all__ = [
     "SequentialPlanner",
     "StepPriority",
     "StepType",
-
     # Executor classes
     "Executor",
     "ExecutionResult",
     "ExecutorConfig",
     "RefinementStrategy",
     "VerificationStrategy",
-
     # Self-healing classes
     "PatchGenerator",
     "PatchResult",
@@ -221,21 +208,18 @@ __all__ = [
     "AdapterMetadata",
     "AdapterPriority",
     "Adapter",
-
     # Orchestration classes
     "AgentNode",
     "CommunicationChannel",
     "GraphRunnerConfig",
     "GraphRunner",
     "NegotiationStrategy",
-
     # Tool factory classes
     "ToolSpecification",
     "ToolFactoryConfig",
     "ToolTemplate",
     "SecurityLevel",
     "ToolFactory",
-
     # Integration classes
     "HotLoader",
     "HotLoaderConfig",
@@ -245,7 +229,6 @@ __all__ = [
     "EventType",
     "Event",
     "EventListener",
-
     # High-level agent
     "Agent",
     "AgentConfig",

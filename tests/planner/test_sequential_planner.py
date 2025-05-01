@@ -2,8 +2,9 @@
 Tests for the sequential planner module.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.planner.plan_step import PlanStep, PlanStepStatus, StepType
@@ -326,7 +327,9 @@ Here's an optimized plan:
             assert "Result for" in result
 
             # Check step statuses - all steps should be completed
-            completed_steps = [step for step in self.steps if step.status == PlanStepStatus.COMPLETED]
+            completed_steps = [
+                step for step in self.steps if step.status == PlanStepStatus.COMPLETED
+            ]
             assert len(completed_steps) == len(self.steps)
         finally:
             # Restore the original method
@@ -335,6 +338,7 @@ Here's an optimized plan:
     @pytest.mark.asyncio
     async def test_execute_plan_with_failure(self):
         """Test execute_plan method with a failing step."""
+
         # Create a custom execute_plan method that simulates a failure
         async def mock_execute_plan(steps):
             # Mark step1 as completed
@@ -624,7 +628,10 @@ Here's an optimized plan:
         assert not self.planner._has_circular_dependencies(optimized_steps)
         assert not self.planner._has_missing_dependencies(optimized_steps)
         assert self.planner.estimate_cost(optimized_steps) <= self.planner.config.total_budget
-        assert all(step.estimated_cost <= self.planner.config.cost_heuristics.max_cost_per_step for step in optimized_steps)
+        assert all(
+            step.estimated_cost <= self.planner.config.cost_heuristics.max_cost_per_step
+            for step in optimized_steps
+        )
 
     @pytest.mark.asyncio
     async def test_execute_step(self):

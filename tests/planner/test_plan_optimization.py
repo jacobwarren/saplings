@@ -2,8 +2,9 @@
 Tests for plan optimization in the planner module.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.planner.config import OptimizationStrategy, PlannerConfig
@@ -25,7 +26,7 @@ class TestPlanOptimization:
             version="latest",
             roles=[ModelRole.PLANNER],
             context_window=4096,
-            max_tokens_per_request=2048
+            max_tokens_per_request=2048,
         )
 
         # Create a planner
@@ -132,7 +133,9 @@ Here's an optimized plan:
         invalid_steps[0].estimated_cost = 0.6  # Exceeds max cost per step
 
         # Mock the _parse_optimization_response method to return our optimized steps
-        with patch.object(self.planner, '_parse_optimization_response', return_value=optimized_steps):
+        with patch.object(
+            self.planner, "_parse_optimization_response", return_value=optimized_steps
+        ):
             # Optimize plan
             result = await self.planner.optimize_plan(invalid_steps)
 
@@ -222,7 +225,9 @@ Here's an optimized plan:
         invalid_steps[0].estimated_cost = 0.6  # Exceeds max cost per step
 
         # Mock the _parse_optimization_response method to return our optimized steps
-        with patch.object(self.planner, '_parse_optimization_response', return_value=optimized_steps):
+        with patch.object(
+            self.planner, "_parse_optimization_response", return_value=optimized_steps
+        ):
             # Optimize plan
             result = await self.planner.optimize_plan(invalid_steps)
 
@@ -326,8 +331,9 @@ Here's an optimized plan:
         invalid_steps[0].estimated_cost = 0.6  # Exceeds max cost per step
 
         # Mock both _parse_optimization_response and _simple_optimize to return our optimized steps
-        with patch.object(self.planner, '_parse_optimization_response', return_value=optimized_steps), \
-             patch.object(self.planner, '_simple_optimize', return_value=optimized_steps):
+        with patch.object(
+            self.planner, "_parse_optimization_response", return_value=optimized_steps
+        ), patch.object(self.planner, "_simple_optimize", return_value=optimized_steps):
             # Optimize plan
             result = await self.planner.optimize_plan(invalid_steps)
 
@@ -382,7 +388,7 @@ Here's an optimized plan:
         ]
 
         # Optimize plan with mocked _simple_optimize
-        with patch.object(self.planner, '_simple_optimize', return_value=simple_optimized):
+        with patch.object(self.planner, "_simple_optimize", return_value=simple_optimized):
             optimized_steps = await self.planner.optimize_plan(invalid_steps)
 
             # Check that model was called

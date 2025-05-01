@@ -10,7 +10,14 @@ import logging
 import os
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
-from saplings.core.model_adapter import LLM, LLMResponse, ModelCapability, ModelMetadata, ModelRole, ModelURI
+from saplings.core.model_adapter import (
+    LLM,
+    LLMResponse,
+    ModelCapability,
+    ModelMetadata,
+    ModelRole,
+    ModelURI,
+)
 from saplings.core.plugin import ModelAdapterPlugin, PluginType
 
 logger = logging.getLogger(__name__)
@@ -18,12 +25,11 @@ logger = logging.getLogger(__name__)
 try:
     import anthropic
     from anthropic import Anthropic
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
-    logger.warning(
-        "Anthropic not installed. Please install it with: pip install anthropic"
-    )
+    logger.warning("Anthropic not installed. Please install it with: pip install anthropic")
 
 
 class AnthropicAdapter(LLM, ModelAdapterPlugin):
@@ -85,7 +91,7 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model.
@@ -116,7 +122,7 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            **kwargs
+            **kwargs,
         }
 
         # Add tools/functions if provided
@@ -134,7 +140,7 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
                 elif isinstance(function_call, dict) and "name" in function_call:
                     completion_args["tool_choice"] = {
                         "type": "function",
-                        "function": {"name": function_call["name"]}
+                        "function": {"name": function_call["name"]},
                     }
 
         # Add system prompt for JSON mode if requested
@@ -158,10 +164,7 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
             completion_args["messages"] = messages
 
         # Create the completion
-        response = await asyncio.to_thread(
-            self.client.messages.create,
-            **completion_args
-        )
+        response = await asyncio.to_thread(self.client.messages.create, **completion_args)
 
         # Process the response
         function_call_result = None
@@ -175,14 +178,16 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
 
             for tool_call in tool_calls:
                 if tool_call.type == "function":
-                    tool_calls_result.append({
-                        "id": tool_call.id,
-                        "type": tool_call.type,
-                        "function": {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments
+                    tool_calls_result.append(
+                        {
+                            "id": tool_call.id,
+                            "type": tool_call.type,
+                            "function": {
+                                "name": tool_call.function.name,
+                                "arguments": tool_call.function.arguments,
+                            },
                         }
-                    })
+                    )
         else:
             # Regular text response
             generated_text = response.content[0].text if response.content else None
@@ -206,7 +211,7 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
                 "provider": "anthropic",
             },
             function_call=function_call_result,
-            tool_calls=tool_calls_result
+            tool_calls=tool_calls_result,
         )
 
     def _process_prompt(self, prompt: Union[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
@@ -235,7 +240,7 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
         """
         Generate text from the model with streaming output.
@@ -268,7 +273,7 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
             "max_tokens": max_tokens,
             "temperature": temperature,
             "stream": True,
-            **kwargs
+            **kwargs,
         }
 
         # Add tools/functions if provided
@@ -286,7 +291,7 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
                 elif isinstance(function_call, dict) and "name" in function_call:
                     completion_args["tool_choice"] = {
                         "type": "function",
-                        "function": {"name": function_call["name"]}
+                        "function": {"name": function_call["name"]},
                     }
 
         # Add system prompt for JSON mode if requested
@@ -310,10 +315,7 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
             completion_args["messages"] = messages
 
         # Create the completion with streaming
-        response = await asyncio.to_thread(
-            self.client.messages.create,
-            **completion_args
-        )
+        response = await asyncio.to_thread(self.client.messages.create, **completion_args)
 
         # For tracking tool calls
         current_tool_calls = {}
@@ -321,25 +323,38 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
         # Stream the response
         async for chunk in response:
             # Check for tool calls
-            if hasattr(chunk, "delta") and hasattr(chunk.delta, "tool_calls") and chunk.delta.tool_calls:
+            if (
+                hasattr(chunk, "delta")
+                and hasattr(chunk.delta, "tool_calls")
+                and chunk.delta.tool_calls
+            ):
                 for tool_call in chunk.delta.tool_calls:
                     tool_id = tool_call.index
 
                     # Initialize the tool call if it's new
                     if tool_id not in current_tool_calls:
                         current_tool_calls[tool_id] = {
-                            "id": tool_call.id if hasattr(tool_call, "id") and tool_call.id else f"call_{tool_id}",
+                            "id": tool_call.id
+                            if hasattr(tool_call, "id") and tool_call.id
+                            else f"call_{tool_id}",
                             "type": "function",
-                            "function": {"name": "", "arguments": ""}
+                            "function": {"name": "", "arguments": ""},
                         }
 
                     # Update the tool call with new data
                     if hasattr(tool_call, "function"):
                         if hasattr(tool_call.function, "name") and tool_call.function.name:
-                            current_tool_calls[tool_id]["function"]["name"] += tool_call.function.name
+                            current_tool_calls[tool_id]["function"][
+                                "name"
+                            ] += tool_call.function.name
 
-                        if hasattr(tool_call.function, "arguments") and tool_call.function.arguments:
-                            current_tool_calls[tool_id]["function"]["arguments"] += tool_call.function.arguments
+                        if (
+                            hasattr(tool_call.function, "arguments")
+                            and tool_call.function.arguments
+                        ):
+                            current_tool_calls[tool_id]["function"][
+                                "arguments"
+                            ] += tool_call.function.arguments
 
                     # Yield the updated tool call
                     yield {"tool_call": current_tool_calls[tool_id]}
@@ -426,12 +441,15 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
         }
 
         # Get the model info or use default values
-        return model_info.get(self.model_name, {
-            "context_window": 100000,
-            "max_tokens": 4096,
-            "cost_input": 0.0,
-            "cost_output": 0.0,
-        })
+        return model_info.get(
+            self.model_name,
+            {
+                "context_window": 100000,
+                "max_tokens": 4096,
+                "cost_input": 0.0,
+                "cost_output": 0.0,
+            },
+        )
 
     def estimate_tokens(self, text: str) -> int:
         """

@@ -9,17 +9,17 @@ import asyncio
 import json
 import os
 import sys
-import pytest
-import requests
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+import requests
+
+# Import the example module
+import examples.qwen3_infographic_agent as agent_example
 from saplings.core.model_adapter import LLM
 from saplings.judge import JudgeAgent
 from saplings.judge.config import Rubric, ScoringDimension
 from saplings.orchestration import GraphRunner, NegotiationStrategy
-
-# Import the example module
-import examples.qwen3_infographic_agent as agent_example
 
 # Mock BeautifulSoup
 bs4_mock = MagicMock()
@@ -35,7 +35,7 @@ def mock_paper_info():
         "title": "Test Paper Title",
         "authors": "Test Author 1, Test Author 2",
         "abstract": "This is a test abstract for the mock paper.",
-        "url": "https://huggingface.co/papers/2401.12345"
+        "url": "https://huggingface.co/papers/2401.12345",
     }
 
 
@@ -46,7 +46,7 @@ def mock_paper_content():
         "title": "Test Paper Title",
         "authors": "Test Author 1, Test Author 2",
         "abstract": "This is a test abstract for the mock paper.",
-        "content": "Title: Test Paper Title\n\nAuthors: Test Author 1, Test Author 2\n\nAbstract: This is a test abstract for the mock paper.\n\nNote: This is a simulated download that only includes the abstract."
+        "content": "Title: Test Paper Title\n\nAuthors: Test Author 1, Test Author 2\n\nAbstract: This is a test abstract for the mock paper.\n\nNote: This is a simulated download that only includes the abstract.",
     }
 
 
@@ -67,7 +67,9 @@ def mock_graph_runner():
     runner.config.negotiation_strategy = NegotiationStrategy.CONTRACT_NET
     runner.register_agent = MagicMock()
     runner.add_channel = MagicMock()
-    runner.run_contract_net = AsyncMock(return_value="Mock multi-agent result with infographic code")
+    runner.run_contract_net = AsyncMock(
+        return_value="Mock multi-agent result with infographic code"
+    )
     runner.run_debate = AsyncMock(return_value="Mock debate result with infographic code")
     return runner
 
@@ -86,7 +88,7 @@ def mock_judge_agent():
         MagicMock(name="visual_clarity", score=0.8),
         MagicMock(name="design_quality", score=0.85),
         MagicMock(name="code_quality", score=0.8),
-        MagicMock(name="technical_implementation", score=0.85)
+        MagicMock(name="technical_implementation", score=0.85),
     ]
     judgment.critique = "Mock critique of the infographic"
     judgment.suggestions = ["Suggestion 1", "Suggestion 2", "Suggestion 3"]
@@ -128,7 +130,7 @@ async def test_get_hugging_face_top_daily_paper(mock_paper_info):
             "title": "Test Paper Title",
             "authors": "Test Author 1, Test Author 2",
             "abstract": "This is a test abstract for the mock paper.",
-            "url": "https://huggingface.co/papers/2401.12345"
+            "url": "https://huggingface.co/papers/2401.12345",
         }
 
         # Call the function
@@ -195,7 +197,7 @@ async def test_download_paper(mock_paper_content):
         bs4_soup_mock.find.side_effect = lambda selector, **kwargs: {
             ".title": title_mock,
             ".authors": authors_mock,
-            ".abstract": abstract_mock
+            ".abstract": abstract_mock,
         }.get(selector, MagicMock())
 
         # Call the function
@@ -206,7 +208,7 @@ async def test_download_paper(mock_paper_content):
             "title": "Test Paper Title",
             "authors": "Test Author 1, Test Author 2",
             "abstract": "This is a test abstract for the mock paper.",
-            "content": "Title: Test Paper Title\n\nAuthors: Test Author 1, Test Author 2\n\nAbstract: This is a test abstract for the mock paper.\n\nNote: This is a simulated download that only includes the abstract. In a real implementation, we would download and parse the full PDF."
+            "content": "Title: Test Paper Title\n\nAuthors: Test Author 1, Test Author 2\n\nAbstract: This is a test abstract for the mock paper.\n\nNote: This is a simulated download that only includes the abstract. In a real implementation, we would download and parse the full PDF.",
         }
 
         # Verify the result
@@ -254,11 +256,7 @@ async def test_generate_infographic_code():
     chart_type = "bar"
 
     # Call the function
-    result = agent_example.generate_infographic_code(
-        title=title,
-        data=data,
-        chart_type=chart_type
-    )
+    result = agent_example.generate_infographic_code(title=title, data=data, chart_type=chart_type)
 
     # Verify the result
     assert "html" in result
@@ -276,7 +274,7 @@ async def test_generate_infographic_code():
 @pytest.mark.asyncio
 async def test_create_model(mock_model):
     """Test the create_model function."""
-    with patch('examples.qwen3_infographic_agent.LLM.from_uri', return_value=mock_model):
+    with patch("examples.qwen3_infographic_agent.LLM.from_uri", return_value=mock_model):
         model = await agent_example.create_model()
         assert model == mock_model
         assert model.model_name == "Qwen/Qwen3-32B"
@@ -285,7 +283,7 @@ async def test_create_model(mock_model):
 @pytest.mark.asyncio
 async def test_setup_agents(mock_model, mock_graph_runner):
     """Test the setup_agents function."""
-    with patch('examples.qwen3_infographic_agent.GraphRunner', return_value=mock_graph_runner):
+    with patch("examples.qwen3_infographic_agent.GraphRunner", return_value=mock_graph_runner):
         runner = await agent_example.setup_agents(mock_model)
 
         # Verify the graph runner was configured correctly
@@ -300,10 +298,11 @@ async def test_create_judge(mock_model, mock_judge_agent):
     # Mock the ScoringDimension class to allow custom dimensions
     mock_scoring_dimension = MagicMock()
 
-    with patch('examples.qwen3_infographic_agent.JudgeAgent', return_value=mock_judge_agent), \
-         patch('examples.qwen3_infographic_agent.ScoringDimension', mock_scoring_dimension), \
-         patch('saplings.judge.rubric.RubricLoader.load_from_file', side_effect=Exception("File not found")):
-
+    with patch("examples.qwen3_infographic_agent.JudgeAgent", return_value=mock_judge_agent), patch(
+        "examples.qwen3_infographic_agent.ScoringDimension", mock_scoring_dimension
+    ), patch(
+        "saplings.judge.rubric.RubricLoader.load_from_file", side_effect=Exception("File not found")
+    ):
         judge = await agent_example.create_judge(mock_model)
 
         # Verify the judge was created correctly
@@ -312,37 +311,39 @@ async def test_create_judge(mock_model, mock_judge_agent):
 
 @pytest.mark.asyncio
 async def test_run_infographic_agent(
-    mock_model,
-    mock_graph_runner,
-    mock_judge_agent,
-    mock_paper_info,
-    mock_paper_content
+    mock_model, mock_graph_runner, mock_judge_agent, mock_paper_info, mock_paper_content
 ):
     """Test the run_infographic_agent function."""
     # Set up all the mocks
-    with patch('examples.qwen3_infographic_agent.create_model', return_value=mock_model), \
-         patch('examples.qwen3_infographic_agent.setup_agents', return_value=mock_graph_runner), \
-         patch('examples.qwen3_infographic_agent.create_judge', return_value=mock_judge_agent), \
-         patch('examples.qwen3_infographic_agent.get_hugging_face_top_daily_paper', return_value=mock_paper_info), \
-         patch('examples.qwen3_infographic_agent.get_paper_id', return_value="2401.12345"), \
-         patch('examples.qwen3_infographic_agent.download_paper', return_value=mock_paper_content), \
-         patch('builtins.print'), \
-         patch('os.makedirs'), \
-         patch('builtins.open', create=True):
-
+    with patch("examples.qwen3_infographic_agent.create_model", return_value=mock_model), patch(
+        "examples.qwen3_infographic_agent.setup_agents", return_value=mock_graph_runner
+    ), patch("examples.qwen3_infographic_agent.create_judge", return_value=mock_judge_agent), patch(
+        "examples.qwen3_infographic_agent.get_hugging_face_top_daily_paper",
+        return_value=mock_paper_info,
+    ), patch(
+        "examples.qwen3_infographic_agent.get_paper_id", return_value="2401.12345"
+    ), patch(
+        "examples.qwen3_infographic_agent.download_paper", return_value=mock_paper_content
+    ), patch(
+        "builtins.print"
+    ), patch(
+        "os.makedirs"
+    ), patch(
+        "builtins.open", create=True
+    ):
         # Mock the regex searches for code extraction
-        with patch('examples.qwen3_infographic_agent.re.search') as mock_search:
+        with patch("examples.qwen3_infographic_agent.re.search") as mock_search:
             # Configure mock_search to return different values for different patterns
             def mock_search_side_effect(pattern, text, flags=0):
-                if '```html' in pattern:
+                if "```html" in pattern:
                     mock_match = MagicMock()
                     mock_match.group.return_value = "<html>Mock HTML</html>"
                     return mock_match
-                elif '```css' in pattern:
+                elif "```css" in pattern:
                     mock_match = MagicMock()
                     mock_match.group.return_value = "body { color: black; }"
                     return mock_match
-                elif '```(?:javascript|js)' in pattern:
+                elif "```(?:javascript|js)" in pattern:
                     mock_match = MagicMock()
                     mock_match.group.return_value = "const app = () => {};"
                     return mock_match
@@ -362,40 +363,42 @@ async def test_run_infographic_agent(
 
 @pytest.mark.asyncio
 async def test_run_infographic_agent_fallback_to_debate(
-    mock_model,
-    mock_graph_runner,
-    mock_judge_agent,
-    mock_paper_info,
-    mock_paper_content
+    mock_model, mock_graph_runner, mock_judge_agent, mock_paper_info, mock_paper_content
 ):
     """Test the run_infographic_agent function with fallback to debate strategy."""
     # Configure the contract_net to fail
     mock_graph_runner.run_contract_net.side_effect = Exception("Contract-net failed")
 
     # Set up all the mocks
-    with patch('examples.qwen3_infographic_agent.create_model', return_value=mock_model), \
-         patch('examples.qwen3_infographic_agent.setup_agents', return_value=mock_graph_runner), \
-         patch('examples.qwen3_infographic_agent.create_judge', return_value=mock_judge_agent), \
-         patch('examples.qwen3_infographic_agent.get_hugging_face_top_daily_paper', return_value=mock_paper_info), \
-         patch('examples.qwen3_infographic_agent.get_paper_id', return_value="2401.12345"), \
-         patch('examples.qwen3_infographic_agent.download_paper', return_value=mock_paper_content), \
-         patch('builtins.print'), \
-         patch('os.makedirs'), \
-         patch('builtins.open', create=True):
-
+    with patch("examples.qwen3_infographic_agent.create_model", return_value=mock_model), patch(
+        "examples.qwen3_infographic_agent.setup_agents", return_value=mock_graph_runner
+    ), patch("examples.qwen3_infographic_agent.create_judge", return_value=mock_judge_agent), patch(
+        "examples.qwen3_infographic_agent.get_hugging_face_top_daily_paper",
+        return_value=mock_paper_info,
+    ), patch(
+        "examples.qwen3_infographic_agent.get_paper_id", return_value="2401.12345"
+    ), patch(
+        "examples.qwen3_infographic_agent.download_paper", return_value=mock_paper_content
+    ), patch(
+        "builtins.print"
+    ), patch(
+        "os.makedirs"
+    ), patch(
+        "builtins.open", create=True
+    ):
         # Mock the regex searches for code extraction
-        with patch('examples.qwen3_infographic_agent.re.search') as mock_search:
+        with patch("examples.qwen3_infographic_agent.re.search") as mock_search:
             # Configure mock_search to return different values for different patterns
             def mock_search_side_effect(pattern, text, flags=0):
-                if '```html' in pattern:
+                if "```html" in pattern:
                     mock_match = MagicMock()
                     mock_match.group.return_value = "<html>Mock HTML</html>"
                     return mock_match
-                elif '```css' in pattern:
+                elif "```css" in pattern:
                     mock_match = MagicMock()
                     mock_match.group.return_value = "body { color: black; }"
                     return mock_match
-                elif '```(?:javascript|js)' in pattern:
+                elif "```(?:javascript|js)" in pattern:
                     mock_match = MagicMock()
                     mock_match.group.return_value = "const app = () => {};"
                     return mock_match
@@ -416,6 +419,8 @@ async def test_run_infographic_agent_fallback_to_debate(
 @pytest.mark.asyncio
 async def test_main():
     """Test the main function."""
-    with patch('examples.qwen3_infographic_agent.run_infographic_agent', new_callable=AsyncMock) as mock_run:
+    with patch(
+        "examples.qwen3_infographic_agent.run_infographic_agent", new_callable=AsyncMock
+    ) as mock_run:
         await agent_example.main()
         mock_run.assert_called_once()

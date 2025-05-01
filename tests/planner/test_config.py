@@ -4,23 +4,28 @@ Tests for the planner configuration module.
 
 import pytest
 
-from saplings.planner.config import BudgetStrategy, CostHeuristicConfig, OptimizationStrategy, PlannerConfig
+from saplings.planner.config import (
+    BudgetStrategy,
+    CostHeuristicConfig,
+    OptimizationStrategy,
+    PlannerConfig,
+)
 
 
 class TestCostHeuristicConfig:
     """Tests for the CostHeuristicConfig class."""
-    
+
     def test_init_default(self):
         """Test initialization with default values."""
         config = CostHeuristicConfig()
-        
+
         assert config.token_cost_multiplier == 1.0
         assert config.base_cost_per_step == 0.01
         assert config.complexity_factor == 1.5
         assert config.tool_use_cost == 0.05
         assert config.retrieval_cost_per_doc == 0.001
         assert config.max_cost_per_step == 1.0
-    
+
     def test_init_custom(self):
         """Test initialization with custom values."""
         config = CostHeuristicConfig(
@@ -31,7 +36,7 @@ class TestCostHeuristicConfig:
             retrieval_cost_per_doc=0.002,
             max_cost_per_step=2.0,
         )
-        
+
         assert config.token_cost_multiplier == 2.0
         assert config.base_cost_per_step == 0.02
         assert config.complexity_factor == 2.0
@@ -42,11 +47,11 @@ class TestCostHeuristicConfig:
 
 class TestPlannerConfig:
     """Tests for the PlannerConfig class."""
-    
+
     def test_init_default(self):
         """Test initialization with default values."""
         config = PlannerConfig()
-        
+
         assert config.budget_strategy == BudgetStrategy.PROPORTIONAL
         assert config.optimization_strategy == OptimizationStrategy.BALANCED
         assert config.max_steps == 10
@@ -59,7 +64,7 @@ class TestPlannerConfig:
         assert config.enable_parallelization is True
         assert config.enable_caching is True
         assert config.cache_dir is None
-    
+
     def test_init_custom(self):
         """Test initialization with custom values."""
         config = PlannerConfig(
@@ -79,7 +84,7 @@ class TestPlannerConfig:
             enable_caching=False,
             cache_dir="/tmp/cache",
         )
-        
+
         assert config.budget_strategy == BudgetStrategy.EQUAL
         assert config.optimization_strategy == OptimizationStrategy.COST
         assert config.max_steps == 5
@@ -93,21 +98,21 @@ class TestPlannerConfig:
         assert config.enable_parallelization is False
         assert config.enable_caching is False
         assert config.cache_dir == "/tmp/cache"
-    
+
     def test_default_factory(self):
         """Test default factory method."""
         config = PlannerConfig.default()
-        
+
         assert config.budget_strategy == BudgetStrategy.PROPORTIONAL
         assert config.optimization_strategy == OptimizationStrategy.BALANCED
         assert config.max_steps == 10
         assert config.min_steps == 1
         assert config.total_budget == 1.0
-    
+
     def test_minimal_factory(self):
         """Test minimal factory method."""
         config = PlannerConfig.minimal()
-        
+
         assert config.budget_strategy == BudgetStrategy.EQUAL
         assert config.optimization_strategy == OptimizationStrategy.COST
         assert config.max_steps == 5
@@ -115,11 +120,11 @@ class TestPlannerConfig:
         assert config.enable_pruning is False
         assert config.enable_parallelization is False
         assert config.enable_caching is False
-    
+
     def test_comprehensive_factory(self):
         """Test comprehensive factory method."""
         config = PlannerConfig.comprehensive()
-        
+
         assert config.budget_strategy == BudgetStrategy.DYNAMIC
         assert config.optimization_strategy == OptimizationStrategy.BALANCED
         assert config.max_steps == 20
@@ -132,16 +137,16 @@ class TestPlannerConfig:
         assert config.enable_parallelization is True
         assert config.enable_caching is True
         assert config.cache_dir == "./cache/planner"
-    
+
     def test_from_cli_args_empty(self):
         """Test from_cli_args method with empty arguments."""
         config = PlannerConfig.from_cli_args({})
-        
+
         assert config.budget_strategy == BudgetStrategy.PROPORTIONAL
         assert config.optimization_strategy == OptimizationStrategy.BALANCED
         assert config.max_steps == 10
         assert config.total_budget == 1.0
-    
+
     def test_from_cli_args_custom(self):
         """Test from_cli_args method with custom arguments."""
         args = {
@@ -155,9 +160,9 @@ class TestPlannerConfig:
             "planner_enable_cache": False,
             "planner_cache_dir": "/tmp/cache",
         }
-        
+
         config = PlannerConfig.from_cli_args(args)
-        
+
         assert config.budget_strategy == BudgetStrategy.EQUAL
         assert config.optimization_strategy == OptimizationStrategy.COST
         assert config.max_steps == 5

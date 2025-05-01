@@ -171,7 +171,7 @@ class BlockDiagonalPacker:
 
         # Create a mapping from document_id to chunk keys
         doc_to_chunks = {}
-        for (doc_id, chunk_id) in chunk_to_tokens.keys():
+        for doc_id, chunk_id in chunk_to_tokens.keys():
             if doc_id not in doc_to_chunks:
                 doc_to_chunks[doc_id] = []
             doc_to_chunks[doc_id].append((doc_id, chunk_id))
@@ -244,9 +244,7 @@ class BlockDiagonalPacker:
         return groups
 
     def _find_related_chunks(
-        self,
-        start_chunk: Tuple[str, str],
-        all_chunks: Set[Tuple[str, str]]
+        self, start_chunk: Tuple[str, str], all_chunks: Set[Tuple[str, str]]
     ) -> Set[Tuple[str, str]]:
         """
         Find all chunks within max_hops of the start chunk.

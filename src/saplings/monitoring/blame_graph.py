@@ -13,12 +13,13 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import numpy as np
 
 from saplings.monitoring.config import MonitoringConfig
-from saplings.monitoring.trace import TraceManager, Trace, Span
+from saplings.monitoring.trace import Span, Trace, TraceManager
 
 logger = logging.getLogger(__name__)
 
 try:
     import networkx as nx
+
     NETWORKX_AVAILABLE = True
 except ImportError:
     NETWORKX_AVAILABLE = False
@@ -58,7 +59,7 @@ class BlameNode:
         self.error_count = 0
         self.avg_time_ms = 0.0
         self.max_time_ms = 0.0
-        self.min_time_ms = float('inf')
+        self.min_time_ms = float("inf")
 
     def update_metrics(self, duration_ms: float, is_error: bool = False) -> None:
         """
@@ -96,7 +97,7 @@ class BlameNode:
                 "error_count": self.error_count,
                 "avg_time_ms": self.avg_time_ms,
                 "max_time_ms": self.max_time_ms,
-                "min_time_ms": self.min_time_ms if self.min_time_ms != float('inf') else 0.0,
+                "min_time_ms": self.min_time_ms if self.min_time_ms != float("inf") else 0.0,
             },
         }
 
@@ -320,15 +321,19 @@ class BlameGraph:
 
             # Check if average time exceeds threshold
             if node.avg_time_ms > threshold_ms:
-                bottlenecks.append({
-                    "node_id": node_id,
-                    "name": node.name,
-                    "component": node.component,
-                    "avg_time_ms": node.avg_time_ms,
-                    "call_count": node.call_count,
-                    "total_time_ms": node.total_time_ms,
-                    "error_rate": node.error_count / node.call_count if node.call_count > 0 else 0.0,
-                })
+                bottlenecks.append(
+                    {
+                        "node_id": node_id,
+                        "name": node.name,
+                        "component": node.component,
+                        "avg_time_ms": node.avg_time_ms,
+                        "call_count": node.call_count,
+                        "total_time_ms": node.total_time_ms,
+                        "error_rate": node.error_count / node.call_count
+                        if node.call_count > 0
+                        else 0.0,
+                    }
+                )
 
         # Sort by average time (descending)
         bottlenecks.sort(key=lambda x: x["avg_time_ms"], reverse=True)
@@ -362,14 +367,16 @@ class BlameGraph:
 
             # Check if error rate exceeds threshold
             if error_rate >= min_error_rate:
-                error_sources.append({
-                    "node_id": node_id,
-                    "name": node.name,
-                    "component": node.component,
-                    "error_rate": error_rate,
-                    "error_count": node.error_count,
-                    "call_count": node.call_count,
-                })
+                error_sources.append(
+                    {
+                        "node_id": node_id,
+                        "name": node.name,
+                        "component": node.component,
+                        "error_rate": error_rate,
+                        "error_count": node.error_count,
+                        "call_count": node.call_count,
+                    }
+                )
 
         # Sort by error rate (descending)
         error_sources.sort(key=lambda x: x["error_rate"], reverse=True)
@@ -409,13 +416,15 @@ class BlameGraph:
 
             if node_id in self.nodes:
                 node = self.nodes[node_id]
-                path.append({
-                    "node_id": node_id,
-                    "name": node.name,
-                    "component": node.component,
-                    "duration_ms": longest_span.duration_ms(),
-                    "status": longest_span.status,
-                })
+                path.append(
+                    {
+                        "node_id": node_id,
+                        "name": node.name,
+                        "component": node.component,
+                        "duration_ms": longest_span.duration_ms(),
+                        "status": longest_span.status,
+                    }
+                )
 
             # Add parent spans
             current_span = longest_span
@@ -432,13 +441,15 @@ class BlameGraph:
 
                     if node_id in self.nodes:
                         node = self.nodes[node_id]
-                        path.append({
-                            "node_id": node_id,
-                            "name": node.name,
-                            "component": node.component,
-                            "duration_ms": parent_span.duration_ms(),
-                            "status": parent_span.status,
-                        })
+                        path.append(
+                            {
+                                "node_id": node_id,
+                                "name": node.name,
+                                "component": node.component,
+                                "duration_ms": parent_span.duration_ms(),
+                                "status": parent_span.status,
+                            }
+                        )
 
                     current_span = parent_span
                 else:
@@ -499,7 +510,9 @@ class BlameGraph:
             try:
                 os.makedirs(os.path.dirname(output_path), exist_ok=True)
                 with open(output_path, "w") as f:
-                    f.write("<!-- NetworkX not installed, empty GraphML file created for testing -->")
+                    f.write(
+                        "<!-- NetworkX not installed, empty GraphML file created for testing -->"
+                    )
                 return True
             except Exception as e:
                 logger.error(f"Failed to create empty GraphML file: {e}")

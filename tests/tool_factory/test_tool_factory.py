@@ -3,24 +3,25 @@ Tests for the ToolFactory class.
 """
 
 import os
-import pytest
 import tempfile
 from typing import Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.core.plugin import PluginType, ToolPlugin
-from saplings.tool_factory.config import (
-    ToolSpecification,
-    ToolFactoryConfig,
-    ToolTemplate,
-    SecurityLevel,
-    SandboxType,
-    SigningLevel,
-)
-from saplings.tool_factory.tool_factory import ToolFactory
-from saplings.tool_factory.sandbox import LocalSandbox, get_sandbox
 from saplings.tool_factory.code_signing import CodeSigner, SignatureVerifier, generate_key_pair
+from saplings.tool_factory.config import (
+    SandboxType,
+    SecurityLevel,
+    SigningLevel,
+    ToolFactoryConfig,
+    ToolSpecification,
+    ToolTemplate,
+)
+from saplings.tool_factory.sandbox import LocalSandbox, get_sandbox
+from saplings.tool_factory.tool_factory import ToolFactory
 
 
 class TestToolFactory:
@@ -362,7 +363,9 @@ def {{function_name}}({{parameters}}):
         )
 
         # Mock the validation method to return False
-        with patch.object(tool_factory, "_validate_tool_code", return_value=(False, "Invalid code")):
+        with patch.object(
+            tool_factory, "_validate_tool_code", return_value=(False, "Invalid code")
+        ):
             # Try to create the tool
             with pytest.raises(ValueError):
                 await tool_factory.create_tool(spec)
@@ -401,8 +404,9 @@ def {{function_name}}({{parameters}}):
         )
 
         # Mock the validation and security check methods
-        with patch.object(tool_factory, "_validate_tool_code", return_value=(True, "")), \
-             patch.object(tool_factory, "_perform_security_checks", return_value=(True, "")):
+        with patch.object(
+            tool_factory, "_validate_tool_code", return_value=(True, "")
+        ), patch.object(tool_factory, "_perform_security_checks", return_value=(True, "")):
             # Create the tool
             tool_class = await tool_factory.create_tool(spec)
 
@@ -445,8 +449,11 @@ def {{function_name}}({{parameters}}):
         )
 
         # Mock the validation method to return True but security check to fail
-        with patch.object(tool_factory, "_validate_tool_code", return_value=(True, "")), \
-             patch.object(tool_factory, "_perform_security_checks", return_value=(False, "Security violation")):
+        with patch.object(
+            tool_factory, "_validate_tool_code", return_value=(True, "")
+        ), patch.object(
+            tool_factory, "_perform_security_checks", return_value=(False, "Security violation")
+        ):
             # Try to create the tool
             with pytest.raises(ValueError):
                 await tool_factory.create_tool(spec)
@@ -536,7 +543,10 @@ def {{function_name}}({{parameters}}):
                     await tool_factory.create_tool(spec)
 
                 # Verify that the security violation was detected
-                assert "security" in str(excinfo.value).lower() or "unsafe" in str(excinfo.value).lower()
+                assert (
+                    "security" in str(excinfo.value).lower()
+                    or "unsafe" in str(excinfo.value).lower()
+                )
 
         # Test a safe tool that should pass security checks
         safe_spec = ToolSpecification(
@@ -554,8 +564,9 @@ def {{function_name}}({{parameters}}):
         )
 
         # Mock both validation and security checks to pass
-        with patch.object(tool_factory, "_validate_tool_code", return_value=(True, "")), \
-             patch.object(tool_factory, "_perform_security_checks", return_value=(True, "")):
+        with patch.object(
+            tool_factory, "_validate_tool_code", return_value=(True, "")
+        ), patch.object(tool_factory, "_perform_security_checks", return_value=(True, "")):
             # This should succeed
             tool_class = await tool_factory.create_tool(safe_spec)
             assert tool_class is not None
@@ -563,6 +574,7 @@ def {{function_name}}({{parameters}}):
 
     def test_get_tool(self, tool_factory):
         """Test getting a tool."""
+
         # Create a mock tool class
         class MockTool(ToolPlugin):
             name = "Mock Tool"
@@ -586,6 +598,7 @@ def {{function_name}}({{parameters}}):
 
     def test_list_tools(self, tool_factory):
         """Test listing tools."""
+
         # Create mock tool classes
         class MockTool1(ToolPlugin):
             name = "Mock Tool 1"
@@ -702,8 +715,9 @@ def {{function_name}}({{parameters}}):
             )
 
             # Mock the validation methods
-            with patch.object(tool_factory, "_validate_tool_code", return_value=(True, "")), \
-                 patch.object(tool_factory, "_perform_security_checks", return_value=(True, "")):
+            with patch.object(
+                tool_factory, "_validate_tool_code", return_value=(True, "")
+            ), patch.object(tool_factory, "_perform_security_checks", return_value=(True, "")):
                 # Create the tool
                 tool_class = await tool_factory.create_tool(spec)
 
@@ -761,7 +775,7 @@ def {{function_name}}({{parameters}}):
                 name="Test Tool",
                 description="A test tool",
                 template_id="test_template",
-                parameters={}
+                parameters={},
             )
 
             # Call the save method directly

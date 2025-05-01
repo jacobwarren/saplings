@@ -11,13 +11,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from saplings.monitoring.config import MonitoringConfig, VisualizationFormat
-from saplings.monitoring.trace import TraceManager, Trace, Span, SpanContext
+from saplings.monitoring.trace import Span, SpanContext, Trace, TraceManager
 from saplings.monitoring.trace_viewer import TraceViewer
-
 
 # Check if plotly is available
 try:
     import plotly.graph_objects as go
+
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
@@ -97,7 +97,7 @@ def complex_trace(trace_manager):
         attributes={
             "component": "agent",
             "agent_type": "reasoning",
-            "user_query": "What is the capital of France?"
+            "user_query": "What is the capital of France?",
         },
     )
 
@@ -106,11 +106,7 @@ def complex_trace(trace_manager):
         name="planning",
         trace_id=trace.trace_id,
         parent_id=agent_span.span_id,
-        attributes={
-            "component": "planner",
-            "plan_type": "sequential",
-            "steps_count": 3
-        },
+        attributes={"component": "planner", "plan_type": "sequential", "steps_count": 3},
     )
 
     # Add LLM call span for planning
@@ -124,7 +120,7 @@ def complex_trace(trace_manager):
             "prompt": "Create a plan to answer: What is the capital of France?",
             "completion": "1. Search for 'capital of France'\n2. Process results\n3. Format answer",
             "tokens": 25,
-            "temperature": 0.7
+            "temperature": 0.7,
         },
     )
 
@@ -139,10 +135,7 @@ def complex_trace(trace_manager):
         name="execution",
         trace_id=trace.trace_id,
         parent_id=agent_span.span_id,
-        attributes={
-            "component": "executor",
-            "execution_mode": "sequential"
-        },
+        attributes={"component": "executor", "execution_mode": "sequential"},
     )
 
     # Add tool call span
@@ -154,7 +147,7 @@ def complex_trace(trace_manager):
             "component": "tool",
             "tool_name": "search",
             "input": "capital of France",
-            "output": "Paris is the capital of France."
+            "output": "Paris is the capital of France.",
         },
     )
 
@@ -172,7 +165,7 @@ def complex_trace(trace_manager):
             "prompt": "Format the answer based on search results: Paris is the capital of France.",
             "completion": "The capital of France is Paris.",
             "tokens": 15,
-            "temperature": 0.7
+            "temperature": 0.7,
         },
     )
 

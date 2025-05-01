@@ -22,44 +22,24 @@ logger = logging.getLogger(__name__)
 class DimensionScore(BaseModel):
     """Score for a single dimension."""
 
-    dimension: ScoringDimension = Field(
-        ..., description="Dimension being scored"
-    )
-    score: float = Field(
-        ..., description="Score for this dimension (0.0 to 1.0)"
-    )
-    explanation: str = Field(
-        "", description="Explanation for the score"
-    )
+    dimension: ScoringDimension = Field(..., description="Dimension being scored")
+    score: float = Field(..., description="Score for this dimension (0.0 to 1.0)")
+    explanation: str = Field("", description="Explanation for the score")
 
 
 class JudgeResult(BaseModel):
     """Result of a judgment."""
 
-    output: str = Field(
-        ..., description="Output that was judged"
-    )
-    prompt: str = Field(
-        ..., description="Prompt that generated the output"
-    )
-    passed: bool = Field(
-        ..., description="Whether the output passed verification"
-    )
-    overall_score: float = Field(
-        ..., description="Overall score (0.0 to 1.0)"
-    )
+    output: str = Field(..., description="Output that was judged")
+    prompt: str = Field(..., description="Prompt that generated the output")
+    passed: bool = Field(..., description="Whether the output passed verification")
+    overall_score: float = Field(..., description="Overall score (0.0 to 1.0)")
     dimension_scores: List[DimensionScore] = Field(
         default_factory=list, description="Scores for individual dimensions"
     )
-    critique: str = Field(
-        "", description="Critique of the output"
-    )
-    suggestions: List[str] = Field(
-        default_factory=list, description="Suggestions for improvement"
-    )
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict, description="Additional metadata"
-    )
+    critique: str = Field("", description="Critique of the output")
+    suggestions: List[str] = Field(default_factory=list, description="Suggestions for improvement")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -116,7 +96,7 @@ class JudgeAgent:
         config: Optional[JudgeConfig] = None,
         provider: Optional[str] = None,
         model_name: Optional[str] = None,
-        **model_parameters
+        **model_parameters,
     ):
         """
         Initialize the judge agent.
@@ -131,11 +111,7 @@ class JudgeAgent:
         # Handle the new approach for specifying models
         if model is None and provider is not None and model_name is not None:
             # Create a model using the new approach
-            model = LLM.create(
-                provider=provider,
-                model=model_name,
-                **model_parameters
-            )
+            model = LLM.create(provider=provider, model=model_name, **model_parameters)
         elif model is None:
             raise ValueError("Either 'model' or both 'provider' and 'model_name' must be provided")
 
@@ -185,13 +161,10 @@ class JudgeAgent:
         judgment_prompt = (
             "You are a judge evaluating the quality of an AI assistant's response. "
             "Your task is to provide a fair and detailed assessment based on the given criteria.\n\n"
-
             "# Original Prompt\n"
             f"{prompt}\n\n"
-
             "# AI Assistant's Response\n"
             f"{output}\n\n"
-
             "# Evaluation Criteria\n"
         )
 
@@ -216,7 +189,6 @@ class JudgeAgent:
             "3. Calculate an overall score as a weighted average of the dimension scores\n"
             "4. Provide a detailed critique of the response\n"
             "5. Suggest specific improvements\n\n"
-
             "# Response Format\n"
         )
 
@@ -229,7 +201,7 @@ class JudgeAgent:
                 '  "dimension_scores": [\n'
                 '    {"dimension": "relevance", "score": 0.8, "explanation": "..."}, \n'
                 '    {"dimension": "correctness", "score": 0.9, "explanation": "..."}, \n'
-                '    ...\n'
+                "    ...\n"
                 "  ],\n"
                 '  "overall_score": 0.85,\n'
                 '  "critique": "Detailed critique here...",\n'
@@ -295,7 +267,9 @@ class JudgeAgent:
                 # Try to parse the whole response as JSON
                 return json.loads(response)
             except json.JSONDecodeError:
-                logger.warning("Failed to parse judgment response as JSON, falling back to text parsing")
+                logger.warning(
+                    "Failed to parse judgment response as JSON, falling back to text parsing"
+                )
 
         # Parse as text
         result = {
@@ -327,11 +301,13 @@ class JudgeAgent:
                         if line.strip().startswith("-") or line.strip().startswith("*"):
                             # Save the previous dimension if there is one
                             if current_dimension is not None and current_score is not None:
-                                result["dimension_scores"].append({
-                                    "dimension": current_dimension,
-                                    "score": current_score,
-                                    "explanation": current_explanation.strip(),
-                                })
+                                result["dimension_scores"].append(
+                                    {
+                                        "dimension": current_dimension,
+                                        "score": current_score,
+                                        "explanation": current_explanation.strip(),
+                                    }
+                                )
 
                             # Parse the new dimension
                             parts = line.strip()[1:].strip().split(":", 1)
@@ -342,22 +318,26 @@ class JudgeAgent:
                                     current_explanation = ""
                                 except ValueError:
                                     current_score = None
-                        elif line.strip().startswith("Explanation:") or line.strip().startswith("  -"):
+                        elif line.strip().startswith("Explanation:") or line.strip().startswith(
+                            "  -"
+                        ):
                             # This is an explanation
                             explanation = line.strip()
                             if explanation.startswith("Explanation:"):
-                                explanation = explanation[len("Explanation:"):].strip()
+                                explanation = explanation[len("Explanation:") :].strip()
                             elif explanation.startswith("  -"):
-                                explanation = explanation[len("  -"):].strip()
+                                explanation = explanation[len("  -") :].strip()
                             current_explanation += " " + explanation
 
                     # Save the last dimension
                     if current_dimension is not None and current_score is not None:
-                        result["dimension_scores"].append({
-                            "dimension": current_dimension,
-                            "score": current_score,
-                            "explanation": current_explanation.strip(),
-                        })
+                        result["dimension_scores"].append(
+                            {
+                                "dimension": current_dimension,
+                                "score": current_score,
+                                "explanation": current_explanation.strip(),
+                            }
+                        )
 
                     break
 
@@ -451,8 +431,11 @@ class JudgeAgent:
         return weighted_sum / total_weight
 
     async def judge(
-        self, output: str, prompt: str, rubric: Optional[Rubric] = None,
-        template: Optional[str] = None
+        self,
+        output: str,
+        prompt: str,
+        rubric: Optional[Rubric] = None,
+        template: Optional[str] = None,
     ) -> JudgeResult:
         """
         Judge an output.
@@ -473,6 +456,7 @@ class JudgeAgent:
         if rubric is None and template is not None:
             try:
                 from saplings.judge.rubric import RubricLoader
+
                 rubric = RubricLoader.load_from_template(template)
                 logger.info(f"Loaded rubric template: {template}")
             except (ImportError, ValueError) as e:
@@ -547,9 +531,7 @@ class JudgeAgent:
 
         return result
 
-    async def judge_with_template(
-        self, output: str, prompt: str, template: str
-    ) -> JudgeResult:
+    async def judge_with_template(self, output: str, prompt: str, template: str) -> JudgeResult:
         """
         Judge an output using a predefined rubric template.
 
@@ -573,7 +555,9 @@ class JudgeAgent:
         return {
             "total_judgments": self.total_judgments,
             "passed_judgments": self.passed_judgments,
-            "pass_rate": self.passed_judgments / self.total_judgments if self.total_judgments > 0 else 0.0,
+            "pass_rate": self.passed_judgments / self.total_judgments
+            if self.total_judgments > 0
+            else 0.0,
             "total_tokens": self.total_tokens,
             "total_cost": self.total_cost,
         }
@@ -635,7 +619,9 @@ class JudgeAgent:
             return critique
 
         else:  # SIMPLE
-            critique = f"Score: {result.overall_score:.2f} ({'Passed' if result.passed else 'Failed'})\n\n"
+            critique = (
+                f"Score: {result.overall_score:.2f} ({'Passed' if result.passed else 'Failed'})\n\n"
+            )
             critique += f"{result.critique}\n\n"
 
             if self.config.include_suggestions and result.suggestions:

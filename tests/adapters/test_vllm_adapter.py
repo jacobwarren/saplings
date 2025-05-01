@@ -6,12 +6,13 @@ This module provides tests for the vLLM adapter implementation.
 
 import asyncio
 import json
-import pytest
 from typing import Any, Dict, List, Optional, Type, Union
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 # Import the adapter and core modules
-from saplings.adapters.vllm_adapter import VLLMAdapter, VLLM_AVAILABLE
+from saplings.adapters.vllm_adapter import VLLM_AVAILABLE, VLLMAdapter
 from saplings.core.model_adapter import LLM, LLMResponse, ModelURI
 from saplings.core.model_caching import clear_all_model_caches
 
@@ -66,7 +67,9 @@ class TestVLLMAdapter(BaseAdapterTest):
         monkeypatch.setattr("saplings.adapters.vllm_adapter.vllm", mock_vllm)
 
         # Mock get_tokenizer
-        monkeypatch.setattr("saplings.adapters.vllm_adapter.get_tokenizer", lambda *args, **kwargs: mock_tokenizer)
+        monkeypatch.setattr(
+            "saplings.adapters.vllm_adapter.get_tokenizer", lambda *args, **kwargs: mock_tokenizer
+        )
 
         # Mock EngineArgs
         mock_engine_args = MagicMock()
@@ -76,7 +79,9 @@ class TestVLLMAdapter(BaseAdapterTest):
         mock_pkg_resources = MagicMock()
         mock_pkg_resources.get_distribution().version = "0.8.5"
         mock_pkg_resources.parse_version = lambda v: v  # Simple version comparison
-        monkeypatch.setattr("pkg_resources.get_distribution", lambda _: mock_pkg_resources.get_distribution())
+        monkeypatch.setattr(
+            "pkg_resources.get_distribution", lambda _: mock_pkg_resources.get_distribution()
+        )
         monkeypatch.setattr("pkg_resources.parse_version", mock_pkg_resources.parse_version)
 
         # Store references for tests to use
@@ -108,17 +113,18 @@ class TestVLLMAdapter(BaseAdapterTest):
     @pytest.mark.asyncio
     async def test_generate(self, adapter: LLM, mock_vllm_engine):
         """Test the generate method."""
+
         # Create a custom mock for the generate method that returns a response with the correct model_uri
         async def mock_generate(*args, **kwargs):
             return LLMResponse(
                 text="This is a test response.",
                 model_uri=f"{self.provider_name}://{self.model_name}",
                 usage={"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
-                metadata={"model": self.model_name, "provider": self.provider_name}
+                metadata={"model": self.model_name, "provider": self.provider_name},
             )
 
         # Replace the generate method with our mock
-        with patch.object(adapter, 'generate', side_effect=mock_generate):
+        with patch.object(adapter, "generate", side_effect=mock_generate):
             response = await adapter.generate(self.test_prompt)
 
             # Check that the response is correct
@@ -134,13 +140,14 @@ class TestVLLMAdapter(BaseAdapterTest):
     @pytest.mark.asyncio
     async def test_generate_streaming(self, adapter: LLM, mock_vllm_engine):
         """Test the generate_streaming method."""
+
         # Create a custom generate_streaming method that returns text chunks
         async def mock_streaming(*args, **kwargs):
             for text in ["This ", "is ", "a ", "test ", "response."]:
                 yield text
 
         # Replace the generate_streaming method with our mock
-        with patch.object(adapter, 'generate_streaming', side_effect=mock_streaming):
+        with patch.object(adapter, "generate_streaming", side_effect=mock_streaming):
             chunks = []
             async for chunk in adapter.generate_streaming(self.test_prompt):
                 chunks.append(chunk)
@@ -159,7 +166,7 @@ class TestVLLMAdapter(BaseAdapterTest):
         function_call_response = {
             "function_call": {
                 "name": "get_weather",
-                "arguments": '{"location": "San Francisco", "unit": "celsius"}'
+                "arguments": '{"location": "San Francisco", "unit": "celsius"}',
             }
         }
 
@@ -168,7 +175,7 @@ class TestVLLMAdapter(BaseAdapterTest):
             yield function_call_response
 
         # Replace the generate_streaming method with our mock
-        with patch.object(adapter, 'generate_streaming', side_effect=mock_streaming_with_function):
+        with patch.object(adapter, "generate_streaming", side_effect=mock_streaming_with_function):
             # Define a function
             function = {
                 "name": "get_weather",
@@ -184,18 +191,16 @@ class TestVLLMAdapter(BaseAdapterTest):
                             "type": "string",
                             "enum": ["celsius", "fahrenheit"],
                             "description": "The unit of temperature to use",
-                        }
+                        },
                     },
-                    "required": ["location"]
-                }
+                    "required": ["location"],
+                },
             }
 
             # Generate text with streaming and function calling
             chunks = []
             async for chunk in adapter.generate_streaming(
-                self.test_prompt,
-                functions=[function],
-                function_call="auto"
+                self.test_prompt, functions=[function], function_call="auto"
             ):
                 chunks.append(chunk)
 
@@ -263,11 +268,11 @@ class TestVLLMAdapter(BaseAdapterTest):
                 model_uri=str(adapter.model_uri),
                 usage={"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
                 metadata={"model": adapter.model_name, "provider": "vllm"},
-                function_call=function_call
+                function_call=function_call,
             )
 
         # Replace the generate method with our mock
-        with patch.object(adapter, 'generate', side_effect=mock_generate):
+        with patch.object(adapter, "generate", side_effect=mock_generate):
             # Define a function
             function = {
                 "name": "get_weather",
@@ -277,14 +282,12 @@ class TestVLLMAdapter(BaseAdapterTest):
                         "type": "string",
                         "description": "The city and state, e.g. San Francisco, CA",
                     }
-                }
+                },
             }
 
             # Generate text with function calling
             response = await adapter.generate(
-                self.test_prompt,
-                functions=[function],
-                function_call="auto"
+                self.test_prompt, functions=[function], function_call="auto"
             )
 
             # Check the response
@@ -304,13 +307,15 @@ class TestVLLMAdapter(BaseAdapterTest):
         mock_output.outputs[0].text = "This is a test response."
         mock_output.prompt_token_ids = [1, 2, 3, 4, 5]
         mock_output.outputs[0].token_ids = [6, 7, 8, 9, 10]
-        mock_output.tool_calls = [{
-            "type": "function",
-            "function": {
-                "name": "get_weather",
-                "arguments": '{"location": "San Francisco", "unit": "celsius"}'
+        mock_output.tool_calls = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "arguments": '{"location": "San Francisco", "unit": "celsius"}',
+                },
             }
-        }]
+        ]
 
         # Update the mock engine to return the output with tool calls
         mock_vllm_engine.generate.return_value = [mock_output]
@@ -330,17 +335,15 @@ class TestVLLMAdapter(BaseAdapterTest):
                         "type": "string",
                         "enum": ["celsius", "fahrenheit"],
                         "description": "The unit of temperature to use",
-                    }
+                    },
                 },
-                "required": ["location"]
-            }
+                "required": ["location"],
+            },
         }
 
         # Generate text with function calling
         response = await adapter.generate(
-            self.test_prompt,
-            functions=[function],
-            function_call="auto"
+            self.test_prompt, functions=[function], function_call="auto"
         )
 
         # Check the response
@@ -369,13 +372,15 @@ class TestVLLMAdapter(BaseAdapterTest):
         mock_output.outputs[0].text = "This is a test response."
         mock_output.prompt_token_ids = [1, 2, 3, 4, 5]
         mock_output.outputs[0].token_ids = [6, 7, 8, 9, 10]
-        mock_output.tool_calls = [{
-            "type": "function",
-            "function": {
-                "name": "get_weather",
-                "arguments": '{"location": "San Francisco", "unit": "celsius"}'
+        mock_output.tool_calls = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "arguments": '{"location": "San Francisco", "unit": "celsius"}',
+                },
             }
-        }]
+        ]
 
         # Update the mock engine to return the output with tool calls
         mock_vllm_engine.generate.return_value = [mock_output]
@@ -395,17 +400,15 @@ class TestVLLMAdapter(BaseAdapterTest):
                         "type": "string",
                         "enum": ["celsius", "fahrenheit"],
                         "description": "The unit of temperature to use",
-                    }
+                    },
                 },
-                "required": ["location"]
-            }
+                "required": ["location"],
+            },
         }
 
         # Generate text with function calling
         response = await adapter.generate(
-            self.test_prompt,
-            functions=[function],
-            function_call="required"
+            self.test_prompt, functions=[function], function_call="required"
         )
 
         # Check the response
@@ -422,10 +425,7 @@ class TestVLLMAdapter(BaseAdapterTest):
     async def test_json_mode(self, adapter: LLM, mock_vllm_engine):
         """Test JSON mode."""
         # Generate text with JSON mode
-        response = await adapter.generate(
-            self.test_prompt,
-            json_mode=True
-        )
+        response = await adapter.generate(self.test_prompt, json_mode=True)
 
         # Check that the response is correct
         assert isinstance(response, LLMResponse)
@@ -443,19 +443,13 @@ class TestVLLMAdapter(BaseAdapterTest):
         clear_all_model_caches()
 
         # Generate text with caching
-        response1 = await adapter.generate(
-            self.test_prompt,
-            use_cache=True
-        )
+        response1 = await adapter.generate(self.test_prompt, use_cache=True)
 
         # Reset the mock to check if it's called again
         mock_vllm_engine.generate.reset_mock()
 
         # Generate the same text again
-        response2 = await adapter.generate(
-            self.test_prompt,
-            use_cache=True
-        )
+        response2 = await adapter.generate(self.test_prompt, use_cache=True)
 
         # Check that the responses are the same
         assert response1.text == response2.text
@@ -475,23 +469,17 @@ class TestVLLMAdapter(BaseAdapterTest):
         # Create a conversation
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": self.test_prompt}
+            {"role": "user", "content": self.test_prompt},
         ]
 
         # Generate a response with caching
-        response1 = await adapter.chat(
-            messages,
-            use_cache=True
-        )
+        response1 = await adapter.chat(messages, use_cache=True)
 
         # Reset the mock to check if it's called again
         mock_vllm_engine.generate.reset_mock()
 
         # Generate the same response again
-        response2 = await adapter.chat(
-            messages,
-            use_cache=True
-        )
+        response2 = await adapter.chat(messages, use_cache=True)
 
         # Check that the responses are the same
         assert response1.text == response2.text

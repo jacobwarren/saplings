@@ -5,17 +5,19 @@ This module provides tests for the Anthropic adapter implementation.
 """
 
 import asyncio
-import pytest
 from typing import Any, Dict, List, Optional, Type, Union
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 # Import the necessary modules
 from saplings.core.model_adapter import LLM, LLMResponse, ModelURI
+
 from .test_base import BaseAdapterTest
 
 # Check if Anthropic is available
 try:
-    from saplings.adapters.anthropic_adapter import AnthropicAdapter, ANTHROPIC_AVAILABLE
+    from saplings.adapters.anthropic_adapter import ANTHROPIC_AVAILABLE, AnthropicAdapter
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
@@ -93,6 +95,7 @@ class TestAnthropicAdapter(BaseAdapterTest):
     @pytest.mark.asyncio
     async def test_generate(self, adapter: LLM):
         """Test the generate method."""
+
         # Create a custom mock for the generate method
         async def mock_generate_method(*args, **kwargs):
             return LLMResponse(
@@ -106,11 +109,11 @@ class TestAnthropicAdapter(BaseAdapterTest):
                 metadata={
                     "model": self.model_name,
                     "provider": self.provider_name,
-                }
+                },
             )
 
         # Replace the generate method with our mock
-        with patch.object(adapter, 'generate', side_effect=mock_generate_method):
+        with patch.object(adapter, "generate", side_effect=mock_generate_method):
             response = await adapter.generate(self.test_prompt)
 
             # Check that the response is correct
@@ -126,13 +129,14 @@ class TestAnthropicAdapter(BaseAdapterTest):
     @pytest.mark.asyncio
     async def test_generate_streaming(self, adapter: LLM):
         """Test the generate_streaming method."""
+
         # Create a custom generate_streaming method that returns text chunks
         async def mock_streaming_method(*args, **kwargs):
             for text in ["This ", "is ", "a ", "test ", "response."]:
                 yield text
 
         # Replace the generate_streaming method with our mock
-        with patch.object(adapter, 'generate_streaming', side_effect=mock_streaming_method):
+        with patch.object(adapter, "generate_streaming", side_effect=mock_streaming_method):
             chunks = []
             async for chunk in adapter.generate_streaming(self.test_prompt):
                 chunks.append(chunk)
@@ -165,8 +169,10 @@ class TestAnthropicAdapter(BaseAdapterTest):
         mock_client = MagicMock()
 
         # Set up the mock
-        with patch.dict('sys.modules', {'anthropic': mock_anthropic_module}):
-            with patch("saplings.adapters.anthropic_adapter.Anthropic", return_value=mock_client) as mock_anthropic:
+        with patch.dict("sys.modules", {"anthropic": mock_anthropic_module}):
+            with patch(
+                "saplings.adapters.anthropic_adapter.Anthropic", return_value=mock_client
+            ) as mock_anthropic:
                 with patch("saplings.adapters.anthropic_adapter.ANTHROPIC_AVAILABLE", True):
                     # Create a URI with parameters
                     uri = f"{self.provider_name}://{self.model_name}?temperature=0.5&max_tokens=100&api_key=test-key"
@@ -194,8 +200,10 @@ class TestAnthropicAdapter(BaseAdapterTest):
         mock_client = MagicMock()
 
         # Set up the mock
-        with patch.dict('sys.modules', {'anthropic': mock_anthropic_module}):
-            with patch("saplings.adapters.anthropic_adapter.Anthropic", return_value=mock_client) as mock_anthropic:
+        with patch.dict("sys.modules", {"anthropic": mock_anthropic_module}):
+            with patch(
+                "saplings.adapters.anthropic_adapter.Anthropic", return_value=mock_client
+            ) as mock_anthropic:
                 with patch("saplings.adapters.anthropic_adapter.ANTHROPIC_AVAILABLE", True):
                     # Create the adapter
                     adapter = self.adapter_class(f"{self.provider_name}://{self.model_name}")

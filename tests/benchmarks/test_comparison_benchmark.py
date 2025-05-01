@@ -8,7 +8,7 @@ and other agent frameworks where applicable.
 import asyncio
 import os
 import time
-from typing import Dict, List, Optional, Tuple, Any, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pytest
@@ -16,13 +16,12 @@ import pytest
 from saplings.core.model_adapter import LLM
 from saplings.executor import Executor, ExecutorConfig
 from saplings.gasa import GASAConfig
-from saplings.memory import Document, MemoryStore, DependencyGraph
+from saplings.memory import DependencyGraph, Document, MemoryStore
 from saplings.memory.config import MemoryConfig
-from saplings.monitoring import TraceManager, MonitoringConfig
-from saplings.planner import SequentialPlanner, PlannerConfig
-from saplings.retrieval import EmbeddingRetriever, TFIDFRetriever, CascadeRetriever
+from saplings.monitoring import MonitoringConfig, TraceManager
+from saplings.planner import PlannerConfig, SequentialPlanner
+from saplings.retrieval import CascadeRetriever, EmbeddingRetriever, TFIDFRetriever
 from saplings.retrieval.config import RetrievalConfig
-
 from tests.benchmarks.base_benchmark import BaseBenchmark, MockBenchmarkLLM
 from tests.benchmarks.test_datasets import TestDatasets
 
@@ -113,11 +112,13 @@ class TestComparisonBenchmark(BaseBenchmark):
             baseline_latencies.append(latency)
 
         baseline_stats = self.calculate_statistics(baseline_latencies)
-        results["configurations"].append({
-            "name": "Baseline (No GASA)",
-            "latency_stats": baseline_stats,
-            "raw_latencies_ms": baseline_latencies,
-        })
+        results["configurations"].append(
+            {
+                "name": "Baseline (No GASA)",
+                "latency_stats": baseline_stats,
+                "raw_latencies_ms": baseline_latencies,
+            }
+        )
 
         print(f"  Baseline latency: {baseline_stats['mean']:.2f}ms")
 
@@ -145,14 +146,18 @@ class TestComparisonBenchmark(BaseBenchmark):
             latency_stats = self.calculate_statistics(latencies)
 
             # Calculate improvement
-            improvement = (baseline_stats["mean"] - latency_stats["mean"]) / baseline_stats["mean"] * 100
+            improvement = (
+                (baseline_stats["mean"] - latency_stats["mean"]) / baseline_stats["mean"] * 100
+            )
 
-            results["configurations"].append({
-                "name": name,
-                "latency_stats": latency_stats,
-                "improvement": improvement,
-                "raw_latencies_ms": latencies,
-            })
+            results["configurations"].append(
+                {
+                    "name": name,
+                    "latency_stats": latency_stats,
+                    "improvement": improvement,
+                    "raw_latencies_ms": latencies,
+                }
+            )
 
             print(f"  {name} latency: {latency_stats['mean']:.2f}ms")
             print(f"  Improvement: {improvement:.2f}%")
@@ -187,18 +192,27 @@ class TestComparisonBenchmark(BaseBenchmark):
 
         # Define retrievers
         retrievers = [
-            ("TFIDFRetriever", TFIDFRetriever(
-                memory_store=memory_store,
-                config=RetrievalConfig(),
-            )),
-            ("EmbeddingRetriever", EmbeddingRetriever(
-                memory_store=memory_store,
-                config=RetrievalConfig(),
-            )),
-            ("CascadeRetriever", CascadeRetriever(
-                memory_store=memory_store,
-                config=RetrievalConfig(),
-            )),
+            (
+                "TFIDFRetriever",
+                TFIDFRetriever(
+                    memory_store=memory_store,
+                    config=RetrievalConfig(),
+                ),
+            ),
+            (
+                "EmbeddingRetriever",
+                EmbeddingRetriever(
+                    memory_store=memory_store,
+                    config=RetrievalConfig(),
+                ),
+            ),
+            (
+                "CascadeRetriever",
+                CascadeRetriever(
+                    memory_store=memory_store,
+                    config=RetrievalConfig(),
+                ),
+            ),
             # Simulate a baseline keyword search
             ("Baseline Keyword", self._create_keyword_retriever(memory_store)),
         ]
@@ -265,13 +279,15 @@ class TestComparisonBenchmark(BaseBenchmark):
             latency_stats = self.calculate_statistics(latencies)
 
             # Add to results
-            results["retrievers"].append({
-                "name": retriever_name,
-                "precision_at_k": precision_stats,
-                "recall_at_k": recall_stats,
-                "latency_ms": latency_stats,
-                "raw_latencies_ms": latencies,
-            })
+            results["retrievers"].append(
+                {
+                    "name": retriever_name,
+                    "precision_at_k": precision_stats,
+                    "recall_at_k": recall_stats,
+                    "latency_ms": latency_stats,
+                    "raw_latencies_ms": latencies,
+                }
+            )
 
             print(f"  Precision@k: {precision_stats['mean']:.4f}")
             print(f"  Recall@k: {recall_stats['mean']:.4f}")
@@ -330,12 +346,14 @@ class TestComparisonBenchmark(BaseBenchmark):
         saplings_latency_stats = self.calculate_statistics(saplings_latencies)
         saplings_length_stats = self.calculate_statistics(saplings_plan_lengths)
 
-        results["planners"].append({
-            "name": "Saplings Planner",
-            "latency_stats": saplings_latency_stats,
-            "plan_length_stats": saplings_length_stats,
-            "raw_latencies_ms": saplings_latencies,
-        })
+        results["planners"].append(
+            {
+                "name": "Saplings Planner",
+                "latency_stats": saplings_latency_stats,
+                "plan_length_stats": saplings_length_stats,
+                "raw_latencies_ms": saplings_latencies,
+            }
+        )
 
         print(f"  Latency: {saplings_latency_stats['mean']:.2f}ms")
         print(f"  Plan length: {saplings_length_stats['mean']:.2f} steps")
@@ -361,12 +379,14 @@ class TestComparisonBenchmark(BaseBenchmark):
         baseline_latency_stats = self.calculate_statistics(baseline_latencies)
         baseline_length_stats = self.calculate_statistics(baseline_plan_lengths)
 
-        results["planners"].append({
-            "name": "Baseline Planner",
-            "latency_stats": baseline_latency_stats,
-            "plan_length_stats": baseline_length_stats,
-            "raw_latencies_ms": baseline_latencies,
-        })
+        results["planners"].append(
+            {
+                "name": "Baseline Planner",
+                "latency_stats": baseline_latency_stats,
+                "plan_length_stats": baseline_length_stats,
+                "raw_latencies_ms": baseline_latencies,
+            }
+        )
 
         print(f"  Latency: {baseline_latency_stats['mean']:.2f}ms")
         print(f"  Plan length: {baseline_length_stats['mean']:.2f} steps")
@@ -460,11 +480,13 @@ class TestComparisonBenchmark(BaseBenchmark):
 
         saplings_latency_stats = self.calculate_statistics(saplings_latencies)
 
-        results["systems"].append({
-            "name": "Saplings (with GASA)",
-            "latency_stats": saplings_latency_stats,
-            "raw_latencies_ms": saplings_latencies,
-        })
+        results["systems"].append(
+            {
+                "name": "Saplings (with GASA)",
+                "latency_stats": saplings_latency_stats,
+                "raw_latencies_ms": saplings_latencies,
+            }
+        )
 
         print(f"  Latency: {saplings_latency_stats['mean']:.2f}ms")
 
@@ -500,13 +522,19 @@ class TestComparisonBenchmark(BaseBenchmark):
         baseline_latency_stats = self.calculate_statistics(baseline_latencies)
 
         # Calculate improvement
-        improvement = (baseline_latency_stats["mean"] - saplings_latency_stats["mean"]) / baseline_latency_stats["mean"] * 100
+        improvement = (
+            (baseline_latency_stats["mean"] - saplings_latency_stats["mean"])
+            / baseline_latency_stats["mean"]
+            * 100
+        )
 
-        results["systems"].append({
-            "name": "Baseline",
-            "latency_stats": baseline_latency_stats,
-            "raw_latencies_ms": baseline_latencies,
-        })
+        results["systems"].append(
+            {
+                "name": "Baseline",
+                "latency_stats": baseline_latency_stats,
+                "raw_latencies_ms": baseline_latencies,
+            }
+        )
 
         results["improvement"] = improvement
 
@@ -526,6 +554,7 @@ class TestComparisonBenchmark(BaseBenchmark):
         Returns:
             Object: A retriever-like object
         """
+
         class KeywordRetriever:
             """Simple keyword-based retriever."""
 
@@ -570,6 +599,7 @@ class TestComparisonBenchmark(BaseBenchmark):
         Returns:
             Object: A planner-like object
         """
+
         class BaselinePlanner:
             """Simple baseline planner."""
 
@@ -598,7 +628,11 @@ class TestComparisonBenchmark(BaseBenchmark):
 
                 for line in plan_text.split("\n"):
                     line = line.strip()
-                    if line and (line.startswith("- ") or line.startswith("Step ") or (len(line) > 1 and line[0].isdigit() and line[1] == ".")):
+                    if line and (
+                        line.startswith("- ")
+                        or line.startswith("Step ")
+                        or (len(line) > 1 and line[0].isdigit() and line[1] == ".")
+                    ):
                         plan_steps.append(line)
 
                 return plan_steps

@@ -7,10 +7,13 @@ This module provides tests for advanced features like function calling, vision m
 import asyncio
 import base64
 import json
-import pytest
 from typing import Any, Dict, List, Optional, Union
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from saplings.adapters.openai_adapter import OpenAIAdapter
+from saplings.adapters.vllm_adapter import VLLMAdapter
 from saplings.core.message import (
     ContentType,
     FunctionCall,
@@ -20,18 +23,18 @@ from saplings.core.message import (
     MessageRole,
 )
 from saplings.core.model_adapter import LLM, LLMResponse, ModelURI
-from saplings.adapters.vllm_adapter import VLLMAdapter
-from saplings.adapters.openai_adapter import OpenAIAdapter
 
 # Check if OpenAI and vLLM are available
 try:
     import openai
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
 
 try:
     import vllm
+
     VLLM_AVAILABLE = True
 except ImportError:
     VLLM_AVAILABLE = False
@@ -56,9 +59,9 @@ class TestFunctionCalling:
                         "type": "string",
                         "enum": ["celsius", "fahrenheit"],
                         "description": "The unit of temperature to use",
-                    }
+                    },
                 },
-                "required": ["location"]
+                "required": ["location"],
             }
         ]
 
@@ -136,7 +139,9 @@ class TestFunctionCalling:
         # Create a mock output
         mock_output = MagicMock()
         mock_output.outputs = [MagicMock()]
-        mock_output.outputs[0].text = """
+        mock_output.outputs[
+            0
+        ].text = """
         ```json
         {
             "name": "get_weather",
@@ -155,8 +160,8 @@ class TestFunctionCalling:
             "type": "function",
             "function": {
                 "name": "get_weather",
-                "arguments": json.dumps({"location": "San Francisco, CA", "unit": "celsius"})
-            }
+                "arguments": json.dumps({"location": "San Francisco, CA", "unit": "celsius"}),
+            },
         }
         mock_output.tool_calls = [mock_tool_call]
 
@@ -178,7 +183,7 @@ class TestFunctionCalling:
             response = await adapter.generate(
                 prompt=[{"role": "user", "content": "What's the weather in San Francisco?"}],
                 functions=function_definitions,
-                function_call="auto"
+                function_call="auto",
             )
 
             # Check that the function call was detected
@@ -186,12 +191,14 @@ class TestFunctionCalling:
             assert response.function_call["name"] == "get_weather"
             assert json.loads(response.function_call["arguments"]) == {
                 "location": "San Francisco, CA",
-                "unit": "celsius"
+                "unit": "celsius",
             }
 
             # Check that the client was called correctly
             args, kwargs = mock_client.chat.completions.create.call_args
-            assert kwargs["tools"] == [{"type": "function", "function": func} for func in function_definitions]
+            assert kwargs["tools"] == [
+                {"type": "function", "function": func} for func in function_definitions
+            ]
             assert kwargs["tool_choice"] == "auto"
 
     @pytest.mark.asyncio
@@ -210,7 +217,7 @@ class TestFunctionCalling:
             response = await adapter.generate(
                 prompt=[{"role": "user", "content": "What's the weather in San Francisco?"}],
                 functions=function_definitions,
-                function_call="auto"
+                function_call="auto",
             )
 
             # Check that the tool call was detected
@@ -221,7 +228,7 @@ class TestFunctionCalling:
             assert response.tool_calls[0]["function"]["name"] == "get_weather"
             assert json.loads(response.tool_calls[0]["function"]["arguments"]) == {
                 "location": "San Francisco, CA",
-                "unit": "celsius"
+                "unit": "celsius",
             }
 
     @pytest.mark.asyncio
@@ -245,7 +252,7 @@ class TestFunctionCalling:
                 response = await adapter.generate(
                     prompt=[{"role": "user", "content": "What's the weather in San Francisco?"}],
                     functions=function_definitions,
-                    function_call="auto"
+                    function_call="auto",
                 )
 
                 # Check that the function call was detected
@@ -253,49 +260,68 @@ class TestFunctionCalling:
                 assert response.function_call["name"] == "get_weather"
                 assert json.loads(response.function_call["arguments"]) == {
                     "location": "San Francisco, CA",
-                    "unit": "celsius"
+                    "unit": "celsius",
                 }
 
                 # Check that the tokenizer was called correctly
                 args, kwargs = mock_tokenizer.apply_chat_template.call_args
-                assert kwargs["messages"] == [{"role": "user", "content": "What's the weather in San Francisco?"}]
+                assert kwargs["messages"] == [
+                    {"role": "user", "content": "What's the weather in San Francisco?"}
+                ]
                 assert kwargs["tools"] == function_definitions
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not OPENAI_AVAILABLE, reason="OpenAI package not installed")
     async def test_openai_streaming_function_call(self, function_definitions):
         """Test streaming function calling with OpenAI."""
+
         # Create a custom generate_streaming method that returns function call chunks
         async def mock_streaming_method(*args, **kwargs):
             # Yield function call chunks
             yield {"function_call": {"name": "get_", "arguments": ""}}
             yield {"function_call": {"name": "get_weather", "arguments": ""}}
-            yield {"function_call": {"name": "get_weather", "arguments": '{"location": "San Francisco, CA"'}}
-            yield {"function_call": {"name": "get_weather", "arguments": '{"location": "San Francisco, CA", "unit": "celsius"}'}}
+            yield {
+                "function_call": {
+                    "name": "get_weather",
+                    "arguments": '{"location": "San Francisco, CA"',
+                }
+            }
+            yield {
+                "function_call": {
+                    "name": "get_weather",
+                    "arguments": '{"location": "San Francisco, CA", "unit": "celsius"}',
+                }
+            }
 
         # Create the adapter
         with patch("saplings.adapters.openai_adapter.OpenAI", return_value=MagicMock()):
             adapter = OpenAIAdapter("openai://gpt-4")
 
             # Replace the generate_streaming method with our mock
-            with patch.object(adapter, 'generate_streaming', side_effect=mock_streaming_method):
+            with patch.object(adapter, "generate_streaming", side_effect=mock_streaming_method):
                 # Test streaming function calling
                 chunks_received = []
                 async for chunk in adapter.generate_streaming(
                     prompt=[{"role": "user", "content": "What's the weather in San Francisco?"}],
                     functions=function_definitions,
-                    function_call="auto"
+                    function_call="auto",
                 ):
                     chunks_received.append(chunk)
 
                 # Check that the function call chunks were received
                 assert len(chunks_received) == 4
-                assert all(isinstance(chunk, dict) and "function_call" in chunk for chunk in chunks_received)
+                assert all(
+                    isinstance(chunk, dict) and "function_call" in chunk
+                    for chunk in chunks_received
+                )
 
                 # Check the final function call
                 final_function_call = chunks_received[-1]["function_call"]
                 assert final_function_call["name"] == "get_weather"
-                assert final_function_call["arguments"] == '{"location": "San Francisco, CA", "unit": "celsius"}'
+                assert (
+                    final_function_call["arguments"]
+                    == '{"location": "San Francisco, CA", "unit": "celsius"}'
+                )
 
 
 class TestVisionModels:
@@ -305,7 +331,9 @@ class TestVisionModels:
     def sample_image_data(self):
         """Create sample image data for testing."""
         # This is a tiny 1x1 transparent PNG
-        return base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")
+        return base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        )
 
     @pytest.fixture
     def mock_openai_vision(self):
@@ -352,8 +380,14 @@ class TestVisionModels:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": "What's in this image?"},
-                        {"type": "image_url", "image_url": {"url": "data:image/png;base64," + base64.b64encode(sample_image_data).decode()}}
-                    ]
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": "data:image/png;base64,"
+                                + base64.b64encode(sample_image_data).decode()
+                            },
+                        },
+                    ],
                 }
             ]
 
@@ -376,7 +410,9 @@ class TestJSONMode:
         """Mock OpenAI response for JSON mode."""
         # Create a mock message
         mock_message = MagicMock()
-        mock_message.content = '{"weather": {"location": "San Francisco", "temperature": 22, "unit": "celsius"}}'
+        mock_message.content = (
+            '{"weather": {"location": "San Francisco", "temperature": 22, "unit": "celsius"}}'
+        )
         mock_message.function_call = None
         mock_message.tool_calls = None
 
@@ -404,7 +440,9 @@ class TestJSONMode:
         # Create a mock output
         mock_output = MagicMock()
         mock_output.outputs = [MagicMock()]
-        mock_output.outputs[0].text = '{"weather": {"location": "San Francisco", "temperature": 22, "unit": "celsius"}}'
+        mock_output.outputs[
+            0
+        ].text = '{"weather": {"location": "San Francisco", "temperature": 22, "unit": "celsius"}}'
         mock_output.prompt_token_ids = [1, 2, 3, 4, 5]
         mock_output.outputs[0].token_ids = [6, 7, 8, 9, 10]
 
@@ -424,12 +462,17 @@ class TestJSONMode:
 
             # Test JSON mode
             response = await adapter.generate(
-                prompt=[{"role": "user", "content": "Give me the weather in San Francisco as JSON"}],
-                json_mode=True
+                prompt=[
+                    {"role": "user", "content": "Give me the weather in San Francisco as JSON"}
+                ],
+                json_mode=True,
             )
 
             # Check the response
-            assert response.text == '{"weather": {"location": "San Francisco", "temperature": 22, "unit": "celsius"}}'
+            assert (
+                response.text
+                == '{"weather": {"location": "San Francisco", "temperature": 22, "unit": "celsius"}}'
+            )
 
             # Check that the client was called correctly
             args, kwargs = mock_client.chat.completions.create.call_args
@@ -454,12 +497,17 @@ class TestJSONMode:
 
                 # Test JSON mode
                 response = await adapter.generate(
-                    prompt=[{"role": "user", "content": "Give me the weather in San Francisco as JSON"}],
-                    json_mode=True
+                    prompt=[
+                        {"role": "user", "content": "Give me the weather in San Francisco as JSON"}
+                    ],
+                    json_mode=True,
                 )
 
                 # Check the response
-                assert response.text == '{"weather": {"location": "San Francisco", "temperature": 22, "unit": "celsius"}}'
+                assert (
+                    response.text
+                    == '{"weather": {"location": "San Francisco", "temperature": 22, "unit": "celsius"}}'
+                )
 
                 # Check that the sampling parameters were set correctly
                 args, kwargs = mock_engine.generate.call_args

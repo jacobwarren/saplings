@@ -4,18 +4,13 @@ Tests for the judge module.
 
 import asyncio
 import json
-import pytest
 from typing import AsyncGenerator, Dict, List
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
-from saplings.judge import (
-    JudgeAgent,
-    JudgeResult,
-    JudgeConfig,
-    CritiqueFormat,
-    ScoringDimension,
-)
+from saplings.judge import CritiqueFormat, JudgeAgent, JudgeConfig, JudgeResult, ScoringDimension
 
 
 class MockJudgeLLM(LLM):
@@ -27,9 +22,7 @@ class MockJudgeLLM(LLM):
         self.kwargs = kwargs
         self.tokenizer = None
 
-    async def generate(
-        self, prompt, max_tokens=None, temperature=None, **kwargs
-    ) -> LLMResponse:
+    async def generate(self, prompt, max_tokens=None, temperature=None, **kwargs) -> LLMResponse:
         """Generate text from the model."""
         # Check if this is a judgment prompt
         if "You are a judge evaluating the quality of an AI assistant's response" in prompt:
@@ -104,7 +97,7 @@ class MockJudgeLLM(LLM):
 
         # Yield chunks with simulated delay
         for i in range(0, len(words), chunk_size):
-            chunk = " ".join(words[i:i+chunk_size])
+            chunk = " ".join(words[i : i + chunk_size])
             # Simulate some processing time
             await asyncio.sleep(0.01)
             yield chunk
@@ -336,7 +329,13 @@ class TestJudgeAgent:
                 response = await super().generate(prompt, max_tokens, temperature, **kwargs)
                 if "You are a judge evaluating" in prompt:
                     # Override with a low score response
-                    response.text = response.text.replace("0.8", "0.5").replace("0.9", "0.6").replace("0.7", "0.4").replace("0.85", "0.5").replace("0.81", "0.5")
+                    response.text = (
+                        response.text.replace("0.8", "0.5")
+                        .replace("0.9", "0.6")
+                        .replace("0.7", "0.4")
+                        .replace("0.85", "0.5")
+                        .replace("0.81", "0.5")
+                    )
                 return response
 
         low_score_llm = LowScoreMockLLM("mock://judge-model/latest")
@@ -359,9 +358,7 @@ class TestJudgeAgent:
         """Test that budget constraints are enforced."""
         # Create a judge agent with budget constraints
         config = JudgeConfig(
-            enforce_budget=True,
-            max_tokens_per_judgment=1000,
-            max_cost_per_judgment=0.05
+            enforce_budget=True, max_tokens_per_judgment=1000, max_cost_per_judgment=0.05
         )
         judge_agent = JudgeAgent(model=mock_judge_llm, config=config)
 

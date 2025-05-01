@@ -3,15 +3,16 @@ Tests for the executor module.
 """
 
 import asyncio
-import numpy as np
-import pytest
 from typing import AsyncGenerator
 from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
+
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.executor import (
-    Executor,
     ExecutionResult,
+    Executor,
     ExecutorConfig,
     RefinementStrategy,
     VerificationStrategy,
@@ -33,9 +34,7 @@ class MockLLM(LLM):
         self.kwargs = kwargs
         self.tokenizer = None
 
-    async def generate(
-        self, prompt, max_tokens=None, temperature=None, **kwargs
-    ) -> LLMResponse:
+    async def generate(self, prompt, max_tokens=None, temperature=None, **kwargs) -> LLMResponse:
         """Generate text from the model."""
         # Simple mock implementation that returns the prompt with a suffix
         response_text = f"{prompt} [Generated with temp={temperature}]"
@@ -67,7 +66,7 @@ class MockLLM(LLM):
 
         # Yield chunks with simulated delay
         for i in range(0, len(words), chunk_size):
-            chunk = " ".join(words[i:i+chunk_size])
+            chunk = " ".join(words[i : i + chunk_size])
             # Simulate some processing time
             await asyncio.sleep(0.01)
             yield chunk
@@ -178,7 +177,9 @@ class TestExecutor:
         mock_judge.judge = mock_judge_method
 
         # Make the format_critique method return a string
-        mock_judge.format_critique.return_value = "Score: 0.85 (Passed)\nGood response\n\nSuggestions:\n- Add more details"
+        mock_judge.format_critique.return_value = (
+            "Score: 0.85 (Passed)\nGood response\n\nSuggestions:\n- Add more details"
+        )
 
         return mock_judge
 
@@ -321,7 +322,7 @@ class TestExecutor:
 
         async def patched_generate(prompt, **kwargs):
             # Track the temperature to identify if it's a draft or final call
-            generate_calls.append(kwargs.get('temperature', None))
+            generate_calls.append(kwargs.get("temperature", None))
             return await original_generate(prompt, **kwargs)
 
         # Apply the patch
@@ -487,8 +488,8 @@ class TestExecutor:
             final_chunks.append(text)
 
         # Mock the _generate_streaming_draft and _generate_streaming_final methods to track calls
-        original_streaming_draft = getattr(executor, '_generate_streaming_draft', None)
-        original_streaming_final = getattr(executor, '_generate_streaming_final', None)
+        original_streaming_draft = getattr(executor, "_generate_streaming_draft", None)
+        original_streaming_final = getattr(executor, "_generate_streaming_final", None)
         streaming_draft_called = False
         streaming_final_called = False
 
@@ -506,9 +507,9 @@ class TestExecutor:
                 return await original_streaming_final(*args, **kwargs)
             return "Final text", {"latency_ms": 200}
 
-        if hasattr(executor, '_generate_streaming_draft'):
+        if hasattr(executor, "_generate_streaming_draft"):
             executor._generate_streaming_draft = mock_streaming_draft
-        if hasattr(executor, '_generate_streaming_final'):
+        if hasattr(executor, "_generate_streaming_final"):
             executor._generate_streaming_final = mock_streaming_final
 
         # Execute with streaming
@@ -527,17 +528,17 @@ class TestExecutor:
         # Check that callbacks were called
         if executor.config.enable_speculative_execution:
             assert len(draft_chunks) > 0
-            if hasattr(executor, '_generate_streaming_draft'):
+            if hasattr(executor, "_generate_streaming_draft"):
                 assert streaming_draft_called, "Streaming draft generation was not called"
 
         assert len(final_chunks) > 0
-        if hasattr(executor, '_generate_streaming_final'):
+        if hasattr(executor, "_generate_streaming_final"):
             assert streaming_final_called, "Streaming final generation was not called"
 
         # Restore original methods
-        if original_streaming_draft and hasattr(executor, '_generate_streaming_draft'):
+        if original_streaming_draft and hasattr(executor, "_generate_streaming_draft"):
             executor._generate_streaming_draft = original_streaming_draft
-        if original_streaming_final and hasattr(executor, '_generate_streaming_final'):
+        if original_streaming_final and hasattr(executor, "_generate_streaming_final"):
             executor._generate_streaming_final = original_streaming_final
 
         # Test with streaming disabled but explicitly enabled for the call
@@ -550,9 +551,9 @@ class TestExecutor:
         streaming_final_called = False
 
         # Mock the methods again
-        if hasattr(executor, '_generate_streaming_draft'):
+        if hasattr(executor, "_generate_streaming_draft"):
             executor._generate_streaming_draft = mock_streaming_draft
-        if hasattr(executor, '_generate_streaming_final'):
+        if hasattr(executor, "_generate_streaming_final"):
             executor._generate_streaming_final = mock_streaming_final
 
         # Execute with streaming explicitly enabled
@@ -569,17 +570,17 @@ class TestExecutor:
         # Check that callbacks were called
         if executor.config.enable_speculative_execution:
             assert len(draft_chunks) > 0
-            if hasattr(executor, '_generate_streaming_draft'):
+            if hasattr(executor, "_generate_streaming_draft"):
                 assert streaming_draft_called, "Streaming draft generation was not called"
 
         assert len(final_chunks) > 0
-        if hasattr(executor, '_generate_streaming_final'):
+        if hasattr(executor, "_generate_streaming_final"):
             assert streaming_final_called, "Streaming final generation was not called"
 
         # Restore original methods
-        if original_streaming_draft and hasattr(executor, '_generate_streaming_draft'):
+        if original_streaming_draft and hasattr(executor, "_generate_streaming_draft"):
             executor._generate_streaming_draft = original_streaming_draft
-        if original_streaming_final and hasattr(executor, '_generate_streaming_final'):
+        if original_streaming_final and hasattr(executor, "_generate_streaming_final"):
             executor._generate_streaming_final = original_streaming_final
 
         # Check that at least some of the chunks are in the final text
@@ -718,7 +719,9 @@ class TestExecutor:
 
         # Test with BASIC strategy
         executor_with_full_verification.config.verification_strategy = VerificationStrategy.BASIC
-        result = await executor_with_full_verification.execute("Valid response with sufficient length")
+        result = await executor_with_full_verification.execute(
+            "Valid response with sufficient length"
+        )
         assert result.verified is True
         assert result.verification_score == 1.0
 
@@ -730,7 +733,9 @@ class TestExecutor:
         assert "Good response" in result.verification_feedback
 
         # Test with VALIDATOR strategy
-        executor_with_full_verification.config.verification_strategy = VerificationStrategy.VALIDATOR
+        executor_with_full_verification.config.verification_strategy = (
+            VerificationStrategy.VALIDATOR
+        )
         result = await executor_with_full_verification.execute(prompt)
         assert result.verified is False  # Our mock validator fails for "fail" in the prompt
         assert result.verification_score == 0.3
@@ -771,7 +776,9 @@ class TestExecutor:
         executor_with_full_verification._generate_final = mock_generate_final
 
         # Execute with failing validation that should trigger refinement
-        result = await executor_with_full_verification.execute("This should fail validation but be refined")
+        result = await executor_with_full_verification.execute(
+            "This should fail validation but be refined"
+        )
 
         # Check that refinement was attempted
         assert generate_final_calls > 1
@@ -851,13 +858,17 @@ class TestExecutor:
         assert "All validations passed" in feedback
 
         # Test with VALIDATOR strategy - failing validation
-        verified, score, feedback = await executor_with_validator._verify_output("This should fail validation", "Prompt")
+        verified, score, feedback = await executor_with_validator._verify_output(
+            "This should fail validation", "Prompt"
+        )
         assert verified is False
         assert score == 0.3
         assert "Validation failed" in feedback
 
         # Test with VALIDATOR strategy - mixed validation results
-        verified, score, feedback = await executor_with_validator._verify_output("This should give mixed validation results", "Prompt")
+        verified, score, feedback = await executor_with_validator._verify_output(
+            "This should give mixed validation results", "Prompt"
+        )
         assert verified is False
         assert score == 0.6  # Average of 0.9 and 0.3
         assert "Validation failed" in feedback
@@ -866,21 +877,27 @@ class TestExecutor:
     async def test_verify_output_with_full_verification(self, executor_with_full_verification):
         """Test output verification with both JudgeAgent and ValidatorRegistry."""
         # Test with FULL strategy - passing validation
-        verified, score, feedback = await executor_with_full_verification._verify_output("Output", "Prompt")
+        verified, score, feedback = await executor_with_full_verification._verify_output(
+            "Output", "Prompt"
+        )
         assert verified is True
         assert score == 0.875  # Average of 0.9 and 0.85
         assert "All validations passed" in feedback
         assert "Good response" in feedback
 
         # Test with FULL strategy - failing validation
-        verified, score, feedback = await executor_with_full_verification._verify_output("This should fail validation", "Prompt")
+        verified, score, feedback = await executor_with_full_verification._verify_output(
+            "This should fail validation", "Prompt"
+        )
         assert verified is False
         assert score == 0.575  # Average of 0.3 and 0.85
         assert "Validation failed" in feedback
         assert "Good response" in feedback
 
         # Test with FULL strategy - mixed validation results
-        verified, score, feedback = await executor_with_full_verification._verify_output("This should give mixed validation results", "Prompt")
+        verified, score, feedback = await executor_with_full_verification._verify_output(
+            "This should give mixed validation results", "Prompt"
+        )
         assert verified is False
         assert score == 0.725  # Average of 0.6 and 0.85
         assert "Validation failed" in feedback

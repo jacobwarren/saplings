@@ -12,12 +12,12 @@ import pytest
 from saplings.gasa.config import GASAConfig
 from saplings.gasa.mask_builder import MaskType
 from saplings.monitoring.config import MonitoringConfig, VisualizationFormat
-from saplings.monitoring.visualization import GASAHeatmap, PerformanceVisualizer, MaskFormat
-
+from saplings.monitoring.visualization import GASAHeatmap, MaskFormat, PerformanceVisualizer
 
 # Check if matplotlib is available
 try:
     import matplotlib.pyplot as plt
+
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
@@ -25,6 +25,7 @@ except ImportError:
 # Check if plotly is available
 try:
     import plotly.graph_objects as go
+
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False

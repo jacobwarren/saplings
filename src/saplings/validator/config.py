@@ -22,12 +22,8 @@ class ValidatorConfig(BaseModel):
     """Configuration for the Validator module."""
 
     # General settings
-    enabled: bool = Field(
-        True, description="Whether validation is enabled"
-    )
-    fail_fast: bool = Field(
-        False, description="Whether to stop validation on first failure"
-    )
+    enabled: bool = Field(True, description="Whether validation is enabled")
+    fail_fast: bool = Field(False, description="Whether to stop validation on first failure")
 
     # Plugin settings
     plugin_dirs: List[str] = Field(
@@ -38,22 +34,16 @@ class ValidatorConfig(BaseModel):
     )
 
     # Execution settings
-    parallel_validation: bool = Field(
-        True, description="Whether to run validators in parallel"
-    )
+    parallel_validation: bool = Field(True, description="Whether to run validators in parallel")
     max_parallel_validators: int = Field(
         10, description="Maximum number of validators to run in parallel"
     )
 
     # Timeout settings
-    timeout_seconds: Optional[float] = Field(
-        None, description="Timeout for validation in seconds"
-    )
+    timeout_seconds: Optional[float] = Field(None, description="Timeout for validation in seconds")
 
     # Budget settings
-    enforce_budget: bool = Field(
-        False, description="Whether to enforce budget constraints"
-    )
+    enforce_budget: bool = Field(False, description="Whether to enforce budget constraints")
     max_validations_per_session: int = Field(
         100, description="Maximum number of validations per session"
     )

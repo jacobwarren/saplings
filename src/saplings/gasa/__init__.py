@@ -16,9 +16,9 @@ This approach reduces computational cost (up to 40% fewer FLOPs) and improves gr
 by focusing the model's attention on relevant context.
 """
 
+from saplings.gasa.block_packing import BlockDiagonalPacker
 from saplings.gasa.config import GASAConfig
 from saplings.gasa.mask_builder import MaskBuilder, MaskFormat, MaskType
-from saplings.gasa.block_packing import BlockDiagonalPacker
 from saplings.gasa.visualization import MaskVisualizer
 
 __all__ = [

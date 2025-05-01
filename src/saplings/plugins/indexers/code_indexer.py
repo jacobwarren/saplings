@@ -114,8 +114,7 @@ class CodeIndexer(IndexerPlugin, Indexer):
 
         # Create a mapping of entity names to entity IDs
         entity_map = {
-            entity.name: f"entity:{entity.entity_type}:{entity.name}"
-            for entity in entities
+            entity.name: f"entity:{entity.entity_type}:{entity.name}" for entity in entities
         }
 
         relationships = []
@@ -515,7 +514,11 @@ class CodeIndexer(IndexerPlugin, Indexer):
             function_name = match.group(1)
 
             # Skip constructors and destructors
-            if function_name.startswith("~") or any(function_name == class_entity.name for class_entity in entities if class_entity.entity_type == "class"):
+            if function_name.startswith("~") or any(
+                function_name == class_entity.name
+                for class_entity in entities
+                if class_entity.entity_type == "class"
+            ):
                 continue
 
             function_entity = Entity(

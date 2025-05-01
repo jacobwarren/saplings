@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 class ScoringDimension(str, Enum):
     """Dimensions for scoring outputs."""
-    
+
     RELEVANCE = "relevance"  # How relevant the output is to the prompt
     CORRECTNESS = "correctness"  # How factually correct the output is
     COHERENCE = "coherence"  # How coherent and well-structured the output is
@@ -25,7 +25,7 @@ class ScoringDimension(str, Enum):
 
 class CritiqueFormat(str, Enum):
     """Format for critique output."""
-    
+
     SIMPLE = "simple"  # Simple text feedback
     STRUCTURED = "structured"  # Structured feedback with sections
     JSON = "json"  # JSON-formatted feedback
@@ -34,16 +34,10 @@ class CritiqueFormat(str, Enum):
 
 class RubricItem(BaseModel):
     """A single item in a rubric."""
-    
-    dimension: ScoringDimension = Field(
-        ..., description="Dimension to score"
-    )
-    weight: float = Field(
-        1.0, description="Weight of this dimension in the overall score"
-    )
-    description: str = Field(
-        "", description="Description of what this dimension measures"
-    )
+
+    dimension: ScoringDimension = Field(..., description="Dimension to score")
+    weight: float = Field(1.0, description="Weight of this dimension in the overall score")
+    description: str = Field("", description="Description of what this dimension measures")
     criteria: Dict[str, str] = Field(
         default_factory=dict, description="Criteria for different score levels"
     )
@@ -51,22 +45,16 @@ class RubricItem(BaseModel):
 
 class Rubric(BaseModel):
     """A rubric for evaluating outputs."""
-    
-    name: str = Field(
-        ..., description="Name of the rubric"
-    )
-    description: str = Field(
-        "", description="Description of the rubric"
-    )
-    items: List[RubricItem] = Field(
-        default_factory=list, description="Items in the rubric"
-    )
-    
+
+    name: str = Field(..., description="Name of the rubric")
+    description: str = Field("", description="Description of the rubric")
+    items: List[RubricItem] = Field(default_factory=list, description="Items in the rubric")
+
     @classmethod
     def default(cls) -> "Rubric":
         """
         Create a default rubric.
-        
+
         Returns:
             Rubric: Default rubric
         """
@@ -120,60 +108,48 @@ class Rubric(BaseModel):
 
 class JudgeConfig(BaseModel):
     """Configuration for the Judge module."""
-    
+
     # Scoring settings
-    rubric: Rubric = Field(
-        default_factory=Rubric.default, description="Rubric for evaluation"
-    )
-    threshold: float = Field(
-        0.7, description="Threshold for passing verification (0.0 to 1.0)"
-    )
-    
+    rubric: Rubric = Field(default_factory=Rubric.default, description="Rubric for evaluation")
+    threshold: float = Field(0.7, description="Threshold for passing verification (0.0 to 1.0)")
+
     # Critique settings
     critique_format: CritiqueFormat = Field(
         CritiqueFormat.STRUCTURED, description="Format for critique output"
     )
-    include_scores: bool = Field(
-        True, description="Whether to include scores in the critique"
-    )
+    include_scores: bool = Field(True, description="Whether to include scores in the critique")
     include_suggestions: bool = Field(
         True, description="Whether to include improvement suggestions in the critique"
     )
-    
+
     # Budget settings
-    enforce_budget: bool = Field(
-        True, description="Whether to enforce budget constraints"
-    )
-    max_tokens_per_judgment: Optional[int] = Field(
-        None, description="Maximum tokens per judgment"
-    )
+    enforce_budget: bool = Field(True, description="Whether to enforce budget constraints")
+    max_tokens_per_judgment: Optional[int] = Field(None, description="Maximum tokens per judgment")
     max_cost_per_judgment: Optional[float] = Field(
         None, description="Maximum cost per judgment in USD"
     )
-    
+
     # Model settings
-    model_uri: Optional[str] = Field(
-        None, description="URI of the model to use for judgment"
-    )
-    
+    model_uri: Optional[str] = Field(None, description="URI of the model to use for judgment")
+
     @classmethod
     def default(cls) -> "JudgeConfig":
         """
         Create a default configuration.
-        
+
         Returns:
             JudgeConfig: Default configuration
         """
         return cls()
-    
+
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> "JudgeConfig":
         """
         Create a configuration from a dictionary.
-        
+
         Args:
             config_dict: Configuration dictionary
-            
+
         Returns:
             JudgeConfig: Configuration
         """

@@ -146,10 +146,17 @@ class TestCascadeRetriever:
         self.entropy_calculator = MagicMock(spec=EntropyCalculator)
 
         # Create the cascade retriever
-        with patch("saplings.retrieval.cascade_retriever.TFIDFRetriever", return_value=self.tfidf_retriever), \
-             patch("saplings.retrieval.cascade_retriever.EmbeddingRetriever", return_value=self.embedding_retriever), \
-             patch("saplings.retrieval.cascade_retriever.GraphExpander", return_value=self.graph_expander), \
-             patch("saplings.retrieval.cascade_retriever.EntropyCalculator", return_value=self.entropy_calculator):
+        with patch(
+            "saplings.retrieval.cascade_retriever.TFIDFRetriever", return_value=self.tfidf_retriever
+        ), patch(
+            "saplings.retrieval.cascade_retriever.EmbeddingRetriever",
+            return_value=self.embedding_retriever,
+        ), patch(
+            "saplings.retrieval.cascade_retriever.GraphExpander", return_value=self.graph_expander
+        ), patch(
+            "saplings.retrieval.cascade_retriever.EntropyCalculator",
+            return_value=self.entropy_calculator,
+        ):
             self.retriever = CascadeRetriever(self.memory_store, self.config)
 
     def test_retrieve(self):
@@ -370,21 +377,35 @@ class TestCascadeRetriever:
         """Test saving and loading the cascade retriever."""
         # Save the retriever
         with tempfile.TemporaryDirectory() as temp_dir:
-            with patch("saplings.retrieval.tfidf_retriever.TFIDFRetriever.save"), \
-                 patch("saplings.retrieval.embedding_retriever.EmbeddingRetriever.save"), \
-                 patch("saplings.retrieval.graph_expander.GraphExpander.save"), \
-                 patch("saplings.retrieval.entropy_calculator.EntropyCalculator.save"):
+            with patch("saplings.retrieval.tfidf_retriever.TFIDFRetriever.save"), patch(
+                "saplings.retrieval.embedding_retriever.EmbeddingRetriever.save"
+            ), patch("saplings.retrieval.graph_expander.GraphExpander.save"), patch(
+                "saplings.retrieval.entropy_calculator.EntropyCalculator.save"
+            ):
                 self.retriever.save(temp_dir)
 
             # Create a new retriever and load the saved data
-            with patch("saplings.retrieval.cascade_retriever.TFIDFRetriever", return_value=self.tfidf_retriever), \
-                 patch("saplings.retrieval.cascade_retriever.EmbeddingRetriever", return_value=self.embedding_retriever), \
-                 patch("saplings.retrieval.cascade_retriever.GraphExpander", return_value=self.graph_expander), \
-                 patch("saplings.retrieval.cascade_retriever.EntropyCalculator", return_value=self.entropy_calculator), \
-                 patch("saplings.retrieval.tfidf_retriever.TFIDFRetriever.load"), \
-                 patch("saplings.retrieval.embedding_retriever.EmbeddingRetriever.load"), \
-                 patch("saplings.retrieval.graph_expander.GraphExpander.load"), \
-                 patch("saplings.retrieval.entropy_calculator.EntropyCalculator.load"):
+            with patch(
+                "saplings.retrieval.cascade_retriever.TFIDFRetriever",
+                return_value=self.tfidf_retriever,
+            ), patch(
+                "saplings.retrieval.cascade_retriever.EmbeddingRetriever",
+                return_value=self.embedding_retriever,
+            ), patch(
+                "saplings.retrieval.cascade_retriever.GraphExpander",
+                return_value=self.graph_expander,
+            ), patch(
+                "saplings.retrieval.cascade_retriever.EntropyCalculator",
+                return_value=self.entropy_calculator,
+            ), patch(
+                "saplings.retrieval.tfidf_retriever.TFIDFRetriever.load"
+            ), patch(
+                "saplings.retrieval.embedding_retriever.EmbeddingRetriever.load"
+            ), patch(
+                "saplings.retrieval.graph_expander.GraphExpander.load"
+            ), patch(
+                "saplings.retrieval.entropy_calculator.EntropyCalculator.load"
+            ):
                 new_retriever = CascadeRetriever(self.memory_store)
                 new_retriever.load(temp_dir)
 
@@ -415,17 +436,30 @@ class TestCascadeRetriever:
 
         # Create a cascade retriever with the real memory store
         # But with mocked components for controlled testing
-        with patch("saplings.retrieval.cascade_retriever.TFIDFRetriever", return_value=self.tfidf_retriever), \
-             patch("saplings.retrieval.cascade_retriever.EmbeddingRetriever", return_value=self.embedding_retriever), \
-             patch("saplings.retrieval.cascade_retriever.GraphExpander", return_value=self.graph_expander), \
-             patch("saplings.retrieval.cascade_retriever.EntropyCalculator", return_value=self.entropy_calculator):
+        with patch(
+            "saplings.retrieval.cascade_retriever.TFIDFRetriever", return_value=self.tfidf_retriever
+        ), patch(
+            "saplings.retrieval.cascade_retriever.EmbeddingRetriever",
+            return_value=self.embedding_retriever,
+        ), patch(
+            "saplings.retrieval.cascade_retriever.GraphExpander", return_value=self.graph_expander
+        ), patch(
+            "saplings.retrieval.cascade_retriever.EntropyCalculator",
+            return_value=self.entropy_calculator,
+        ):
             retriever = CascadeRetriever(real_memory_store, self.config)
 
         # Configure mocks
         self.tfidf_retriever.is_built = True
-        self.tfidf_retriever.retrieve.return_value = [(doc, 0.8 - i * 0.1) for i, doc in enumerate(docs_with_embeddings)]
-        self.embedding_retriever.retrieve.return_value = [(doc, 0.9 - i * 0.1) for i, doc in enumerate(docs_with_embeddings)]
-        self.graph_expander.expand.return_value = [(doc, 0.9 - i * 0.1) for i, doc in enumerate(docs_with_embeddings)]
+        self.tfidf_retriever.retrieve.return_value = [
+            (doc, 0.8 - i * 0.1) for i, doc in enumerate(docs_with_embeddings)
+        ]
+        self.embedding_retriever.retrieve.return_value = [
+            (doc, 0.9 - i * 0.1) for i, doc in enumerate(docs_with_embeddings)
+        ]
+        self.graph_expander.expand.return_value = [
+            (doc, 0.9 - i * 0.1) for i, doc in enumerate(docs_with_embeddings)
+        ]
         self.entropy_calculator.should_terminate.return_value = True
         self.entropy_calculator.calculate_entropy.return_value = 1.5
 

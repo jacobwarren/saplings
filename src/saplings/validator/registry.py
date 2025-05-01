@@ -28,7 +28,7 @@ from saplings.validator.validator import (
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T', bound=Validator)
+T = TypeVar("T", bound=Validator)
 
 
 class ValidatorRegistry:
@@ -178,7 +178,9 @@ class ValidatorRegistry:
                     if issubclass(validator_class, Validator):
                         self.register_validator(validator_class)
                 except Exception as e:
-                    logger.warning(f"Failed to load validator from entry point {entry_point.name}: {e}")
+                    logger.warning(
+                        f"Failed to load validator from entry point {entry_point.name}: {e}"
+                    )
         except Exception as e:
             logger.warning(f"Failed to discover validators from entry points: {e}")
 
@@ -305,10 +307,10 @@ class ValidatorRegistry:
                 results.append(result)
 
                 # Check if we should stop on first failure
-                if (
-                    self._config.fail_fast
-                    and result.status in [ValidationStatus.FAILED, ValidationStatus.ERROR]
-                ):
+                if self._config.fail_fast and result.status in [
+                    ValidationStatus.FAILED,
+                    ValidationStatus.ERROR,
+                ]:
                     # Cancel remaining tasks
                     for t in tasks:
                         if not t.done():
@@ -321,10 +323,10 @@ class ValidatorRegistry:
                 results.append(result)
 
                 # Check if we should stop on first failure
-                if (
-                    self._config.fail_fast
-                    and result.status in [ValidationStatus.FAILED, ValidationStatus.ERROR]
-                ):
+                if self._config.fail_fast and result.status in [
+                    ValidationStatus.FAILED,
+                    ValidationStatus.ERROR,
+                ]:
                     break
 
         # Increment the validation count if we actually ran validations

@@ -9,14 +9,14 @@ This module provides the validator functionality for Saplings, including:
 """
 
 from saplings.validator.config import ValidatorConfig, ValidatorType
+from saplings.validator.registry import ValidatorRegistry, get_validator_registry
 from saplings.validator.validator import (
-    Validator,
-    StaticValidator,
     RuntimeValidator,
+    StaticValidator,
     ValidationResult,
     ValidationStatus,
+    Validator,
 )
-from saplings.validator.registry import ValidatorRegistry, get_validator_registry
 
 __all__ = [
     "Validator",

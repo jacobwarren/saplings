@@ -11,7 +11,7 @@ This module provides the executor functionality for Saplings, including:
 """
 
 from saplings.executor.config import ExecutorConfig, RefinementStrategy, VerificationStrategy
-from saplings.executor.executor import Executor, ExecutionResult
+from saplings.executor.executor import ExecutionResult, Executor
 
 __all__ = [
     "Executor",

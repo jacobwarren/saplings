@@ -236,10 +236,12 @@ class TestMaskBuilder:
             ChunkInfo(chunk_id="chunk2", document_id="doc2", start_token=5, end_token=10),
         ]
 
-        mock_build_chunk_adjacency.return_value = np.array([
-            [1, 1],
-            [1, 1],
-        ])
+        mock_build_chunk_adjacency.return_value = np.array(
+            [
+                [1, 1],
+                [1, 1],
+            ]
+        )
 
         mock_expand_to_token_mask.return_value = np.ones((10, 10))
         mock_handle_global_tokens.return_value = np.ones((10, 10))
@@ -270,9 +272,15 @@ class TestMaskBuilder:
         """Test _build_chunk_adjacency method."""
         # Create chunk infos
         chunk_infos = [
-            ChunkInfo(chunk_id="chunk1", document_id="doc1", start_token=0, end_token=5, node_id="node1"),
-            ChunkInfo(chunk_id="chunk2", document_id="doc1", start_token=5, end_token=10, node_id="node2"),
-            ChunkInfo(chunk_id="chunk3", document_id="doc2", start_token=10, end_token=15, node_id="node3"),
+            ChunkInfo(
+                chunk_id="chunk1", document_id="doc1", start_token=0, end_token=5, node_id="node1"
+            ),
+            ChunkInfo(
+                chunk_id="chunk2", document_id="doc1", start_token=5, end_token=10, node_id="node2"
+            ),
+            ChunkInfo(
+                chunk_id="chunk3", document_id="doc2", start_token=10, end_token=15, node_id="node3"
+            ),
         ]
 
         # Configure the graph to return distances
@@ -310,10 +318,12 @@ class TestMaskBuilder:
         ]
 
         # Create chunk adjacency
-        chunk_adjacency = np.array([
-            [1, 0],
-            [0, 1],
-        ])
+        chunk_adjacency = np.array(
+            [
+                [1, 0],
+                [0, 1],
+            ]
+        )
 
         # Expand to token mask
         token_mask = self.mask_builder._expand_to_token_mask(

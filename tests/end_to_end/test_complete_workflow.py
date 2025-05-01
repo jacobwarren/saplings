@@ -5,7 +5,7 @@ End-to-end tests for complete workflows in the Saplings framework.
 import asyncio
 import os
 import tempfile
-from typing import Dict, List, Optional, Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,33 +13,23 @@ import pytest
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.core.plugin import PluginType, ToolPlugin
 from saplings.executor import Executor, ExecutorConfig
-from saplings.orchestration import GraphRunner, GraphRunnerConfig, AgentNode
-from saplings.orchestration.config import CommunicationChannel
-from saplings.planner import SequentialPlanner, PlannerConfig
-from saplings.tool_factory import (
-    ToolFactory,
-    ToolFactoryConfig,
-    ToolTemplate,
-    ToolSpecification,
-    SecurityLevel,
-)
 from saplings.integration import (
     HotLoader,
     HotLoaderConfig,
-    ToolLifecycleManager,
     IntegrationManager,
+    ToolLifecycleManager,
 )
-from saplings.memory import (
-    MemoryConfig,
-    Document,
-    MemoryStore,
-    VectorStore,
-    InMemoryVectorStore,
-)
-from saplings.monitoring import (
-    TraceManager,
-    MonitoringConfig,
-    BlameGraph,
+from saplings.memory import Document, InMemoryVectorStore, MemoryConfig, MemoryStore, VectorStore
+from saplings.monitoring import BlameGraph, MonitoringConfig, TraceManager
+from saplings.orchestration import AgentNode, GraphRunner, GraphRunnerConfig
+from saplings.orchestration.config import CommunicationChannel
+from saplings.planner import PlannerConfig, SequentialPlanner
+from saplings.tool_factory import (
+    SecurityLevel,
+    ToolFactory,
+    ToolFactoryConfig,
+    ToolSpecification,
+    ToolTemplate,
 )
 
 
@@ -53,17 +43,17 @@ class MockLLM(LLM):
         self.generate_calls = []
         self.streaming_calls = []
 
-    async def generate(
-        self, prompt, max_tokens=None, temperature=None, **kwargs
-    ) -> LLMResponse:
+    async def generate(self, prompt, max_tokens=None, temperature=None, **kwargs) -> LLMResponse:
         """Generate text from the model."""
         # Record the call
-        self.generate_calls.append({
-            "prompt": prompt,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "kwargs": kwargs,
-        })
+        self.generate_calls.append(
+            {
+                "prompt": prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "kwargs": kwargs,
+            }
+        )
 
         # Return a mock response
         return LLMResponse(
@@ -85,16 +75,18 @@ class MockLLM(LLM):
     ) -> AsyncGenerator[str, None]:
         """Generate text from the model with streaming output."""
         # Record the call
-        self.streaming_calls.append({
-            "prompt": prompt,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "kwargs": kwargs,
-        })
+        self.streaming_calls.append(
+            {
+                "prompt": prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "kwargs": kwargs,
+            }
+        )
 
         # Create a response
         response = f"Response to: {prompt[:50]}..."
-        chunks = [response[i:i+5] for i in range(0, len(response), 5)]
+        chunks = [response[i : i + 5] for i in range(0, len(response), 5)]
 
         # Return chunks as an async generator
         for chunk in chunks:
@@ -199,7 +191,9 @@ class TestCompleteWorkflow:
         )
 
     @pytest.mark.asyncio
-    async def test_single_agent_workflow(self, mock_llm, executor, planner, memory_store, trace_manager):
+    async def test_single_agent_workflow(
+        self, mock_llm, executor, planner, memory_store, trace_manager
+    ):
         """Test a complete workflow with a single agent."""
         # Create a trace for monitoring
         trace = trace_manager.create_trace(trace_id="test-workflow-1")
@@ -378,7 +372,9 @@ class TestCompleteWorkflow:
         assert len(trace.spans) == 3  # workflow, agent, execution
 
     @pytest.mark.asyncio
-    async def test_tool_integration_workflow(self, mock_llm, tool_factory, hot_loader, integration_manager, trace_manager):
+    async def test_tool_integration_workflow(
+        self, mock_llm, tool_factory, hot_loader, integration_manager, trace_manager
+    ):
         """Test a complete workflow with tool integration."""
         # Create a trace for monitoring
         trace = trace_manager.create_trace(trace_id="test-workflow-3")
@@ -665,7 +661,9 @@ def {{function_name}}({{parameters}}):
 
         # Check that the trace was created
         assert trace.trace_id in trace_manager.traces
-        assert len(trace.spans) == 7  # workflow, memory, planning, agent, execution, graph, monitoring
+        assert (
+            len(trace.spans) == 7
+        )  # workflow, memory, planning, agent, execution, graph, monitoring
 
         # Check that there are no error sources
         assert len(error_sources) == 0

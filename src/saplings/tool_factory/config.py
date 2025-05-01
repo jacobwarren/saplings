@@ -41,7 +41,9 @@ class ToolTemplate(BaseModel):
     name: str = Field(..., description="Human-readable name for the template")
     description: str = Field(..., description="Description of the template's purpose")
     template_code: str = Field(..., description="Template code with placeholders")
-    required_parameters: List[str] = Field(..., description="List of required parameters for the template")
+    required_parameters: List[str] = Field(
+        ..., description="List of required parameters for the template"
+    )
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     @field_validator("id")

@@ -5,7 +5,13 @@ Tests for the model_adapter module.
 import pytest
 from pydantic import ValidationError
 
-from saplings.core.model_adapter import LLMResponse, ModelCapability, ModelMetadata, ModelRole, ModelURI
+from saplings.core.model_adapter import (
+    LLMResponse,
+    ModelCapability,
+    ModelMetadata,
+    ModelRole,
+    ModelURI,
+)
 
 
 class TestModelURI:
@@ -53,7 +59,7 @@ class TestModelURI:
             provider="openai",
             model_name="gpt-4",
             version="latest",
-            parameters={"temperature": 0.7, "top_p": 0.9}
+            parameters={"temperature": 0.7, "top_p": 0.9},
         )
 
         uri_string = str(uri)
@@ -78,7 +84,7 @@ class TestModelMetadata:
             context_window=8192,
             max_tokens_per_request=4096,
             cost_per_1k_tokens_input=0.01,
-            cost_per_1k_tokens_output=0.03
+            cost_per_1k_tokens_output=0.03,
         )
 
         assert metadata.name == "GPT-4"
@@ -102,7 +108,7 @@ class TestModelMetadata:
                 provider="OpenAI",
                 # Missing version
                 context_window=8192,
-                max_tokens_per_request=4096
+                max_tokens_per_request=4096,
             )
 
 
@@ -114,15 +120,8 @@ class TestLLMResponse:
         response = LLMResponse(
             text="This is a generated response.",
             model_uri="openai://gpt-4/latest",
-            usage={
-                "prompt_tokens": 10,
-                "completion_tokens": 20,
-                "total_tokens": 30
-            },
-            metadata={
-                "finish_reason": "stop",
-                "latency_ms": 500
-            }
+            usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            metadata={"finish_reason": "stop", "latency_ms": 500},
         )
 
         assert response.text == "This is a generated response."

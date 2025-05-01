@@ -4,7 +4,7 @@ Tests for the plugin system in the Saplings framework.
 
 import os
 import tempfile
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,11 +18,11 @@ from saplings.core.plugin import (
     PluginType,
     ToolPlugin,
     ValidatorPlugin,
+    discover_plugins,
     get_plugin,
     get_plugin_registry,
     get_plugins_by_type,
     register_plugin,
-    discover_plugins,
 )
 
 
@@ -146,7 +146,9 @@ class TestPluginSystem:
         # Check that all plugins were registered
         registry = get_plugin_registry()
 
-        assert registry.get_plugin(PluginType.MODEL_ADAPTER, "test_model_adapter") is TestModelAdapter
+        assert (
+            registry.get_plugin(PluginType.MODEL_ADAPTER, "test_model_adapter") is TestModelAdapter
+        )
         assert registry.get_plugin(PluginType.MEMORY_STORE, "test_memory_store") is TestMemoryStore
         assert registry.get_plugin(PluginType.VALIDATOR, "test_validator") is TestValidator
         assert registry.get_plugin(PluginType.INDEXER, "test_indexer") is TestIndexer
@@ -159,7 +161,8 @@ class TestPluginSystem:
             # Create a plugin file
             plugin_file = os.path.join(temp_dir, "test_plugin.py")
             with open(plugin_file, "w") as f:
-                f.write("""
+                f.write(
+                    """
 from saplings.core.plugin import ToolPlugin, PluginType
 
 class DiscoveredTool(ToolPlugin):
@@ -172,7 +175,8 @@ class DiscoveredTool(ToolPlugin):
     def execute(self, x: int, y: int) -> int:
         \"\"\"Add two numbers together.\"\"\"
         return x + y
-""")
+"""
+                )
 
             # Mock the plugin discovery process
             with patch("saplings.core.plugin.importlib.import_module") as mock_import:
@@ -285,6 +289,7 @@ class DiscoveredTool(ToolPlugin):
 
     def test_plugin_inheritance(self):
         """Test plugin inheritance."""
+
         # Create a plugin that inherits from TestTool
         class InheritedTool(TestTool):
             @property
@@ -358,7 +363,8 @@ class DiscoveredTool(ToolPlugin):
             # Create plugin files
             plugin_file1 = os.path.join(temp_dir, "test_plugin1.py")
             with open(plugin_file1, "w") as f:
-                f.write("""
+                f.write(
+                    """
 from saplings.core.plugin import ToolPlugin, PluginType
 
 class DiscoveredTool1(ToolPlugin):
@@ -371,11 +377,13 @@ class DiscoveredTool1(ToolPlugin):
     def execute(self, x: int, y: int) -> int:
         \"\"\"Add two numbers together.\"\"\"
         return x + y
-""")
+"""
+                )
 
             plugin_file2 = os.path.join(temp_dir, "test_plugin2.py")
             with open(plugin_file2, "w") as f:
-                f.write("""
+                f.write(
+                    """
 from saplings.core.plugin import ModelAdapterPlugin, PluginType
 
 class DiscoveredAdapter(ModelAdapterPlugin):
@@ -384,7 +392,8 @@ class DiscoveredAdapter(ModelAdapterPlugin):
     version = "0.1.0"
     description = "An adapter discovered through plugin discovery"
     plugin_type = PluginType.MODEL_ADAPTER
-""")
+"""
+                )
 
             # Mock the plugin discovery process
             with patch("saplings.core.plugin.importlib.import_module") as mock_import:
@@ -457,7 +466,9 @@ class DiscoveredAdapter(ModelAdapterPlugin):
                 discovered_tool = discovered_tool_class()
                 assert discovered_tool.name == "discovered_tool1"
 
-                discovered_adapter_class = registry.get_plugin(PluginType.MODEL_ADAPTER, "discovered_adapter")
+                discovered_adapter_class = registry.get_plugin(
+                    PluginType.MODEL_ADAPTER, "discovered_adapter"
+                )
                 assert discovered_adapter_class is not None
 
                 # Instantiate the plugin to check properties

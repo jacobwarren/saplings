@@ -82,9 +82,7 @@ class DocumentNode(Node):
     A document node contains a reference to the document and additional metadata.
     """
 
-    def __init__(
-        self, document: Document, metadata: Optional[Dict[str, Any]] = None
-    ):
+    def __init__(self, document: Document, metadata: Optional[Dict[str, Any]] = None):
         """
         Initialize a document node.
 
@@ -114,9 +112,7 @@ class EntityNode(Node):
     An entity node contains information about an entity extracted from documents.
     """
 
-    def __init__(
-        self, entity: Entity, metadata: Optional[Dict[str, Any]] = None
-    ):
+    def __init__(self, entity: Entity, metadata: Optional[Dict[str, Any]] = None):
         """
         Initialize an entity node.
 
@@ -370,9 +366,7 @@ class DependencyGraph:
         """
         return self.nodes.get(node_id)
 
-    def get_edge(
-        self, source_id: str, target_id: str, relationship_type: str
-    ) -> Optional[Edge]:
+    def get_edge(self, source_id: str, target_id: str, relationship_type: str) -> Optional[Edge]:
         """
         Get an edge by source, target, and relationship type.
 
@@ -472,7 +466,10 @@ class DependencyGraph:
             for node_id in frontier:
                 # Get outgoing edges
                 for _, target_id, data in self.graph.out_edges(node_id, data=True):
-                    if relationship_types is None or data["relationship_type"] in relationship_types:
+                    if (
+                        relationship_types is None
+                        or data["relationship_type"] in relationship_types
+                    ):
                         if target_id not in visited:
                             subgraph.add_node(self.nodes[target_id])
                             new_frontier.add(target_id)
@@ -484,12 +481,19 @@ class DependencyGraph:
                                 target_id=target_id,
                                 relationship_type=data["relationship_type"],
                                 weight=data.get("weight", 1.0),
-                                metadata={k: v for k, v in data.items() if k not in ["relationship_type", "weight"]},
+                                metadata={
+                                    k: v
+                                    for k, v in data.items()
+                                    if k not in ["relationship_type", "weight"]
+                                },
                             )
 
                 # Get incoming edges
                 for source_id, _, data in self.graph.in_edges(node_id, data=True):
-                    if relationship_types is None or data["relationship_type"] in relationship_types:
+                    if (
+                        relationship_types is None
+                        or data["relationship_type"] in relationship_types
+                    ):
                         if source_id not in visited:
                             subgraph.add_node(self.nodes[source_id])
                             new_frontier.add(source_id)
@@ -501,7 +505,11 @@ class DependencyGraph:
                                 target_id=node_id,
                                 relationship_type=data["relationship_type"],
                                 weight=data.get("weight", 1.0),
-                                metadata={k: v for k, v in data.items() if k not in ["relationship_type", "weight"]},
+                                metadata={
+                                    k: v
+                                    for k, v in data.items()
+                                    if k not in ["relationship_type", "weight"]
+                                },
                             )
 
             visited.update(new_frontier)
@@ -658,6 +666,7 @@ class DependencyGraph:
 
         # Save graph structure
         import pickle
+
         with open(directory_path / "graph.gpickle", "wb") as f:
             pickle.dump(self.graph, f)
 
@@ -690,6 +699,7 @@ class DependencyGraph:
 
         # Load graph structure
         import pickle
+
         with open(graph_path, "rb") as f:
             self.graph = pickle.load(f)
 

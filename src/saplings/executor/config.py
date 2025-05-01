@@ -37,12 +37,8 @@ class ExecutorConfig(BaseModel):
     enable_speculative_execution: bool = Field(
         True, description="Whether to enable speculative execution"
     )
-    draft_temperature: float = Field(
-        0.2, description="Temperature for draft generation"
-    )
-    final_temperature: float = Field(
-        0.7, description="Temperature for final generation"
-    )
+    draft_temperature: float = Field(0.2, description="Temperature for draft generation")
+    final_temperature: float = Field(0.7, description="Temperature for final generation")
     max_draft_tokens: Optional[int] = Field(
         None, description="Maximum number of tokens for draft generation"
     )
@@ -51,20 +47,14 @@ class ExecutorConfig(BaseModel):
     )
 
     # Streaming settings
-    enable_streaming: bool = Field(
-        True, description="Whether to enable streaming output"
-    )
+    enable_streaming: bool = Field(True, description="Whether to enable streaming output")
     stream_chunk_size: int = Field(
         10, description="Number of tokens to generate per streaming chunk"
     )
 
     # GASA settings
-    enable_gasa: bool = Field(
-        True, description="Whether to enable GASA"
-    )
-    gasa_config: Optional[Dict[str, Any]] = Field(
-        None, description="GASA configuration"
-    )
+    enable_gasa: bool = Field(True, description="Whether to enable GASA")
+    gasa_config: Optional[Dict[str, Any]] = Field(None, description="GASA configuration")
 
     # Verification settings
     verification_strategy: VerificationStrategy = Field(
@@ -78,22 +68,14 @@ class ExecutorConfig(BaseModel):
     refinement_strategy: RefinementStrategy = Field(
         RefinementStrategy.FEEDBACK, description="Strategy for refining rejected outputs"
     )
-    max_refinement_attempts: int = Field(
-        3, description="Maximum number of refinement attempts"
-    )
+    max_refinement_attempts: int = Field(3, description="Maximum number of refinement attempts")
 
     # Performance settings
-    cache_results: bool = Field(
-        True, description="Whether to cache results"
-    )
-    cache_dir: Optional[str] = Field(
-        None, description="Directory to cache results"
-    )
+    cache_results: bool = Field(True, description="Whether to cache results")
+    cache_dir: Optional[str] = Field(None, description="Directory to cache results")
 
     # Logging settings
-    log_level: str = Field(
-        "INFO", description="Logging level"
-    )
+    log_level: str = Field("INFO", description="Logging level")
 
     @classmethod
     def default(cls) -> "ExecutorConfig":

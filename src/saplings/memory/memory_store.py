@@ -88,7 +88,9 @@ class MemoryStore:
 
         # Add document to vector store
         if document.embedding is None:
-            logger.warning(f"Document {document.id} has no embedding. It will not be added to the vector store.")
+            logger.warning(
+                f"Document {document.id} has no embedding. It will not be added to the vector store."
+            )
         else:
             self.vector_store.add_document(document)
 
@@ -101,9 +103,7 @@ class MemoryStore:
 
         return document
 
-    def add_documents(
-        self, documents: List[Document], index: bool = True
-    ) -> List[Document]:
+    def add_documents(self, documents: List[Document], index: bool = True) -> List[Document]:
         """
         Add multiple documents to the memory store.
 

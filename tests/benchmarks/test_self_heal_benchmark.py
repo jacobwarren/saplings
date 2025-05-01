@@ -12,15 +12,10 @@ from datetime import datetime
 
 import pytest
 
-# Import only what we need
-from saplings.self_heal import (
-    PatchGenerator,
-    LoRaConfig,
-    AdapterManager,
-    SuccessPairCollector,
-)
-from saplings.monitoring import TraceManager, MonitoringConfig
+from saplings.monitoring import MonitoringConfig, TraceManager
 
+# Import only what we need
+from saplings.self_heal import AdapterManager, LoRaConfig, PatchGenerator, SuccessPairCollector
 from tests.benchmarks.base_benchmark import BaseBenchmark, MockBenchmarkLLM
 from tests.benchmarks.test_datasets import TestDatasets
 
@@ -79,14 +74,16 @@ class TestSelfHealBenchmark(BaseBenchmark):
             )
 
             # Add to results
-            results["samples"].append({
-                "sample_id": i,
-                "code": sample["code"],
-                "error": f"{sample['error_type']}: {sample['error_message']}",
-                "patch": patch.patched_code if patch else None,
-                "success": result.success if result else False,
-                "latency_ms": latency,
-            })
+            results["samples"].append(
+                {
+                    "sample_id": i,
+                    "code": sample["code"],
+                    "error": f"{sample['error_type']}: {sample['error_message']}",
+                    "patch": patch.patched_code if patch else None,
+                    "success": result.success if result else False,
+                    "latency_ms": latency,
+                }
+            )
 
             print(f"  Latency: {latency:.2f}ms")
             print(f"  Patch generated: {result is not None}")
@@ -140,11 +137,13 @@ class TestSelfHealBenchmark(BaseBenchmark):
             )
 
             # Add to results
-            results["pairs"].append({
-                "sample_id": i,
-                "latency_ms": latency,
-                "success": result,
-            })
+            results["pairs"].append(
+                {
+                    "sample_id": i,
+                    "latency_ms": latency,
+                    "success": result,
+                }
+            )
 
             print(f"  Latency: {latency:.2f}ms")
             print(f"  Success: {result}")
@@ -197,11 +196,13 @@ class TestSelfHealBenchmark(BaseBenchmark):
 
         adapter_id = metadata.adapter_id
 
-        results["operations"].append({
-            "operation": "create_adapter",
-            "adapter_id": adapter_id,
-            "latency_ms": creation_latency,
-        })
+        results["operations"].append(
+            {
+                "operation": "create_adapter",
+                "adapter_id": adapter_id,
+                "latency_ms": creation_latency,
+            }
+        )
 
         print(f"  Creation latency: {creation_latency:.2f}ms")
         print(f"  Adapter ID: {adapter_id}")
@@ -222,11 +223,13 @@ class TestSelfHealBenchmark(BaseBenchmark):
 
         load_latency /= self.NUM_RUNS
 
-        results["operations"].append({
-            "operation": "load_adapter",
-            "adapter_id": adapter_id,
-            "latency_ms": load_latency,
-        })
+        results["operations"].append(
+            {
+                "operation": "load_adapter",
+                "adapter_id": adapter_id,
+                "latency_ms": load_latency,
+            }
+        )
 
         print(f"  Load latency: {load_latency:.2f}ms")
 
@@ -247,11 +250,13 @@ class TestSelfHealBenchmark(BaseBenchmark):
 
         unload_latency /= self.NUM_RUNS
 
-        results["operations"].append({
-            "operation": "unload_adapter",
-            "adapter_id": adapter_id,
-            "latency_ms": unload_latency,
-        })
+        results["operations"].append(
+            {
+                "operation": "unload_adapter",
+                "adapter_id": adapter_id,
+                "latency_ms": unload_latency,
+            }
+        )
 
         print(f"  Unload latency: {unload_latency:.2f}ms")
 
@@ -295,11 +300,13 @@ class TestSelfHealBenchmark(BaseBenchmark):
 
         switch_latency /= self.NUM_RUNS
 
-        results["operations"].append({
-            "operation": "switch_adapter",
-            "adapter_id": "other-adapter",
-            "latency_ms": switch_latency,
-        })
+        results["operations"].append(
+            {
+                "operation": "switch_adapter",
+                "adapter_id": "other-adapter",
+                "latency_ms": switch_latency,
+            }
+        )
 
         print(f"  Switch latency: {switch_latency:.2f}ms")
 
@@ -322,15 +329,17 @@ class TestSelfHealBenchmark(BaseBenchmark):
         success_pairs = []
         for sample in code_samples:
             if sample["has_error"]:
-                success_pairs.append({
-                    "original_code": sample["code"],
-                    "patched_code": sample["code"].replace("error", "fixed"),  # Simulate a fix
-                    "error": f"{sample['error_type']}: {sample['error_message']}",
-                    "error_info": {
-                        "type": sample["error_type"],
-                        "message": sample["error_message"],
-                    },
-                })
+                success_pairs.append(
+                    {
+                        "original_code": sample["code"],
+                        "patched_code": sample["code"].replace("error", "fixed"),  # Simulate a fix
+                        "error": f"{sample['error_type']}: {sample['error_message']}",
+                        "error_info": {
+                            "type": sample["error_type"],
+                            "message": sample["error_message"],
+                        },
+                    }
+                )
 
         # Create LoRA config
         lora_config = LoRaConfig(
@@ -357,6 +366,7 @@ class TestSelfHealBenchmark(BaseBenchmark):
             async def load_data(self, data_path: str):
                 # Simulate loading data
                 import asyncio
+
                 await asyncio.sleep(0.1)
                 print(f"Loading data from {data_path}")
                 return {"mock": "dataset"}
@@ -364,6 +374,7 @@ class TestSelfHealBenchmark(BaseBenchmark):
             async def preprocess_data(self, dataset: dict):
                 # Simulate preprocessing data
                 import asyncio
+
                 await asyncio.sleep(0.1)
                 print(f"Preprocessing dataset with {len(dataset)} items")
                 return {"mock": "preprocessed_dataset"}
@@ -395,10 +406,12 @@ class TestSelfHealBenchmark(BaseBenchmark):
             data_path=data_path,
         )
 
-        results["operations"].append({
-            "operation": "prepare_dataset",
-            "latency_ms": dataset_latency,
-        })
+        results["operations"].append(
+            {
+                "operation": "prepare_dataset",
+                "latency_ms": dataset_latency,
+            }
+        )
 
         print(f"  Dataset preparation latency: {dataset_latency:.2f}ms")
 
@@ -414,10 +427,12 @@ class TestSelfHealBenchmark(BaseBenchmark):
             dataset=dataset,
         )
 
-        results["operations"].append({
-            "operation": "prepare_model",
-            "latency_ms": model_latency,
-        })
+        results["operations"].append(
+            {
+                "operation": "prepare_model",
+                "latency_ms": model_latency,
+            }
+        )
 
         print(f"  Model preparation latency: {model_latency:.2f}ms")
 
@@ -425,10 +440,12 @@ class TestSelfHealBenchmark(BaseBenchmark):
         print("\nSimulating training...")
         training_latency = 5000.0  # Simulated 5 seconds
 
-        results["operations"].append({
-            "operation": "train",
-            "latency_ms": training_latency,
-        })
+        results["operations"].append(
+            {
+                "operation": "train",
+                "latency_ms": training_latency,
+            }
+        )
 
         print(f"  Training latency (simulated): {training_latency:.2f}ms")
 
@@ -439,6 +456,7 @@ class TestSelfHealBenchmark(BaseBenchmark):
         async def mock_load_model():
             # Simulate model loading time
             import asyncio
+
             await asyncio.sleep(0.1)
             return "mock_model"
 
@@ -446,10 +464,12 @@ class TestSelfHealBenchmark(BaseBenchmark):
             mock_load_model,
         )
 
-        results["operations"].append({
-            "operation": "save_model",
-            "latency_ms": save_latency,
-        })
+        results["operations"].append(
+            {
+                "operation": "save_model",
+                "latency_ms": save_latency,
+            }
+        )
 
         print(f"  Model saving latency: {save_latency:.2f}ms")
 

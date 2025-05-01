@@ -2,8 +2,9 @@
 Tests for cost heuristics in the planner module.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from saplings.core.model_adapter import LLM, LLMResponse, ModelMetadata, ModelRole
 from saplings.planner.config import CostHeuristicConfig, PlannerConfig
@@ -25,7 +26,7 @@ class TestCostHeuristics:
             version="latest",
             roles=[ModelRole.PLANNER],
             context_window=4096,
-            max_tokens_per_request=2048
+            max_tokens_per_request=2048,
         )
 
         # Create a planner with specific cost heuristics
@@ -85,29 +86,29 @@ class TestCostHeuristics:
             if step.step_type == StepType.RETRIEVAL:
                 # Base cost + token cost + retrieval cost
                 step.estimated_cost = (
-                    self.cost_heuristics.base_cost_per_step +
-                    (step.estimated_tokens * 0.001 * self.cost_heuristics.token_cost_multiplier) +
-                    (10 * self.cost_heuristics.retrieval_cost_per_doc)  # Assuming 10 docs
+                    self.cost_heuristics.base_cost_per_step
+                    + (step.estimated_tokens * 0.001 * self.cost_heuristics.token_cost_multiplier)
+                    + (10 * self.cost_heuristics.retrieval_cost_per_doc)  # Assuming 10 docs
                 )
             elif step.step_type == StepType.ANALYSIS:
                 # Base cost + token cost * complexity
-                step.estimated_cost = (
-                    self.cost_heuristics.base_cost_per_step +
-                    (step.estimated_tokens * 0.001 * self.cost_heuristics.token_cost_multiplier *
-                     self.cost_heuristics.complexity_factor)
+                step.estimated_cost = self.cost_heuristics.base_cost_per_step + (
+                    step.estimated_tokens
+                    * 0.001
+                    * self.cost_heuristics.token_cost_multiplier
+                    * self.cost_heuristics.complexity_factor
                 )
             elif step.step_type == StepType.GENERATION:
                 # Base cost + token cost
-                step.estimated_cost = (
-                    self.cost_heuristics.base_cost_per_step +
-                    (step.estimated_tokens * 0.001 * self.cost_heuristics.token_cost_multiplier)
+                step.estimated_cost = self.cost_heuristics.base_cost_per_step + (
+                    step.estimated_tokens * 0.001 * self.cost_heuristics.token_cost_multiplier
                 )
             elif step.step_type == StepType.TOOL_USE:
                 # Base cost + token cost + tool use cost
                 step.estimated_cost = (
-                    self.cost_heuristics.base_cost_per_step +
-                    (step.estimated_tokens * 0.001 * self.cost_heuristics.token_cost_multiplier) +
-                    self.cost_heuristics.tool_use_cost
+                    self.cost_heuristics.base_cost_per_step
+                    + (step.estimated_tokens * 0.001 * self.cost_heuristics.token_cost_multiplier)
+                    + self.cost_heuristics.tool_use_cost
                 )
 
         # Test total cost estimation
@@ -126,7 +127,9 @@ class TestCostHeuristics:
 
         # Tool use should include the tool use cost
         assert tool_use_cost > retrieval_cost
-        assert tool_use_cost - retrieval_cost >= self.cost_heuristics.tool_use_cost - 0.01  # Allow for rounding
+        assert (
+            tool_use_cost - retrieval_cost >= self.cost_heuristics.tool_use_cost - 0.01
+        )  # Allow for rounding
 
     def test_max_cost_per_step(self):
         """Test that max_cost_per_step is enforced."""
@@ -202,9 +205,8 @@ class TestCostHeuristics:
         }
 
         for step in steps:
-            base_cost = (
-                self.cost_heuristics.base_cost_per_step +
-                (step.estimated_tokens * 0.001 * self.cost_heuristics.token_cost_multiplier)
+            base_cost = self.cost_heuristics.base_cost_per_step + (
+                step.estimated_tokens * 0.001 * self.cost_heuristics.token_cost_multiplier
             )
             step.estimated_cost = base_cost * priority_multipliers[step.priority]
 

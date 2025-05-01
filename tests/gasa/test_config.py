@@ -9,11 +9,11 @@ from saplings.gasa.config import FallbackStrategy, GASAConfig, MaskStrategy
 
 class TestGASAConfig:
     """Tests for the GASAConfig class."""
-    
+
     def test_init_default(self):
         """Test initialization with default values."""
         config = GASAConfig()
-        
+
         assert config.enabled is True
         assert config.max_hops == 2
         assert config.mask_strategy == MaskStrategy.BINARY
@@ -28,7 +28,7 @@ class TestGASAConfig:
         assert config.cache_dir is None
         assert config.visualize is False
         assert config.visualization_dir is None
-    
+
     def test_init_custom(self):
         """Test initialization with custom values."""
         config = GASAConfig(
@@ -47,7 +47,7 @@ class TestGASAConfig:
             visualize=True,
             visualization_dir="/tmp/vis",
         )
-        
+
         assert config.enabled is False
         assert config.max_hops == 3
         assert config.mask_strategy == MaskStrategy.SOFT
@@ -62,16 +62,16 @@ class TestGASAConfig:
         assert config.cache_dir == "/tmp/cache"
         assert config.visualize is True
         assert config.visualization_dir == "/tmp/vis"
-    
+
     def test_from_cli_args_empty(self):
         """Test from_cli_args method with empty arguments."""
         config = GASAConfig.from_cli_args({})
-        
+
         assert config.enabled is True
         assert config.max_hops == 2
         assert config.mask_strategy == MaskStrategy.BINARY
         assert config.fallback_strategy == FallbackStrategy.BLOCK_DIAGONAL
-    
+
     def test_from_cli_args_custom(self):
         """Test from_cli_args method with custom arguments."""
         args = {
@@ -86,9 +86,9 @@ class TestGASAConfig:
             "gasa_visualize": True,
             "gasa_visualization_dir": "/tmp/vis",
         }
-        
+
         config = GASAConfig.from_cli_args(args)
-        
+
         assert config.enabled is False
         assert config.max_hops == 3
         assert config.mask_strategy == MaskStrategy.SOFT

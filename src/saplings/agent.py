@@ -23,45 +23,27 @@ from typing import Any, Dict, List, Optional
 from saplings.core.model_adapter import LLM
 from saplings.executor import Executor, ExecutorConfig
 from saplings.gasa import GASAConfig
-
-from saplings.memory import (
-    DependencyGraph,
-    Document,
-    DocumentMetadata,
-    MemoryStore
-)
+from saplings.memory import DependencyGraph, Document, DocumentMetadata, MemoryStore
 from saplings.memory.config import MemoryConfig
-from saplings.memory.vector_store import get_vector_store
 from saplings.memory.indexer import get_indexer
-from saplings.monitoring import (
-    MonitoringConfig,
-    TraceManager,
-    BlameGraph,
-    TraceViewer
-)
-from saplings.planner import (
-    SequentialPlanner,
-    PlannerConfig,
-    PlanStep
-)
+from saplings.memory.vector_store import get_vector_store
+from saplings.monitoring import BlameGraph, MonitoringConfig, TraceManager, TraceViewer
+from saplings.planner import PlannerConfig, PlanStep, SequentialPlanner
 from saplings.retrieval import (
     CascadeRetriever,
+    EmbeddingRetriever,
+    EntropyCalculator,
+    GraphExpander,
     RetrievalConfig,
     TFIDFRetriever,
-    EmbeddingRetriever,
-    GraphExpander,
-    EntropyCalculator
 )
-from saplings.self_heal import (
-    PatchGenerator,
-    SuccessPairCollector,
-    AdapterManager
-)
+from saplings.self_heal import AdapterManager, PatchGenerator, SuccessPairCollector
 from saplings.tool_factory import ToolFactory, ToolFactoryConfig
 from saplings.validator.registry import get_validator_registry
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
 
 class AgentConfig:
     """
@@ -91,7 +73,7 @@ class AgentConfig:
         executor_verification_strategy: str = "judge",
         tool_factory_sandbox_enabled: bool = True,
         allowed_imports: List[str] = None,
-        **model_parameters
+        **model_parameters,
     ):
         """
         Initialize the agent configuration.
@@ -126,7 +108,9 @@ class AgentConfig:
                 params_str = "?" + "&".join(params_list)
             model_uri = f"{provider}://{model_name}{params_str}"
         elif model_uri is None:
-            raise ValueError("Either 'model_uri' or both 'provider' and 'model_name' must be provided")
+            raise ValueError(
+                "Either 'model_uri' or both 'provider' and 'model_name' must be provided"
+            )
 
         self.model_uri = model_uri
         self.provider = provider
@@ -146,7 +130,14 @@ class AgentConfig:
         self.planner_budget_strategy = planner_budget_strategy
         self.executor_verification_strategy = executor_verification_strategy
         self.tool_factory_sandbox_enabled = tool_factory_sandbox_enabled
-        self.allowed_imports = allowed_imports or ["os", "datetime", "json", "math", "numpy", "pandas"]
+        self.allowed_imports = allowed_imports or [
+            "os",
+            "datetime",
+            "json",
+            "math",
+            "numpy",
+            "pandas",
+        ]
 
         # Create output directory
         os.makedirs(output_dir, exist_ok=True)
@@ -261,7 +252,7 @@ class Agent:
             self.model = LLM.create(
                 provider=self.config.provider,
                 model=self.config.model_name,
-                **self.config.model_parameters
+                **self.config.model_parameters,
             )
             logger.info(f"Model initialized: {self.config.provider}/{self.config.model_name}")
         else:
@@ -432,7 +423,9 @@ class Agent:
 
         logger.info("Orchestration components initialized")
 
-    async def add_document(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> Document:
+    async def add_document(
+        self, content: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> Document:
         """
         Add a document to the agent's memory.
 
@@ -500,7 +493,9 @@ class Agent:
 
             raise
 
-    async def add_documents_from_directory(self, directory: str, extension: str = ".txt") -> List[Document]:
+    async def add_documents_from_directory(
+        self, directory: str, extension: str = ".txt"
+    ) -> List[Document]:
         """
         Add documents from a directory.
 
@@ -558,7 +553,9 @@ class Agent:
                     metadata = {
                         "source": file_path,
                         "document_id": filename,
-                        "created_at": datetime.fromtimestamp(os.path.getctime(file_path)).isoformat(),
+                        "created_at": datetime.fromtimestamp(
+                            os.path.getctime(file_path)
+                        ).isoformat(),
                         "file_size": os.path.getsize(file_path),
                     }
 
@@ -701,7 +698,9 @@ class Agent:
 
             raise
 
-    async def execute(self, prompt: str, context: Optional[List[Document]] = None) -> Dict[str, Any]:
+    async def execute(
+        self, prompt: str, context: Optional[List[Document]] = None
+    ) -> Dict[str, Any]:
         """
         Execute a prompt with the agent.
 
@@ -774,7 +773,10 @@ class Agent:
                 )
 
             validation_result = await self.validator.validate(
-                input_data={"prompt": prompt, "context": [doc.content for doc in context] if context else []},
+                input_data={
+                    "prompt": prompt,
+                    "context": [doc.content for doc in context] if context else [],
+                },
                 output_data=result.text,
                 validation_type="execution",
             )
@@ -787,7 +789,11 @@ class Agent:
                 self.trace_manager.end_span(validation_span.span_id)
 
             # Collect success pair if valid
-            if self.config.enable_self_healing and validation_result.is_valid and self.success_pair_collector:
+            if (
+                self.config.enable_self_healing
+                and validation_result.is_valid
+                and self.success_pair_collector
+            ):
                 await self.success_pair_collector.collect(
                     input_text=prompt,
                     output_text=result.text,
@@ -828,7 +834,9 @@ class Agent:
 
             raise
 
-    async def execute_plan(self, plan: List[PlanStep], context: Optional[List[Document]] = None) -> Dict[str, Any]:
+    async def execute_plan(
+        self, plan: List[PlanStep], context: Optional[List[Document]] = None
+    ) -> Dict[str, Any]:
         """
         Execute a plan.
 
@@ -884,10 +892,12 @@ class Agent:
                 step.result = step_result.text
 
                 # Add to results
-                results.append({
-                    "step": step,
-                    "result": step_result.text,
-                })
+                results.append(
+                    {
+                        "step": step,
+                        "result": step_result.text,
+                    }
+                )
 
                 # End step span
                 if self.trace_manager and step_span:
@@ -982,7 +992,9 @@ class Agent:
 
             raise
 
-    async def judge_output(self, input_data: Dict[str, Any], output_data: Any, judgment_type: str = "general") -> Dict[str, Any]:
+    async def judge_output(
+        self, input_data: Dict[str, Any], output_data: Any, judgment_type: str = "general"
+    ) -> Dict[str, Any]:
         """
         Judge an output using the JudgeAgent.
 
@@ -1165,6 +1177,7 @@ class Agent:
             # Parse JSON response
             try:
                 import json
+
                 improvements = json.loads(result.text)
             except json.JSONDecodeError:
                 logger.warning("Failed to parse JSON response, returning raw text")
@@ -1350,7 +1363,11 @@ class Agent:
                 self.trace_manager.end_span(judge_span.span_id)
 
             # Step 5: Collect success pair if valid
-            if self.config.enable_self_healing and judgment.score >= 0.7 and self.success_pair_collector:
+            if (
+                self.config.enable_self_healing
+                and judgment.score >= 0.7
+                and self.success_pair_collector
+            ):
                 await self.success_pair_collector.collect(
                     input_text=task,
                     output_text=final_result,
@@ -1377,17 +1394,23 @@ class Agent:
 
             with open(output_path, "w") as f:
                 import json
-                json.dump({
-                    "task": task,
-                    "plan": [step.__dict__ for step in plan],
-                    "results": execution_results["results"],
-                    "judgment": {
-                        "score": judgment.score,
-                        "feedback": judgment.feedback,
-                        "strengths": judgment.strengths,
-                        "weaknesses": judgment.weaknesses,
+
+                json.dump(
+                    {
+                        "task": task,
+                        "plan": [step.__dict__ for step in plan],
+                        "results": execution_results["results"],
+                        "judgment": {
+                            "score": judgment.score,
+                            "feedback": judgment.feedback,
+                            "strengths": judgment.strengths,
+                            "weaknesses": judgment.weaknesses,
+                        },
                     },
-                }, f, indent=2, default=str)
+                    f,
+                    indent=2,
+                    default=str,
+                )
 
             logger.info(f"Task execution completed and saved to {output_path}")
 

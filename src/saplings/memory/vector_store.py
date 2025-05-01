@@ -313,9 +313,7 @@ class InMemoryVectorStore(VectorStore):
         """
         if filter_dict:
             docs = [
-                doc
-                for doc in self.documents.values()
-                if self._matches_filter(doc, filter_dict)
+                doc for doc in self.documents.values() if self._matches_filter(doc, filter_dict)
             ]
         else:
             docs = list(self.documents.values())
@@ -334,11 +332,7 @@ class InMemoryVectorStore(VectorStore):
         """
         if filter_dict:
             return len(
-                [
-                    doc
-                    for doc in self.documents.values()
-                    if self._matches_filter(doc, filter_dict)
-                ]
+                [doc for doc in self.documents.values() if self._matches_filter(doc, filter_dict)]
             )
         return len(self.documents)
 
@@ -358,9 +352,7 @@ class InMemoryVectorStore(VectorStore):
         directory_path.mkdir(parents=True, exist_ok=True)
 
         # Save documents
-        documents_data = {
-            doc_id: doc.to_dict() for doc_id, doc in self.documents.items()
-        }
+        documents_data = {doc_id: doc.to_dict() for doc_id, doc in self.documents.items()}
 
         # Custom JSON encoder to handle datetime objects
         class DateTimeEncoder(json.JSONEncoder):
@@ -374,8 +366,7 @@ class InMemoryVectorStore(VectorStore):
 
         # Save embeddings
         embeddings_data = {
-            doc_id: embedding.tolist()
-            for doc_id, embedding in self.embeddings.items()
+            doc_id: embedding.tolist() for doc_id, embedding in self.embeddings.items()
         }
         with open(directory_path / "embeddings.json", "w") as f:
             json.dump(embeddings_data, f)
@@ -420,9 +411,7 @@ class InMemoryVectorStore(VectorStore):
                     for doc_id, embedding in embeddings_data.items()
                 }
 
-    def _calculate_similarity(
-        self, embedding1: np.ndarray, embedding2: np.ndarray
-    ) -> float:
+    def _calculate_similarity(self, embedding1: np.ndarray, embedding2: np.ndarray) -> float:
         """
         Calculate similarity between two embeddings.
 
@@ -544,12 +533,17 @@ def get_vector_store(
 
         # Look for a plugin with a matching name
         for plugin_name, plugin_class in memory_store_plugins.items():
-            if plugin_name.lower() == store_type.lower() or plugin_name.lower().replace("_", "") == store_type.lower().replace("_", ""):
+            if plugin_name.lower() == store_type.lower() or plugin_name.lower().replace(
+                "_", ""
+            ) == store_type.lower().replace("_", ""):
                 # Create an instance of the plugin
                 return plugin_class(config)
 
         # If we're looking for a secure store, try to find a secure memory store plugin
-        if store_type == VectorStoreType.CUSTOM and config.secure_store.privacy_level != PrivacyLevel.NONE:
+        if (
+            store_type == VectorStoreType.CUSTOM
+            and config.secure_store.privacy_level != PrivacyLevel.NONE
+        ):
             for plugin_name, plugin_class in memory_store_plugins.items():
                 if "secure" in plugin_name.lower():
                     # Create an instance of the secure plugin

@@ -12,17 +12,16 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pytest
 
-from saplings.memory import Document, MemoryStore, VectorStore, InMemoryVectorStore
+from saplings.memory import Document, InMemoryVectorStore, MemoryStore, VectorStore
 from saplings.memory.config import MemoryConfig
 from saplings.retrieval import (
-    EmbeddingRetriever,
-    TFIDFRetriever,
     CascadeRetriever,
-    GraphExpander,
+    EmbeddingRetriever,
     EntropyCalculator,
+    GraphExpander,
+    TFIDFRetriever,
 )
 from saplings.retrieval.config import RetrievalConfig
-
 from tests.benchmarks.base_benchmark import BaseBenchmark
 from tests.benchmarks.test_datasets import TestDatasets
 
@@ -154,13 +153,15 @@ class TestRetrievalBenchmark(BaseBenchmark):
             latency_stats = self.calculate_statistics(latencies)
 
             # Add to results
-            results["retrievers"].append({
-                "name": retriever_name,
-                "precision_at_k": precision_stats,
-                "recall_at_k": recall_stats,
-                "latency_ms": latency_stats,
-                "raw_latencies_ms": latencies,
-            })
+            results["retrievers"].append(
+                {
+                    "name": retriever_name,
+                    "precision_at_k": precision_stats,
+                    "recall_at_k": recall_stats,
+                    "latency_ms": latency_stats,
+                    "raw_latencies_ms": latencies,
+                }
+            )
 
             print(f"  Precision@k: {precision_stats['mean']:.4f}")
             print(f"  Recall@k: {recall_stats['mean']:.4f}")
@@ -232,13 +233,15 @@ class TestRetrievalBenchmark(BaseBenchmark):
             expansion_stats = self.calculate_statistics(expansion_ratios)
 
             # Add to results
-            results["configurations"].append({
-                "name": f"GraphExpander (h={max_hops})",
-                "max_hops": max_hops,
-                "latency_ms": latency_stats,
-                "expansion_ratio": expansion_stats,
-                "raw_latencies_ms": latencies,
-            })
+            results["configurations"].append(
+                {
+                    "name": f"GraphExpander (h={max_hops})",
+                    "max_hops": max_hops,
+                    "latency_ms": latency_stats,
+                    "expansion_ratio": expansion_stats,
+                    "raw_latencies_ms": latencies,
+                }
+            )
 
             print(f"  Latency: {latency_stats['mean']:.2f}ms")
             print(f"  Expansion ratio: {expansion_stats['mean']:.2f}x")
@@ -290,12 +293,14 @@ class TestRetrievalBenchmark(BaseBenchmark):
             )
 
             # Add to results
-            results["queries"].append({
-                "query": query["query"],
-                "entropy": result,
-                "latency_ms": latency,
-                "num_documents": len(docs),
-            })
+            results["queries"].append(
+                {
+                    "query": query["query"],
+                    "entropy": result,
+                    "latency_ms": latency,
+                    "num_documents": len(docs),
+                }
+            )
 
             print(f"  Entropy: {result:.4f}")
             print(f"  Latency: {latency:.2f}ms")
@@ -333,7 +338,9 @@ class TestRetrievalBenchmark(BaseBenchmark):
             # that bypasses the indexing process
             memory_store.documents = {doc.id: doc for doc in documents}
             vector_store.documents = {doc.id: doc for doc in documents if doc.embedding is not None}
-            vector_store.embeddings = {doc.id: doc.embedding for doc in documents if doc.embedding is not None}
+            vector_store.embeddings = {
+                doc.id: doc.embedding for doc in documents if doc.embedding is not None
+            }
 
             # Create retrievers
             tfidf_retriever = TFIDFRetriever(
@@ -394,19 +401,23 @@ class TestRetrievalBenchmark(BaseBenchmark):
                 latency_stats = self.calculate_statistics(latencies)
 
                 # Add to results
-                retriever_results.append({
-                    "name": retriever_name,
-                    "latency_ms": latency_stats,
-                    "raw_latencies_ms": latencies,
-                })
+                retriever_results.append(
+                    {
+                        "name": retriever_name,
+                        "latency_ms": latency_stats,
+                        "raw_latencies_ms": latencies,
+                    }
+                )
 
                 print(f"  {retriever_name} latency: {latency_stats['mean']:.2f}ms")
 
             # Add to results
-            results["corpus_sizes"].append({
-                "num_documents": num_documents,
-                "retrievers": retriever_results,
-            })
+            results["corpus_sizes"].append(
+                {
+                    "num_documents": num_documents,
+                    "retrievers": retriever_results,
+                }
+            )
 
         # Save results
         self.save_results(results, "retrieval_latency")

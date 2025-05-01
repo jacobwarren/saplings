@@ -4,8 +4,9 @@ Integration tests for model adapters.
 This module provides integration tests for the model adapters in Saplings.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from saplings.core.model_adapter import LLM, ModelURI
 from saplings.core.plugin import PluginType
@@ -24,9 +25,16 @@ class TestAdapterIntegration:
         with patch("saplings.core.plugin.get_plugin_registry", return_value=mock_registry):
             # Mock the adapter classes
             with patch("saplings.adapters.vllm_adapter.VLLMAdapter", autospec=True) as mock_vllm:
-                with patch("saplings.adapters.openai_adapter.OpenAIAdapter", autospec=True) as mock_openai:
-                    with patch("saplings.adapters.anthropic_adapter.AnthropicAdapter", autospec=True) as mock_anthropic:
-                        with patch("saplings.adapters.huggingface_adapter.HuggingFaceAdapter", autospec=True) as mock_huggingface:
+                with patch(
+                    "saplings.adapters.openai_adapter.OpenAIAdapter", autospec=True
+                ) as mock_openai:
+                    with patch(
+                        "saplings.adapters.anthropic_adapter.AnthropicAdapter", autospec=True
+                    ) as mock_anthropic:
+                        with patch(
+                            "saplings.adapters.huggingface_adapter.HuggingFaceAdapter",
+                            autospec=True,
+                        ) as mock_huggingface:
                             # Create models from URIs
                             model1 = LLM.from_uri("vllm://model1")
                             model2 = LLM.from_uri("openai://model2")
@@ -73,10 +81,22 @@ class TestAdapterIntegration:
 
         with patch("saplings.core.plugin.get_plugin_registry", return_value=mock_registry):
             # Mock the import errors
-            with patch("saplings.adapters.vllm_adapter.VLLMAdapter", side_effect=ImportError("vLLM not installed")):
-                with patch("saplings.adapters.openai_adapter.OpenAIAdapter", side_effect=ImportError("OpenAI not installed")):
-                    with patch("saplings.adapters.anthropic_adapter.AnthropicAdapter", side_effect=ImportError("Anthropic not installed")):
-                        with patch("saplings.adapters.huggingface_adapter.HuggingFaceAdapter", side_effect=ImportError("HuggingFace not installed")):
+            with patch(
+                "saplings.adapters.vllm_adapter.VLLMAdapter",
+                side_effect=ImportError("vLLM not installed"),
+            ):
+                with patch(
+                    "saplings.adapters.openai_adapter.OpenAIAdapter",
+                    side_effect=ImportError("OpenAI not installed"),
+                ):
+                    with patch(
+                        "saplings.adapters.anthropic_adapter.AnthropicAdapter",
+                        side_effect=ImportError("Anthropic not installed"),
+                    ):
+                        with patch(
+                            "saplings.adapters.huggingface_adapter.HuggingFaceAdapter",
+                            side_effect=ImportError("HuggingFace not installed"),
+                        ):
                             # Check that the correct error is raised
                             with pytest.raises(ImportError, match="vLLM not installed"):
                                 LLM.from_uri("vllm://model")

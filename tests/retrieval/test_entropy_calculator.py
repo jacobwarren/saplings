@@ -50,9 +50,7 @@ class TestEntropyCalculator:
 
     def test_init_with_retrieval_config(self):
         """Test initialization with RetrievalConfig."""
-        retrieval_config = RetrievalConfig(
-            entropy=EntropyConfig(threshold=0.05)
-        )
+        retrieval_config = RetrievalConfig(entropy=EntropyConfig(threshold=0.05))
         calculator = EntropyCalculator(retrieval_config)
 
         assert calculator.config.threshold == 0.05

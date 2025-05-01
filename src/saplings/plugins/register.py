@@ -14,10 +14,11 @@ Example:
 """
 
 from saplings.core.plugin import register_plugin
+from saplings.plugins.indexers.code_indexer import CodeIndexer
 from saplings.plugins.memory_stores.secure_memory_store import SecureMemoryStore
 from saplings.plugins.validators.code_validator import CodeValidator
 from saplings.plugins.validators.factual_validator import FactualValidator
-from saplings.plugins.indexers.code_indexer import CodeIndexer
+
 
 def register_all_plugins():
     """Register all plugins."""
@@ -32,6 +33,7 @@ def register_all_plugins():
     register_plugin(CodeIndexer)
 
     print("All plugins registered successfully!")
+
 
 if __name__ == "__main__":
     register_all_plugins()

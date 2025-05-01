@@ -19,15 +19,18 @@ from saplings.gasa.mask_builder import MaskFormat, MaskType
 logger = logging.getLogger(__name__)
 
 try:
-    import matplotlib.pyplot as plt
     import matplotlib.colors as mcolors
+    import matplotlib.pyplot as plt
+
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
+
     # Create dummy plt for type hints
     class DummyModule:
         def __getattr__(self, name):
             return None
+
     plt = DummyModule()
 
 
@@ -243,7 +246,9 @@ class MaskVisualizer:
 
     def visualize_mask_comparison(
         self,
-        masks: List[Tuple[Union[np.ndarray, sp.spmatrix, List[Dict[str, Any]]], MaskFormat, MaskType, str]],
+        masks: List[
+            Tuple[Union[np.ndarray, sp.spmatrix, List[Dict[str, Any]]], MaskFormat, MaskType, str]
+        ],
         output_path: Optional[str] = None,
         title: Optional[str] = None,
         show: bool = False,
@@ -351,7 +356,7 @@ class MaskVisualizer:
                 size_col = block["size_col"]
                 block_data = block["block"]
 
-                dense_mask[row:row + size_row, col:col + size_col] = block_data
+                dense_mask[row : row + size_row, col : col + size_col] = block_data
 
             return dense_mask
 

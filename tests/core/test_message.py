@@ -6,6 +6,7 @@ This module provides tests for the message classes in Saplings.
 
 import base64
 import json
+
 import pytest
 
 from saplings.core.message import (
@@ -36,10 +37,7 @@ class TestMessageContent:
 
     def test_image_content_with_url(self):
         """Test creating image content with a URL."""
-        content = MessageContent(
-            type=ContentType.IMAGE,
-            image_url="https://example.com/image.jpg"
-        )
+        content = MessageContent(type=ContentType.IMAGE, image_url="https://example.com/image.jpg")
 
         # Check properties
         assert content.type == ContentType.IMAGE
@@ -53,12 +51,11 @@ class TestMessageContent:
     def test_image_content_with_data(self):
         """Test creating image content with data."""
         # Create a tiny 1x1 transparent PNG
-        image_data = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")
-
-        content = MessageContent(
-            type=ContentType.IMAGE,
-            image_data=image_data
+        image_data = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
         )
+
+        content = MessageContent(type=ContentType.IMAGE, image_data=image_data)
 
         # Check properties
         assert content.type == ContentType.IMAGE
@@ -71,10 +68,7 @@ class TestMessageContent:
 
     def test_audio_content_with_url(self):
         """Test creating audio content with a URL."""
-        content = MessageContent(
-            type=ContentType.AUDIO,
-            audio_url="https://example.com/audio.mp3"
-        )
+        content = MessageContent(type=ContentType.AUDIO, audio_url="https://example.com/audio.mp3")
 
         # Check properties
         assert content.type == ContentType.AUDIO
@@ -90,10 +84,7 @@ class TestMessageContent:
         # Create some dummy audio data
         audio_data = b"dummy audio data"
 
-        content = MessageContent(
-            type=ContentType.AUDIO,
-            audio_data=audio_data
-        )
+        content = MessageContent(type=ContentType.AUDIO, audio_data=audio_data)
 
         # Check properties
         assert content.type == ContentType.AUDIO
@@ -106,10 +97,7 @@ class TestMessageContent:
 
     def test_video_content_with_url(self):
         """Test creating video content with a URL."""
-        content = MessageContent(
-            type=ContentType.VIDEO,
-            video_url="https://example.com/video.mp4"
-        )
+        content = MessageContent(type=ContentType.VIDEO, video_url="https://example.com/video.mp4")
 
         # Check properties
         assert content.type == ContentType.VIDEO
@@ -125,10 +113,7 @@ class TestMessageContent:
         # Create some dummy video data
         video_data = b"dummy video data"
 
-        content = MessageContent(
-            type=ContentType.VIDEO,
-            video_data=video_data
-        )
+        content = MessageContent(type=ContentType.VIDEO, video_data=video_data)
 
         # Check properties
         assert content.type == ContentType.VIDEO
@@ -207,8 +192,7 @@ class TestMessage:
     def test_with_image(self):
         """Test creating a message with an image."""
         message = Message.with_image(
-            text="What's in this image?",
-            image_url="https://example.com/image.jpg"
+            text="What's in this image?", image_url="https://example.com/image.jpg"
         )
 
         assert message.role == MessageRole.USER
@@ -222,12 +206,11 @@ class TestMessage:
     def test_with_image_data(self):
         """Test creating a message with image data."""
         # Create a tiny 1x1 transparent PNG
-        image_data = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")
-
-        message = Message.with_image_data(
-            text="What's in this image?",
-            image_data=image_data
+        image_data = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
         )
+
+        message = Message.with_image_data(text="What's in this image?", image_data=image_data)
 
         assert message.role == MessageRole.USER
         assert isinstance(message.content, list)
@@ -240,8 +223,7 @@ class TestMessage:
     def test_with_audio(self):
         """Test creating a message with audio."""
         message = Message.with_audio(
-            text="What's in this audio?",
-            audio_url="https://example.com/audio.mp3"
+            text="What's in this audio?", audio_url="https://example.com/audio.mp3"
         )
 
         assert message.role == MessageRole.USER
@@ -257,10 +239,7 @@ class TestMessage:
         # Create some dummy audio data
         audio_data = b"dummy audio data"
 
-        message = Message.with_audio_data(
-            text="What's in this audio?",
-            audio_data=audio_data
-        )
+        message = Message.with_audio_data(text="What's in this audio?", audio_data=audio_data)
 
         assert message.role == MessageRole.USER
         assert isinstance(message.content, list)
@@ -273,8 +252,7 @@ class TestMessage:
     def test_with_video(self):
         """Test creating a message with video."""
         message = Message.with_video(
-            text="What's in this video?",
-            video_url="https://example.com/video.mp4"
+            text="What's in this video?", video_url="https://example.com/video.mp4"
         )
 
         assert message.role == MessageRole.USER
@@ -290,10 +268,7 @@ class TestMessage:
         # Create some dummy video data
         video_data = b"dummy video data"
 
-        message = Message.with_video_data(
-            text="What's in this video?",
-            video_data=video_data
-        )
+        message = Message.with_video_data(text="What's in this video?", video_data=video_data)
 
         assert message.role == MessageRole.USER
         assert isinstance(message.content, list)
@@ -313,10 +288,7 @@ class TestMessage:
 
     def test_to_dict_with_function_call(self):
         """Test converting a message with a function call to a dictionary."""
-        function_call = FunctionCall(
-            name="get_weather",
-            arguments={"location": "San Francisco"}
-        )
+        function_call = FunctionCall(name="get_weather", arguments={"location": "San Francisco"})
 
         message = Message.assistant(function_call=function_call)
 
@@ -338,10 +310,7 @@ class TestMessage:
         data = {
             "role": "assistant",
             "content": None,
-            "function_call": {
-                "name": "get_weather",
-                "arguments": '{"location": "San Francisco"}'
-            }
+            "function_call": {"name": "get_weather", "arguments": '{"location": "San Francisco"}'},
         }
 
         message = Message.from_dict(data)
@@ -369,9 +338,9 @@ class TestFunctionDefinition:
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
                     "description": "The unit of temperature to use",
-                }
+                },
             },
-            required_parameters=["location"]
+            required_parameters=["location"],
         )
 
         assert function_def.name == "get_weather"
@@ -391,7 +360,7 @@ class TestFunctionDefinition:
                     "description": "The city and state, e.g. San Francisco, CA",
                 }
             },
-            required_parameters=["location"]
+            required_parameters=["location"],
         )
 
         function_dict = function_def.to_dict()
@@ -414,8 +383,8 @@ class TestFunctionDefinition:
                         "description": "The city and state, e.g. San Francisco, CA",
                     }
                 },
-                "required": ["location"]
-            }
+                "required": ["location"],
+            },
         }
 
         function_def = FunctionDefinition.from_dict(data)
@@ -434,7 +403,7 @@ class TestFunctionCall:
         function_call = FunctionCall(
             name="get_weather",
             arguments={"location": "San Francisco", "unit": "celsius"},
-            id="call_123"
+            id="call_123",
         )
 
         assert function_call.name == "get_weather"
@@ -444,9 +413,7 @@ class TestFunctionCall:
     def test_to_dict(self):
         """Test converting a function call to a dictionary."""
         function_call = FunctionCall(
-            name="get_weather",
-            arguments={"location": "San Francisco"},
-            id="call_123"
+            name="get_weather", arguments={"location": "San Francisco"}, id="call_123"
         )
 
         function_dict = function_call.to_dict()
@@ -459,7 +426,7 @@ class TestFunctionCall:
         data = {
             "name": "get_weather",
             "arguments": '{"location": "San Francisco"}',
-            "id": "call_123"
+            "id": "call_123",
         }
 
         function_call = FunctionCall.from_dict(data)

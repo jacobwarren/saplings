@@ -33,6 +33,7 @@ class MockTokenizer:
             def __init__(self, tokens):
                 # Create a numpy array to simulate PyTorch tensor
                 import numpy as np
+
                 self.input_ids = np.array([list(range(len(tokens)))], dtype=np.int32)
 
         return MockTokens(tokens)
@@ -72,6 +73,7 @@ class BaseBenchmark:
         """
         try:
             import psutil
+
             process = psutil.Process(os.getpid())
             memory_info = process.memory_info()
             return memory_info.rss / (1024 * 1024)  # Convert to MB
@@ -111,6 +113,7 @@ class BaseBenchmark:
             Tuple[Any, float]: Function result and execution time in milliseconds
         """
         import inspect
+
         start_time = time.time()
 
         # Check if the function is a coroutine function
@@ -199,10 +202,12 @@ class MockBenchmarkLLM(LLM):
     async def generate(self, prompt: str, **kwargs) -> LLMResponse:
         """Generate text from the model."""
         # Record the call
-        self.generate_calls.append({
-            "prompt": prompt,
-            "kwargs": kwargs,
-        })
+        self.generate_calls.append(
+            {
+                "prompt": prompt,
+                "kwargs": kwargs,
+            }
+        )
 
         # Simulate processing time
         await self._simulate_processing()
@@ -222,14 +227,16 @@ class MockBenchmarkLLM(LLM):
     async def generate_streaming(self, prompt: str, **kwargs):
         """Generate text from the model with streaming output."""
         # Record the call
-        self.streaming_calls.append({
-            "prompt": prompt,
-            "kwargs": kwargs,
-        })
+        self.streaming_calls.append(
+            {
+                "prompt": prompt,
+                "kwargs": kwargs,
+            }
+        )
 
         # Create a response
         response = f"Response to: {prompt[:50]}..."
-        chunks = [response[i:i+5] for i in range(0, len(response), 5)]
+        chunks = [response[i : i + 5] for i in range(0, len(response), 5)]
 
         # Return chunks as an async generator
         for chunk in chunks:
@@ -251,6 +258,7 @@ class MockBenchmarkLLM(LLM):
             processing_time = self.response_time_ms / 1000
 
         import asyncio
+
         await asyncio.sleep(processing_time)
 
     def get_metadata(self) -> ModelMetadata:

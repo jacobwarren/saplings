@@ -15,13 +15,14 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from saplings.monitoring.config import MonitoringConfig, TracingBackend
-from saplings.monitoring.trace import TraceManager, Trace, Span
+from saplings.monitoring.trace import Span, Trace, TraceManager
 
 logger = logging.getLogger(__name__)
 
 try:
     import langsmith
     from langsmith import Client
+
     LANGSMITH_AVAILABLE = True
 except ImportError:
     LANGSMITH_AVAILABLE = False
@@ -74,8 +75,12 @@ class LangSmithExporter:
 
         # Initialize LangSmith client
         self.client = None
-        self.api_key = api_key or self.config.langsmith_api_key or os.environ.get("LANGCHAIN_API_KEY")
-        self.project_name = project_name or self.config.langsmith_project or os.environ.get("LANGCHAIN_PROJECT")
+        self.api_key = (
+            api_key or self.config.langsmith_api_key or os.environ.get("LANGCHAIN_API_KEY")
+        )
+        self.project_name = (
+            project_name or self.config.langsmith_project or os.environ.get("LANGCHAIN_PROJECT")
+        )
 
         # Auto-export settings
         self.auto_export = auto_export
@@ -188,7 +193,7 @@ class LangSmithExporter:
             # Prepare inputs and outputs
             inputs = {
                 "trace_id": trace_obj.trace_id,
-                **{k: v for k, v in trace_obj.attributes.items() if k != "status"}
+                **{k: v for k, v in trace_obj.attributes.items() if k != "status"},
             }
 
             outputs = {"status": trace_obj.status}
@@ -208,7 +213,7 @@ class LangSmithExporter:
                 "trace_duration_ms": trace_obj.duration_ms(),
                 "span_count": len(trace_obj.spans),
                 **trace_obj.attributes,
-                **(metadata or {})
+                **(metadata or {}),
             }
 
             # Combine provided tags with any from trace attributes
@@ -288,10 +293,7 @@ class LangSmithExporter:
         run_ids = []
         for trace in traces:
             run_id = self.export_trace(
-                trace,
-                project_name=project_name,
-                tags=tags,
-                metadata=metadata
+                trace, project_name=project_name, tags=tags, metadata=metadata
             )
             if run_id:
                 run_ids.append(run_id)
@@ -400,7 +402,13 @@ class LangSmithExporter:
                     inputs["model"] = span.attributes["model_uri"]
 
                 # Add generation parameters
-                for param in ["temperature", "max_tokens", "top_p", "frequency_penalty", "presence_penalty"]:
+                for param in [
+                    "temperature",
+                    "max_tokens",
+                    "top_p",
+                    "frequency_penalty",
+                    "presence_penalty",
+                ]:
                     if param in span.attributes:
                         inputs[param] = span.attributes[param]
 
@@ -440,11 +448,32 @@ class LangSmithExporter:
 
             # Add any remaining attributes as inputs
             for key, value in span.attributes.items():
-                if key not in ["component", "prompt", "messages", "completion", "response",
-                              "model", "model_uri", "temperature", "max_tokens", "top_p",
-                              "frequency_penalty", "presence_penalty", "tokens", "token_usage",
-                              "input", "args", "output", "result", "tool_name", "query",
-                              "documents", "retriever_type", "status", "error"]:
+                if key not in [
+                    "component",
+                    "prompt",
+                    "messages",
+                    "completion",
+                    "response",
+                    "model",
+                    "model_uri",
+                    "temperature",
+                    "max_tokens",
+                    "top_p",
+                    "frequency_penalty",
+                    "presence_penalty",
+                    "tokens",
+                    "token_usage",
+                    "input",
+                    "args",
+                    "output",
+                    "result",
+                    "tool_name",
+                    "query",
+                    "documents",
+                    "retriever_type",
+                    "status",
+                    "error",
+                ]:
                     inputs[key] = value
 
             # Add status and duration to outputs

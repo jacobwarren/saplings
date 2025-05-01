@@ -12,14 +12,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from saplings.monitoring.config import MonitoringConfig, VisualizationFormat
-from saplings.monitoring.trace import TraceManager, Span, SpanContext
+from saplings.monitoring.trace import Span, SpanContext, TraceManager
 
 logger = logging.getLogger(__name__)
 
 try:
-    import plotly.graph_objects as go
     import plotly.express as px
+    import plotly.graph_objects as go
     from plotly.subplots import make_subplots
+
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
@@ -324,7 +325,8 @@ class TraceViewer:
         """
         # Create a timeline visualization
         fig = make_subplots(
-            rows=1, cols=1,
+            rows=1,
+            cols=1,
             subplot_titles=["Trace Timeline"],
             specs=[[{"type": "scatter"}]],
         )
@@ -348,7 +350,8 @@ class TraceViewer:
                         color=self._get_color_for_span(span),
                     ),
                 ),
-                row=1, col=1,
+                row=1,
+                col=1,
             )
 
         # Update layout
@@ -375,7 +378,8 @@ class TraceViewer:
         """
         # Create a comparison visualization
         fig = make_subplots(
-            rows=len(traces), cols=1,
+            rows=len(traces),
+            cols=1,
             subplot_titles=[f"Trace: {trace.trace_id}" for trace in traces],
             specs=[[{"type": "scatter"}] for _ in traces],
             vertical_spacing=0.05,
@@ -401,7 +405,8 @@ class TraceViewer:
                             color=self._get_color_for_span(span),
                         ),
                     ),
-                    row=i+1, col=1,
+                    row=i + 1,
+                    col=1,
                 )
 
         # Update layout
@@ -414,7 +419,7 @@ class TraceViewer:
 
         # Update x-axis titles
         for i in range(len(traces)):
-            fig.update_xaxes(title_text="Duration (ms)", row=i+1, col=1)
+            fig.update_xaxes(title_text="Duration (ms)", row=i + 1, col=1)
 
         return fig
 
@@ -431,7 +436,8 @@ class TraceViewer:
         """
         # Create a detailed span visualization
         fig = make_subplots(
-            rows=2, cols=1,
+            rows=2,
+            cols=1,
             subplot_titles=["Span Timeline", "Span Details"],
             specs=[[{"type": "scatter"}], [{"type": "table"}]],
             row_heights=[0.7, 0.3],
@@ -452,7 +458,8 @@ class TraceViewer:
                     color=self._get_color_for_span(span),
                 ),
             ),
-            row=1, col=1,
+            row=1,
+            col=1,
         )
 
         # Add child spans
@@ -473,7 +480,8 @@ class TraceViewer:
                         color=self._get_color_for_span(child),
                     ),
                 ),
-                row=1, col=1,
+                row=1,
+                col=1,
             )
 
         # Add span details table
@@ -511,7 +519,8 @@ class TraceViewer:
                     align="left",
                 ),
             ),
-            row=2, col=1,
+            row=2,
+            col=1,
         )
 
         # Update layout
@@ -643,23 +652,25 @@ class TraceViewer:
         # Convert spans to dictionaries
         spans = []
         for span in trace.spans:
-            spans.append({
-                "span_id": span.span_id,
-                "name": span.name,
-                "start_time": span.start_time.isoformat(),
-                "end_time": span.end_time.isoformat(),
-                "status": span.status,
-                "parent_id": span.parent_id,
-                "attributes": span.attributes,
-                "events": [
-                    {
-                        "name": event.name,
-                        "timestamp": event.timestamp.isoformat(),
-                        "attributes": event.attributes,
-                    }
-                    for event in span.events
-                ],
-            })
+            spans.append(
+                {
+                    "span_id": span.span_id,
+                    "name": span.name,
+                    "start_time": span.start_time.isoformat(),
+                    "end_time": span.end_time.isoformat(),
+                    "status": span.status,
+                    "parent_id": span.parent_id,
+                    "attributes": span.attributes,
+                    "events": [
+                        {
+                            "name": event.name,
+                            "timestamp": event.timestamp.isoformat(),
+                            "attributes": event.attributes,
+                        }
+                        for event in span.events
+                    ],
+                }
+            )
 
         # Create trace dictionary
         return {

@@ -140,7 +140,7 @@ class TestBlockDiagonalPacker:
         }
 
         # Mock the _map_tokens_to_chunks method
-        with patch.object(self.packer, '_map_tokens_to_chunks', return_value=chunk_mapping):
+        with patch.object(self.packer, "_map_tokens_to_chunks", return_value=chunk_mapping):
             # Create a prompt
             prompt = "This is a test prompt."
 

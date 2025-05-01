@@ -6,10 +6,10 @@ import pytest
 from pydantic import ValidationError
 
 from saplings.tool_factory.config import (
-    ToolSpecification,
-    ToolFactoryConfig,
-    ToolTemplate,
     SecurityLevel,
+    ToolFactoryConfig,
+    ToolSpecification,
+    ToolTemplate,
 )
 
 
@@ -35,7 +35,12 @@ def {{function_name}}({{parameters}}):
         assert template.name == "Math Tool"
         assert template.description == "A tool for mathematical operations"
         assert "{{function_name}}" in template.template_code
-        assert template.required_parameters == ["function_name", "parameters", "description", "code_body"]
+        assert template.required_parameters == [
+            "function_name",
+            "parameters",
+            "description",
+            "code_body",
+        ]
         assert template.metadata == {"category": "math"}
 
         # Test invalid ID (empty string)

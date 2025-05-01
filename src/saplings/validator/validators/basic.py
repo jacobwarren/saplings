@@ -86,7 +86,7 @@ class LengthValidator(RuntimeValidator):
             length = len(output.split())
         elif self._unit == "sentences":
             # Simple sentence splitting
-            sentences = re.split(r'[.!?]+', output)
+            sentences = re.split(r"[.!?]+", output)
             length = len([s for s in sentences if s.strip()])
         else:
             return ValidationResult(
@@ -229,7 +229,9 @@ class KeywordValidator(RuntimeValidator):
                 message_parts.append(f"Missing required keywords: {', '.join(missing_keywords)}")
 
             if found_forbidden_keywords:
-                message_parts.append(f"Found forbidden keywords: {', '.join(found_forbidden_keywords)}")
+                message_parts.append(
+                    f"Found forbidden keywords: {', '.join(found_forbidden_keywords)}"
+                )
 
             return ValidationResult(
                 validator_id=self.id,
@@ -312,11 +314,32 @@ class SentimentValidator(RuntimeValidator):
         """
         # Simple sentiment analysis based on keyword counting
         # In a real implementation, you would use a proper sentiment analysis model
-        positive_words = {"good", "great", "excellent", "amazing", "wonderful", "positive", "happy", "joy", "love", "like"}
-        negative_words = {"bad", "terrible", "awful", "horrible", "negative", "sad", "angry", "hate", "dislike"}
+        positive_words = {
+            "good",
+            "great",
+            "excellent",
+            "amazing",
+            "wonderful",
+            "positive",
+            "happy",
+            "joy",
+            "love",
+            "like",
+        }
+        negative_words = {
+            "bad",
+            "terrible",
+            "awful",
+            "horrible",
+            "negative",
+            "sad",
+            "angry",
+            "hate",
+            "dislike",
+        }
 
         # Count positive and negative words
-        words = re.findall(r'\b\w+\b', output.lower())
+        words = re.findall(r"\b\w+\b", output.lower())
         positive_count = sum(1 for word in words if word in positive_words)
         negative_count = sum(1 for word in words if word in negative_words)
         total_count = len(words)

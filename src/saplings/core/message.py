@@ -4,11 +4,11 @@ Message module for Saplings.
 This module defines the message classes used for communication with LLMs.
 """
 
-from enum import Enum
-from typing import Any, Dict, List, Optional, Union
 import base64
 import json
 import uuid
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -38,7 +38,9 @@ class FunctionDefinition(BaseModel):
     name: str = Field(..., description="Name of the function")
     description: str = Field(..., description="Description of the function")
     parameters: Dict[str, Any] = Field(..., description="Parameters of the function")
-    required_parameters: List[str] = Field(default_factory=list, description="List of required parameter names")
+    required_parameters: List[str] = Field(
+        default_factory=list, description="List of required parameter names"
+    )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -260,9 +262,13 @@ class Message(BaseModel):
     """A message in a conversation."""
 
     role: MessageRole = Field(..., description="Role of the message sender")
-    content: Union[str, List[MessageContent], None] = Field(None, description="Content of the message")
+    content: Union[str, List[MessageContent], None] = Field(
+        None, description="Content of the message"
+    )
     name: Optional[str] = Field(None, description="Name of the function (for FUNCTION role)")
-    function_call: Optional[FunctionCall] = Field(None, description="Function call (for ASSISTANT role)")
+    function_call: Optional[FunctionCall] = Field(
+        None, description="Function call (for ASSISTANT role)"
+    )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -276,7 +282,11 @@ class Message(BaseModel):
         # Handle content
         if isinstance(self.content, str):
             result["content"] = self.content
-        elif isinstance(self.content, list) and len(self.content) == 1 and self.content[0].type == ContentType.TEXT:
+        elif (
+            isinstance(self.content, list)
+            and len(self.content) == 1
+            and self.content[0].type == ContentType.TEXT
+        ):
             # Simple text content
             result["content"] = self.content[0].text
         elif isinstance(self.content, list) and self.content:
@@ -356,7 +366,9 @@ class Message(BaseModel):
         return cls(role=MessageRole.USER, content=content)
 
     @classmethod
-    def assistant(cls, content: Optional[str] = None, function_call: Optional[FunctionCall] = None) -> "Message":
+    def assistant(
+        cls, content: Optional[str] = None, function_call: Optional[FunctionCall] = None
+    ) -> "Message":
         """
         Create an assistant message.
 

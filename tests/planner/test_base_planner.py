@@ -2,8 +2,9 @@
 Tests for the base planner module.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from saplings.core.model_adapter import LLM, ModelMetadata, ModelRole
 from saplings.planner.base_planner import BasePlanner
@@ -374,7 +375,7 @@ class TestBasePlanner:
         assert status["pending_steps"] == 1
         assert status["in_progress_steps"] == 0
         assert status["skipped_steps"] == 0
-        assert status["progress"] == 1/3
+        assert status["progress"] == 1 / 3
         assert status["total_cost"] == 0.5
         assert status["total_tokens"] == 5000
         assert status["is_complete"] is False

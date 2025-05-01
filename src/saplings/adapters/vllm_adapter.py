@@ -13,7 +13,14 @@ import re
 import traceback
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
-from saplings.core.model_adapter import LLM, LLMResponse, ModelCapability, ModelMetadata, ModelRole, ModelURI
+from saplings.core.model_adapter import (
+    LLM,
+    LLMResponse,
+    ModelCapability,
+    ModelMetadata,
+    ModelRole,
+    ModelURI,
+)
 from saplings.core.plugin import ModelAdapterPlugin, PluginType
 
 logger = logging.getLogger(__name__)
@@ -22,12 +29,11 @@ try:
     import vllm
     from vllm import SamplingParams
     from vllm.transformers_utils.tokenizer import get_tokenizer
+
     VLLM_AVAILABLE = True
 except ImportError:
     VLLM_AVAILABLE = False
-    logger.warning(
-        "vLLM not installed. Please install it with: pip install vllm"
-    )
+    logger.warning("vLLM not installed. Please install it with: pip install vllm")
 
 
 class VLLMAdapter(LLM, ModelAdapterPlugin):
@@ -46,9 +52,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             **kwargs: Additional arguments for the adapter
         """
         if not VLLM_AVAILABLE:
-            raise ImportError(
-                "vLLM not installed. Please install it with: pip install vllm"
-            )
+            raise ImportError("vLLM not installed. Please install it with: pip install vllm")
 
         # Parse the model URI
         if isinstance(model_uri, str):
@@ -63,7 +67,9 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         self.quantization = self.model_uri.parameters.get("quantization", None)
 
         # Extract function calling parameters from URI
-        self.enable_tool_choice = self.model_uri.parameters.get("enable_tool_choice", "true").lower() == "true"
+        self.enable_tool_choice = (
+            self.model_uri.parameters.get("enable_tool_choice", "true").lower() == "true"
+        )
         self.tool_call_parser = self.model_uri.parameters.get("tool_call_parser", None)
         self.chat_template = self.model_uri.parameters.get("chat_template", None)
 
@@ -89,6 +95,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 # Use the huggingface_hub library to get the full repo ID
                 try:
                     from huggingface_hub import HfApi
+
                     api = HfApi()
 
                     # Try to get the model info to verify it exists
@@ -106,7 +113,9 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 except ImportError:
                     # If huggingface_hub is not installed, just use the model name as is
                     model_name_for_engine = self.model_name
-                    logger.info(f"Using Hugging Face model (without hub library): {model_name_for_engine}")
+                    logger.info(
+                        f"Using Hugging Face model (without hub library): {model_name_for_engine}"
+                    )
             else:
                 # If there's no organization prefix, just use the model name as is
                 model_name_for_engine = self.model_name
@@ -126,6 +135,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         if self.enable_tool_choice:
             # Check vLLM version for function calling support
             import pkg_resources
+
             vllm_version = pkg_resources.get_distribution("vllm").version
 
             # vLLM 0.8.0+ supports function calling with different parameters
@@ -142,6 +152,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 try:
                     # Create a test EngineArgs to check if enable_auto_tool_choice is supported
                     from vllm.engine.arg_utils import EngineArgs
+
                     test_args = {"enable_auto_tool_choice": True}
                     EngineArgs(**test_args)
 
@@ -150,21 +161,28 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                     logger.info("Using enable_auto_tool_choice for function calling")
                 except (TypeError, ImportError, AttributeError):
                     # enable_auto_tool_choice is not supported in this vLLM version
-                    logger.warning("Function calling may not work as expected in this vLLM version.")
+                    logger.warning(
+                        "Function calling may not work as expected in this vLLM version."
+                    )
 
                 # Log warnings about unsupported parameters
                 if self.tool_call_parser:
-                    logger.warning("tool_call_parser parameter not supported in this vLLM version. "
-                                  "Function calling may not work as expected.")
+                    logger.warning(
+                        "tool_call_parser parameter not supported in this vLLM version. "
+                        "Function calling may not work as expected."
+                    )
 
                 if self.chat_template:
-                    logger.warning("chat_template parameter not supported in this vLLM version. "
-                                  "Chat formatting may not work as expected.")
+                    logger.warning(
+                        "chat_template parameter not supported in this vLLM version. "
+                        "Chat formatting may not work as expected."
+                    )
             else:
                 # For older versions, try to use enable_auto_tool_choice
                 try:
                     # Create a test EngineArgs to check if enable_auto_tool_choice is supported
                     from vllm.engine.arg_utils import EngineArgs
+
                     test_args = {"enable_auto_tool_choice": True}
                     EngineArgs(**test_args)
                     # If we get here, enable_auto_tool_choice is supported
@@ -181,8 +199,10 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                             engine_kwargs["tool_call_parser"] = self.tool_call_parser
                     except (TypeError, AttributeError):
                         # tool_call_parser is not supported in this vLLM version
-                        logger.warning("tool_call_parser parameter not supported in this vLLM version. "
-                                      "Function calling may not work as expected.")
+                        logger.warning(
+                            "tool_call_parser parameter not supported in this vLLM version. "
+                            "Function calling may not work as expected."
+                        )
 
                     # Check if chat_template is supported in this vLLM version
                     try:
@@ -195,12 +215,16 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                             engine_kwargs["chat_template"] = self.chat_template
                     except (TypeError, AttributeError):
                         # chat_template is not supported in this vLLM version
-                        logger.warning("chat_template parameter not supported in this vLLM version. "
-                                      "Chat formatting may not work as expected.")
+                        logger.warning(
+                            "chat_template parameter not supported in this vLLM version. "
+                            "Chat formatting may not work as expected."
+                        )
                 except (TypeError, ImportError, AttributeError):
                     # enable_auto_tool_choice is not supported in this vLLM version
-                    logger.warning("Function calling not fully supported in this vLLM version. "
-                                  "Function calling may not work as expected.")
+                    logger.warning(
+                        "Function calling not fully supported in this vLLM version. "
+                        "Function calling may not work as expected."
+                    )
 
         # Add any additional kwargs
         for key, value in kwargs.items():
@@ -214,10 +238,15 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 self.engine = vllm.LLM(**engine_kwargs)
             except Exception as first_error:
                 # If the error is about the repository not being found and the model name contains a slash
-                if ("Repository Not Found" in str(first_error) or "Invalid repository ID" in str(first_error)) and "/" in self.model_name:
+                if (
+                    "Repository Not Found" in str(first_error)
+                    or "Invalid repository ID" in str(first_error)
+                ) and "/" in self.model_name:
                     # Try a different approach - use the model name without the organization prefix
                     org, model_without_org = self.model_name.split("/", 1)
-                    logger.warning(f"Error loading model with full name. Trying with model name only: {model_without_org}")
+                    logger.warning(
+                        f"Error loading model with full name. Trying with model name only: {model_without_org}"
+                    )
 
                     # Update the engine kwargs with the new model name
                     engine_kwargs["model"] = model_without_org
@@ -227,7 +256,9 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                         self.engine = vllm.LLM(**engine_kwargs)
                     except Exception as second_error:
                         # If that also fails, try with just the organization name
-                        logger.warning(f"Error loading model with model name only. Trying with organization name: {org}")
+                        logger.warning(
+                            f"Error loading model with model name only. Trying with organization name: {org}"
+                        )
 
                         # Update the engine kwargs with the organization name
                         engine_kwargs["model"] = org
@@ -249,7 +280,9 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
         # Log function calling configuration
         if self.enable_tool_choice:
-            logger.info(f"Function calling enabled with parser: {self.tool_call_parser or 'default'}")
+            logger.info(
+                f"Function calling enabled with parser: {self.tool_call_parser or 'default'}"
+            )
 
         # Get the tokenizer
         self.tokenizer = get_tokenizer(self.model_name)
@@ -270,7 +303,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         use_cache: bool = False,
         cache_namespace: str = "default",
         cache_ttl: Optional[int] = 3600,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model.
@@ -302,7 +335,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 json_mode=json_mode,
                 cache_namespace=cache_namespace,
                 cache_ttl=cache_ttl,
-                **kwargs
+                **kwargs,
             )
 
         # Set parameters
@@ -313,11 +346,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         processed_prompt = self._process_prompt(prompt, functions, function_call, json_mode)
 
         # Create sampling parameters
-        sampling_params = SamplingParams(
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **kwargs
-        )
+        sampling_params = SamplingParams(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         # Add JSON mode if requested
         if json_mode:
@@ -333,10 +362,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             # Convert functions to tools format for vLLM
             tools = []
             for func in functions:
-                tool = {
-                    "type": "function",
-                    "function": func
-                }
+                tool = {"type": "function", "function": func}
                 tools.append(tool)
 
             # Set tool_choice based on function_call
@@ -345,10 +371,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             elif function_call == "none":
                 tool_choice = "none"
             elif isinstance(function_call, dict) and "name" in function_call:
-                tool_choice = {
-                    "type": "function",
-                    "function": {"name": function_call["name"]}
-                }
+                tool_choice = {"type": "function", "function": {"name": function_call["name"]}}
             elif function_call == "required":
                 tool_choice = "required"
 
@@ -360,7 +383,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                     processed_prompt,
                     sampling_params=sampling_params,
                     tools=tools,
-                    tool_choice=tool_choice
+                    tool_choice=tool_choice,
                 )
             else:
                 # Standard generation without function calling
@@ -382,35 +405,43 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             tool_calls_result = None
 
             # Check if the output has tool calls (native vLLM function calling)
-            if hasattr(outputs[0], 'tool_calls') and outputs[0].tool_calls:
+            if hasattr(outputs[0], "tool_calls") and outputs[0].tool_calls:
                 # Native vLLM function calling
                 tool_calls = outputs[0].tool_calls
 
                 if len(tool_calls) == 1:
                     # Single function call
                     tool_call = tool_calls[0]
-                    if tool_call.get('type') == 'function':
+                    if tool_call.get("type") == "function":
                         function_call_result = {
-                            "name": tool_call['function']['name'],
-                            "arguments": tool_call['function']['arguments']
+                            "name": tool_call["function"]["name"],
+                            "arguments": tool_call["function"]["arguments"],
                         }
                 elif len(tool_calls) > 1:
                     # Multiple tool calls
                     tool_calls_result = []
                     for tool_call in tool_calls:
-                        if tool_call.get('type') == 'function':
-                            tool_calls_result.append({
-                                "id": tool_call.get('id', f"call_{len(tool_calls_result)}"),
-                                "type": "function",
-                                "function": {
-                                    "name": tool_call['function']['name'],
-                                    "arguments": tool_call['function']['arguments']
+                        if tool_call.get("type") == "function":
+                            tool_calls_result.append(
+                                {
+                                    "id": tool_call.get("id", f"call_{len(tool_calls_result)}"),
+                                    "type": "function",
+                                    "function": {
+                                        "name": tool_call["function"]["name"],
+                                        "arguments": tool_call["function"]["arguments"],
+                                    },
                                 }
-                            })
+                            )
             # Fallback to text parsing if native function calling didn't work
-            elif functions and (function_call == "auto" or isinstance(function_call, dict)) and not self.enable_tool_choice:
+            elif (
+                functions
+                and (function_call == "auto" or isinstance(function_call, dict))
+                and not self.enable_tool_choice
+            ):
                 # Try to parse function calls from the generated text
-                function_call_result, tool_calls_result = self._extract_function_calls(generated_text)
+                function_call_result, tool_calls_result = self._extract_function_calls(
+                    generated_text
+                )
 
             # Create response
             return LLMResponse(
@@ -426,7 +457,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                     "provider": "vllm",
                 },
                 function_call=function_call_result,
-                tool_calls=tool_calls_result
+                tool_calls=tool_calls_result,
             )
         except Exception as e:
             logger.error(f"Error generating text with vLLM: {e}")
@@ -443,7 +474,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         json_mode: bool = False,
         cache_namespace: str = "default",
         cache_ttl: Optional[int] = 3600,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model with caching.
@@ -475,7 +506,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             functions=functions,
             function_call=function_call,
             json_mode=json_mode,
-            **kwargs
+            **kwargs,
         )
 
         # Get the cache
@@ -497,7 +528,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             function_call=function_call,
             json_mode=json_mode,
             use_cache=False,  # Important to avoid infinite recursion
-            **kwargs
+            **kwargs,
         )
 
         # Cache the response
@@ -510,7 +541,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         prompt: Union[str, List[Dict[str, Any]]],
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
-        json_mode: bool = False
+        json_mode: bool = False,
     ) -> str:
         """
         Process the prompt to include functions and other features.
@@ -586,7 +617,9 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
         return "\n".join(prompt_parts)
 
-    def _extract_function_calls(self, text: str) -> Tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, Any]]]]:
+    def _extract_function_calls(
+        self, text: str
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, Any]]]]:
         """
         Extract function calls from generated text.
 
@@ -597,14 +630,11 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             Tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, Any]]]]:
                 The function call and tool calls if found
         """
-        import re
-        import json
-
         # Try to find function calls in the format:
         # ```json
         # {"name": "function_name", "arguments": {...}}
         # ```
-        function_pattern = r'```(?:json)?\s*({[\s\S]*?})\s*```'
+        function_pattern = r"```(?:json)?\s*({[\s\S]*?})\s*```"
         matches = re.findall(function_pattern, text)
 
         if matches:
@@ -617,7 +647,9 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                     # Single function call
                     return {
                         "name": func_data["name"],
-                        "arguments": json.dumps(func_data["arguments"]) if isinstance(func_data["arguments"], dict) else func_data["arguments"]
+                        "arguments": json.dumps(func_data["arguments"])
+                        if isinstance(func_data["arguments"], dict)
+                        else func_data["arguments"],
                     }, None
                 elif "tool_calls" in func_data:
                     # Multiple tool calls
@@ -626,7 +658,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 pass
 
         # Try to find function calls in a more relaxed format
-        function_pattern = r'function\s*:\s*(\w+).*?arguments\s*:\s*({[\s\S]*?})(?=\n\w+\s*:|$)'
+        function_pattern = r"function\s*:\s*(\w+).*?arguments\s*:\s*({[\s\S]*?})(?=\n\w+\s*:|$)"
         matches = re.findall(function_pattern, text, re.IGNORECASE)
 
         if matches:
@@ -635,7 +667,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 args = json.loads(args_str)
                 return {
                     "name": name,
-                    "arguments": json.dumps(args) if isinstance(args, dict) else args
+                    "arguments": json.dumps(args) if isinstance(args, dict) else args,
                 }, None
             except (json.JSONDecodeError, ValueError):
                 pass
@@ -651,7 +683,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         functions: Optional[List[Dict[str, Any]]] = None,
         function_call: Optional[Union[str, Dict[str, str]]] = None,
         json_mode: bool = False,
-        **kwargs
+        **kwargs,
     ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
         """
         Generate text from the model with streaming output.
@@ -678,11 +710,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         processed_prompt = self._process_prompt(prompt, functions, function_call, json_mode)
 
         # Create sampling parameters
-        sampling_params = SamplingParams(
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **kwargs
-        )
+        sampling_params = SamplingParams(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         # Add JSON mode if requested
         if json_mode and hasattr(sampling_params, "grammar"):
@@ -696,10 +724,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             # Convert functions to tools format for vLLM
             tools = []
             for func in functions:
-                tool = {
-                    "type": "function",
-                    "function": func
-                }
+                tool = {"type": "function", "function": func}
                 tools.append(tool)
 
             # Set tool_choice based on function_call
@@ -708,10 +733,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             elif function_call == "none":
                 tool_choice = "none"
             elif isinstance(function_call, dict) and "name" in function_call:
-                tool_choice = {
-                    "type": "function",
-                    "function": {"name": function_call["name"]}
-                }
+                tool_choice = {"type": "function", "function": {"name": function_call["name"]}}
             elif function_call == "required":
                 tool_choice = "required"
 
@@ -722,7 +744,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 [processed_prompt],
                 sampling_params=sampling_params,
                 tools=tools,
-                tool_choice=tool_choice
+                tool_choice=tool_choice,
             )
         else:
             # Standard generation without function calling
@@ -740,7 +762,11 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             output = outputs[0]
 
             # Check for tool calls in the output (native vLLM function calling)
-            if hasattr(output, 'tool_calls') and output.tool_calls and output.tool_calls != last_tool_calls:
+            if (
+                hasattr(output, "tool_calls")
+                and output.tool_calls
+                and output.tool_calls != last_tool_calls
+            ):
                 # Native vLLM function calling
                 tool_calls = output.tool_calls
                 last_tool_calls = tool_calls
@@ -748,24 +774,28 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 if len(tool_calls) == 1:
                     # Single function call
                     tool_call = tool_calls[0]
-                    if tool_call.get('type') == 'function':
-                        yield {"function_call": {
-                            "name": tool_call['function']['name'],
-                            "arguments": tool_call['function']['arguments']
-                        }}
+                    if tool_call.get("type") == "function":
+                        yield {
+                            "function_call": {
+                                "name": tool_call["function"]["name"],
+                                "arguments": tool_call["function"]["arguments"],
+                            }
+                        }
                         return
                 elif len(tool_calls) > 1:
                     # Multiple tool calls
                     for tool_call in tool_calls:
-                        if tool_call.get('type') == 'function':
-                            yield {"tool_call": {
-                                "id": tool_call.get('id', f"call_{len(tool_calls)}"),
-                                "type": "function",
-                                "function": {
-                                    "name": tool_call['function']['name'],
-                                    "arguments": tool_call['function']['arguments']
+                        if tool_call.get("type") == "function":
+                            yield {
+                                "tool_call": {
+                                    "id": tool_call.get("id", f"call_{len(tool_calls)}"),
+                                    "type": "function",
+                                    "function": {
+                                        "name": tool_call["function"]["name"],
+                                        "arguments": tool_call["function"]["arguments"],
+                                    },
                                 }
-                            }}
+                            }
                     return
 
             # Process text chunks
@@ -773,9 +803,15 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 chunk = output.outputs[0].text
 
                 # If we're using function calling but not native support, check for function calls in text
-                if functions and (function_call == "auto" or isinstance(function_call, dict)) and not self.enable_tool_choice:
+                if (
+                    functions
+                    and (function_call == "auto" or isinstance(function_call, dict))
+                    and not self.enable_tool_choice
+                ):
                     accumulated_text += chunk
-                    function_call_result, tool_calls_result = self._extract_function_calls(accumulated_text)
+                    function_call_result, tool_calls_result = self._extract_function_calls(
+                        accumulated_text
+                    )
 
                     if function_call_result:
                         yield {"function_call": function_call_result}
@@ -892,7 +928,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         use_cache: bool = False,
         cache_namespace: str = "default",
         cache_ttl: Optional[int] = 3600,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate a response to a conversation.
@@ -923,7 +959,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 json_mode=json_mode,
                 cache_namespace=cache_namespace,
                 cache_ttl=cache_ttl,
-                **kwargs
+                **kwargs,
             )
         else:
             return await self.generate(
@@ -933,7 +969,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 functions=functions,
                 function_call=function_call,
                 json_mode=json_mode,
-                **kwargs
+                **kwargs,
             )
 
     def cleanup(self) -> None:
@@ -942,13 +978,16 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
         This method should be called when the model is no longer needed.
         """
-        if hasattr(self, 'engine') and self.engine is not None:
+        if hasattr(self, "engine") and self.engine is not None:
             import gc
+
             import torch
 
             # Clean up vLLM resources
-            if hasattr(self.engine, 'llm_engine') and hasattr(self.engine.llm_engine, 'model_executor'):
-                if hasattr(self.engine.llm_engine.model_executor, 'driver_worker'):
+            if hasattr(self.engine, "llm_engine") and hasattr(
+                self.engine.llm_engine, "model_executor"
+            ):
+                if hasattr(self.engine.llm_engine.model_executor, "driver_worker"):
                     del self.engine.llm_engine.model_executor.driver_worker
 
             # Delete the engine

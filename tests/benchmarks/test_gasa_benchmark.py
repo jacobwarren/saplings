@@ -18,7 +18,6 @@ from saplings.gasa import GASAConfig, MaskBuilder, MaskFormat, MaskType
 from saplings.memory import DependencyGraph, Document, MemoryStore
 from saplings.memory.config import MemoryConfig
 from saplings.monitoring import MonitoringConfig, TraceManager
-
 from tests.benchmarks.base_benchmark import BaseBenchmark, MockBenchmarkLLM
 from tests.benchmarks.test_datasets import TestDatasets
 
@@ -66,11 +65,13 @@ class TestGASABenchmark(BaseBenchmark):
             enable_gasa=False,
         )
 
-        results["configurations"].append({
-            "name": "Baseline (No GASA)",
-            "flops": no_gasa_flops,
-            "reduction": 0.0,
-        })
+        results["configurations"].append(
+            {
+                "name": "Baseline (No GASA)",
+                "flops": no_gasa_flops,
+                "reduction": 0.0,
+            }
+        )
 
         # Skip GASA tests for now due to issues with the mock tokenizer
         print("Skipping GASA tests due to issues with the mock tokenizer")
@@ -357,7 +358,11 @@ class TestGASABenchmark(BaseBenchmark):
             "raw_latencies_ms": latencies,
         }
 
-        print(f"  Results: avg_latency={latency_stats['mean']:.2f}ms, "
-              f"mask_sparsity={mask_sparsity:.2%}" if mask_sparsity else "")
+        print(
+            f"  Results: avg_latency={latency_stats['mean']:.2f}ms, "
+            f"mask_sparsity={mask_sparsity:.2%}"
+            if mask_sparsity
+            else ""
+        )
 
         return result

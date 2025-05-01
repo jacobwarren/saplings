@@ -10,14 +10,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from saplings.monitoring.blame_graph import BlameEdge, BlameGraph, BlameNode
 from saplings.monitoring.config import MonitoringConfig
-from saplings.monitoring.trace import TraceManager, Trace, Span, SpanContext
-from saplings.monitoring.blame_graph import BlameGraph, BlameNode, BlameEdge
-
+from saplings.monitoring.trace import Span, SpanContext, Trace, TraceManager
 
 # Check if networkx is available
 try:
     import networkx as nx
+
     NETWORKX_AVAILABLE = True
 except ImportError:
     NETWORKX_AVAILABLE = False
@@ -36,6 +36,7 @@ def blame_graph(trace_manager):
     # Initialize NetworkX graph if available
     if NETWORKX_AVAILABLE:
         import networkx as nx
+
         bg.graph = nx.DiGraph()
     return bg
 
@@ -155,8 +156,15 @@ def complex_trace(trace_manager):
     step_execution_span.set_attribute("error_message", "Tool execution failed")
 
     # Simulate some processing time
-    for span in [task_analysis_span, plan_generation_span, planner_span,
-                 tool_selection_span, step_execution_span, executor_span, root_span]:
+    for span in [
+        task_analysis_span,
+        plan_generation_span,
+        planner_span,
+        tool_selection_span,
+        step_execution_span,
+        executor_span,
+        root_span,
+    ]:
         # Set start time to a fixed time for deterministic testing
         span.start_time = datetime.now() - timedelta(seconds=1)
         # Set end time
@@ -324,7 +332,7 @@ def test_identify_bottlenecks(blame_graph, sample_trace):
 
     # Check that bottlenecks are sorted by average time (descending)
     for i in range(1, len(bottlenecks)):
-        assert bottlenecks[i-1]["avg_time_ms"] >= bottlenecks[i]["avg_time_ms"]
+        assert bottlenecks[i - 1]["avg_time_ms"] >= bottlenecks[i]["avg_time_ms"]
 
 
 def test_identify_error_sources(blame_graph, sample_trace):
@@ -379,7 +387,9 @@ def test_error_propagation(blame_graph, complex_trace):
             assert error_source["error_count"] > 0
             break
 
-    assert step_runner_found, f"Step runner node not found in error sources. Error sources: {error_sources}"
+    assert (
+        step_runner_found
+    ), f"Step runner node not found in error sources. Error sources: {error_sources}"
 
     # For this test, we'll just verify that we can identify error sources
     # The actual error propagation behavior depends on the implementation details

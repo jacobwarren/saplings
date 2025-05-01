@@ -32,7 +32,6 @@ __all__ = [
     "ModelMetadata",
     "ModelRole",
     "ModelURI",
-
     # Plugin system
     "Plugin",
     "PluginRegistry",

@@ -90,7 +90,7 @@ class ExecutionResult:
             model_uri=response.model_uri,
             usage=response.usage,
             metadata=response.metadata,
-            **kwargs
+            **kwargs,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -172,14 +172,18 @@ class Executor:
             try:
                 tokenizer = getattr(self.model, "tokenizer", None)
                 if tokenizer is None:
-                    logger.warning("Model does not have a tokenizer attribute. GASA may not work properly.")
+                    logger.warning(
+                        "Model does not have a tokenizer attribute. GASA may not work properly."
+                    )
 
                 self.mask_builder = MaskBuilder(
                     graph=self.dependency_graph,
                     config=self.gasa_config,
                     tokenizer=tokenizer,
                 )
-                logger.info(f"Initialized GASA MaskBuilder with max_hops={self.gasa_config.max_hops}")
+                logger.info(
+                    f"Initialized GASA MaskBuilder with max_hops={self.gasa_config.max_hops}"
+                )
             except Exception as e:
                 logger.error(f"Failed to initialize GASA MaskBuilder: {e}")
                 # Continue without GASA
@@ -220,10 +224,7 @@ class Executor:
         return prompt
 
     def _build_gasa_mask(
-        self,
-        prompt: str,
-        documents: Optional[List[Document]],
-        generation_type: str
+        self, prompt: str, documents: Optional[List[Document]], generation_type: str
     ) -> Optional[np.ndarray]:
         """
         Build a GASA mask for the given prompt and documents.
@@ -240,14 +241,18 @@ class Executor:
             return None
 
         try:
-            logger.debug(f"Building GASA mask for {generation_type} generation (documents: {len(documents)})")
+            logger.debug(
+                f"Building GASA mask for {generation_type} generation (documents: {len(documents)})"
+            )
             mask = self.mask_builder.build_mask(
                 documents=documents,
                 prompt=prompt,
                 format=MaskFormat.DENSE,
                 mask_type=MaskType.ATTENTION,
             )
-            logger.debug(f"Applied GASA mask to {generation_type} generation (shape: {mask.shape if hasattr(mask, 'shape') else 'unknown'})")
+            logger.debug(
+                f"Applied GASA mask to {generation_type} generation (shape: {mask.shape if hasattr(mask, 'shape') else 'unknown'})"
+            )
             return mask
         except Exception as e:
             logger.warning(f"Failed to build GASA mask for {generation_type} generation: {e}")
@@ -328,7 +333,11 @@ class Executor:
         return final_response
 
     async def _verify_output(
-        self, output: str, prompt: str, verification_strategy: Optional[VerificationStrategy] = None, **kwargs
+        self,
+        output: str,
+        prompt: str,
+        verification_strategy: Optional[VerificationStrategy] = None,
+        **kwargs,
     ) -> Tuple[bool, Optional[float], Optional[str]]:
         """
         Verify an output using the configured verification strategy.
@@ -436,7 +445,9 @@ class Executor:
 
                 # Check if we have any results
                 if not validation_results:
-                    logger.warning("No validation results returned, falling back to basic verification")
+                    logger.warning(
+                        "No validation results returned, falling back to basic verification"
+                    )
                     return await self._verify_output(
                         output=output,
                         prompt=prompt,
@@ -465,10 +476,12 @@ class Executor:
 
                 # Format feedback
                 if failed_validations:
-                    feedback = "Validation failed:\n" + "\n".join([
-                        f"- {result.validator_id}: {result.message}"
-                        for result in failed_validations
-                    ])
+                    feedback = "Validation failed:\n" + "\n".join(
+                        [
+                            f"- {result.validator_id}: {result.message}"
+                            for result in failed_validations
+                        ]
+                    )
                 else:
                     feedback = "All validations passed"
 
@@ -493,7 +506,9 @@ class Executor:
         if strategy == VerificationStrategy.FULL:
             # Check if we have both JudgeAgent and ValidatorRegistry
             if self.judge_agent is None and self.validator_registry is None:
-                logger.warning("Neither JudgeAgent nor ValidatorRegistry provided for FULL verification, falling back to BASIC")
+                logger.warning(
+                    "Neither JudgeAgent nor ValidatorRegistry provided for FULL verification, falling back to BASIC"
+                )
                 return await self._verify_output(
                     output=output,
                     prompt=prompt,
@@ -503,7 +518,9 @@ class Executor:
 
             # If we only have JudgeAgent, use that
             if self.judge_agent is not None and self.validator_registry is None:
-                logger.warning("ValidatorRegistry not provided for FULL verification, using JUDGE strategy")
+                logger.warning(
+                    "ValidatorRegistry not provided for FULL verification, using JUDGE strategy"
+                )
                 return await self._verify_output(
                     output=output,
                     prompt=prompt,
@@ -513,7 +530,9 @@ class Executor:
 
             # If we only have ValidatorRegistry, use that
             if self.judge_agent is None and self.validator_registry is not None:
-                logger.warning("JudgeAgent not provided for FULL verification, using VALIDATOR strategy")
+                logger.warning(
+                    "JudgeAgent not provided for FULL verification, using VALIDATOR strategy"
+                )
                 return await self._verify_output(
                     output=output,
                     prompt=prompt,
@@ -555,17 +574,21 @@ class Executor:
                             failed_validations.append(result)
 
                     # Calculate average score
-                    validator_score = total_score / len(validation_results) if validation_results else 0.0
+                    validator_score = (
+                        total_score / len(validation_results) if validation_results else 0.0
+                    )
 
                     # Determine if validation passed
                     validator_passed = len(failed_validations) == 0
 
                     # Format feedback
                     if failed_validations:
-                        validator_feedback = "Validation failed:\n" + "\n".join([
-                            f"- {result.validator_id}: {result.message}"
-                            for result in failed_validations
-                        ])
+                        validator_feedback = "Validation failed:\n" + "\n".join(
+                            [
+                                f"- {result.validator_id}: {result.message}"
+                                for result in failed_validations
+                            ]
+                        )
                     else:
                         validator_feedback = "All validations passed"
 
@@ -855,7 +878,7 @@ class Executor:
         prompt: str,
         documents: Optional[List[Document]] = None,
         on_chunk: Optional[Callable[[str], None]] = None,
-        **kwargs
+        **kwargs,
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Generate a final response with streaming output.
@@ -958,7 +981,8 @@ class Executor:
             usage={
                 "prompt_tokens": self.model.estimate_tokens(prompt),
                 "completion_tokens": self.model.estimate_tokens(final_text),
-                "total_tokens": self.model.estimate_tokens(prompt) + self.model.estimate_tokens(final_text),
+                "total_tokens": self.model.estimate_tokens(prompt)
+                + self.model.estimate_tokens(final_text),
             },
             metadata=final_metadata,
         )

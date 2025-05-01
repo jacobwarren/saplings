@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from saplings.monitoring.config import MonitoringConfig, TracingBackend
-from saplings.monitoring.trace import TraceManager, Trace, Span, SpanContext, SpanEvent
+from saplings.monitoring.trace import Span, SpanContext, SpanEvent, Trace, TraceManager
 
 
 @pytest.fixture
@@ -325,12 +325,15 @@ def test_trace_manager_with_otel():
     )
 
     # Mock OTEL availability and imports
-    with patch("saplings.monitoring.trace.OTEL_AVAILABLE", True), \
-         patch("opentelemetry.sdk.trace.TracerProvider") as mock_provider, \
-         patch("opentelemetry.sdk.trace.export.BatchSpanProcessor") as mock_processor, \
-         patch("opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter") as mock_exporter, \
-         patch("opentelemetry.trace") as mock_trace:
-
+    with patch("saplings.monitoring.trace.OTEL_AVAILABLE", True), patch(
+        "opentelemetry.sdk.trace.TracerProvider"
+    ) as mock_provider, patch(
+        "opentelemetry.sdk.trace.export.BatchSpanProcessor"
+    ) as mock_processor, patch(
+        "opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter"
+    ) as mock_exporter, patch(
+        "opentelemetry.trace"
+    ) as mock_trace:
         # Mock the tracer
         mock_tracer = MagicMock()
         mock_trace.get_tracer.return_value = mock_tracer
@@ -448,6 +451,7 @@ def test_trace_callbacks():
 
     # Create a mock callback
     callback_events = []
+
     def test_callback(trace_id, event):
         callback_events.append((trace_id, event))
 

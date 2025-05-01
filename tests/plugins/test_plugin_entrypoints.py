@@ -10,8 +10,8 @@ pytestmark = pytest.mark.nocov
 
 from saplings.core.plugin import PluginType, discover_plugins, get_plugins_by_type
 from saplings.memory.config import MemoryConfig, PrivacyLevel, VectorStoreType
-from saplings.memory.vector_store import get_vector_store
 from saplings.memory.indexer import get_indexer
+from saplings.memory.vector_store import get_vector_store
 
 
 class TestPluginEntrypoints:
