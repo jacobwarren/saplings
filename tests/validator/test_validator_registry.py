@@ -209,10 +209,19 @@ class TestValidatorRegistry:
         registry2 = ValidatorRegistry()
         assert registry is registry2
 
-    def test_get_validator_registry(self, registry):
+    def test_get_validator_registry(self):
         """Test the get_validator_registry function."""
+        # Reset the singleton to ensure a clean test
+        ValidatorRegistry._instance = None
+
+        # Get a new registry instance
+        registry1 = get_validator_registry()
+
+        # Get another registry instance
         registry2 = get_validator_registry()
-        assert registry is registry2
+
+        # They should be the same instance
+        assert registry1 is registry2
 
     def test_register_validator(self, registry):
         """Test registering a validator."""

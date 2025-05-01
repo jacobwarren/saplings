@@ -84,11 +84,13 @@ class TestStreamingFunctionCaller:
         results = []
         # Set a timeout to prevent hanging
         with pytest.raises(asyncio.TimeoutError):
-            async with asyncio.timeout(0.5):  # 500ms timeout
+            async def collect_results():
                 async for result in caller.call_function_streaming(
                     "generate_numbers", {"count": 2}
                 ):
                     results.append(result)
+
+            await asyncio.wait_for(collect_results(), timeout=0.5)  # 500ms timeout
 
         # We might get partial results before the timeout
         assert len(results) <= 2
