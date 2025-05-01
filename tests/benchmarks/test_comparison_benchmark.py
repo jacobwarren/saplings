@@ -273,14 +273,18 @@ class TestComparisonBenchmark(BaseBenchmark):
                             # Calculate precision@k and recall@k
                             k = min(len(retrieved_ids), len(relevant_ids))
                             if k > 0:
-                                relevant_retrieved = set(retrieved_ids[:k]).intersection(set(relevant_ids))
+                                relevant_retrieved = set(retrieved_ids[:k]).intersection(
+                                    set(relevant_ids)
+                                )
                                 precision = len(relevant_retrieved) / k
                                 recall = len(relevant_retrieved) / len(relevant_ids)
 
                                 precision_at_k.append(precision)
                                 recall_at_k.append(recall)
                         except Exception as e:
-                            print(f"  Error processing query {query_idx+1} with {retriever_name}: {e}")
+                            print(
+                                f"  Error processing query {query_idx+1} with {retriever_name}: {e}"
+                            )
                             # Add default values to avoid breaking the test
                             latencies.append(1000.0)  # 1 second as fallback
 
@@ -310,9 +314,27 @@ class TestComparisonBenchmark(BaseBenchmark):
                         {
                             "name": retriever_name,
                             "error": str(e),
-                            "precision_at_k": {"mean": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0},
-                            "recall_at_k": {"mean": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0},
-                            "latency_ms": {"mean": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0},
+                            "precision_at_k": {
+                                "mean": 0.0,
+                                "median": 0.0,
+                                "min": 0.0,
+                                "max": 0.0,
+                                "std": 0.0,
+                            },
+                            "recall_at_k": {
+                                "mean": 0.0,
+                                "median": 0.0,
+                                "min": 0.0,
+                                "max": 0.0,
+                                "std": 0.0,
+                            },
+                            "latency_ms": {
+                                "mean": 0.0,
+                                "median": 0.0,
+                                "min": 0.0,
+                                "max": 0.0,
+                                "std": 0.0,
+                            },
                             "raw_latencies_ms": [],
                         }
                     )

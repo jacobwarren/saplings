@@ -43,5 +43,9 @@ def pytest_collection_modifyitems(config, items):
     if not config.getoption("--run-benchmarks"):
         skip_benchmarks = pytest.mark.skip(reason="Need --run-benchmarks option to run")
         for item in items:
-            if "benchmark" in item.keywords or "TestComparisonBenchmark" in str(item) or "tests/benchmarks/" in str(item.fspath):
+            if (
+                "benchmark" in item.keywords
+                or "TestComparisonBenchmark" in str(item)
+                or "tests/benchmarks/" in str(item.fspath)
+            ):
                 item.add_marker(skip_benchmarks)

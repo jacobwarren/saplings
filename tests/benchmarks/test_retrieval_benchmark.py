@@ -348,7 +348,9 @@ class TestRetrievalBenchmark(BaseBenchmark):
                     # For benchmarking purposes, we'll use a simplified approach
                     # that bypasses the indexing process
                     memory_store.documents = {doc.id: doc for doc in documents}
-                    vector_store.documents = {doc.id: doc for doc in documents if doc.embedding is not None}
+                    vector_store.documents = {
+                        doc.id: doc for doc in documents if doc.embedding is not None
+                    }
                     vector_store.embeddings = {
                         doc.id: doc.embedding for doc in documents if doc.embedding is not None
                     }
@@ -383,7 +385,9 @@ class TestRetrievalBenchmark(BaseBenchmark):
                             # Run multiple times
                             for run_idx in range(self.NUM_RUNS):
                                 try:
-                                    print(f"  Running {retriever_name} - run {run_idx+1}/{self.NUM_RUNS}")
+                                    print(
+                                        f"  Running {retriever_name} - run {run_idx+1}/{self.NUM_RUNS}"
+                                    )
 
                                     # Retrieve documents
                                     if retriever_name == "EmbeddingRetriever":
@@ -436,7 +440,13 @@ class TestRetrievalBenchmark(BaseBenchmark):
                                 {
                                     "name": retriever_name,
                                     "error": str(e),
-                                    "latency_ms": {"mean": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0},
+                                    "latency_ms": {
+                                        "mean": 0.0,
+                                        "median": 0.0,
+                                        "min": 0.0,
+                                        "max": 0.0,
+                                        "std": 0.0,
+                                    },
                                     "raw_latencies_ms": [],
                                 }
                             )
