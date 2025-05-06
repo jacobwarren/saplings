@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 SecureMemoryStore plugin for Saplings.
 
@@ -5,9 +7,10 @@ This module provides a secure memory store implementation that uses
 hash-key protection and differential privacy noise for privacy.
 """
 
+
 import hashlib
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -15,6 +18,9 @@ from saplings.core.plugin import MemoryStorePlugin, PluginType
 from saplings.memory.config import MemoryConfig, PrivacyLevel
 from saplings.memory.document import Document
 from saplings.memory.vector_store import InMemoryVectorStore, VectorStore
+
+if TYPE_CHECKING:
+    import builtins
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +33,14 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
     and differential privacy noise.
     """
 
-    def __init__(self, config: Optional[MemoryConfig] = None):
+    def __init__(self, config: MemoryConfig | None = None) -> None:
         """
         Initialize the secure memory store.
 
         Args:
+        ----
             config: Memory configuration
+
         """
         self.config = config or MemoryConfig.default()
         self._inner_store = InMemoryVectorStore(config)
@@ -58,8 +66,6 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
     @property
     def plugin_type(self) -> PluginType:
         """Type of the plugin."""
-        from saplings.core.plugin import PluginType
-
         return PluginType.MEMORY_STORE
 
     def _hash_document_content(self, content: str) -> str:
@@ -67,12 +73,15 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         Hash document content for privacy protection.
 
         Args:
+        ----
             content: Document content
 
         Returns:
+        -------
             str: Hashed content
+
         """
-        if self.privacy_level in [PrivacyLevel.HASH, PrivacyLevel.HASH_AND_DP]:
+        if self.privacy_level in [PrivacyLevel.HASH_ONLY, PrivacyLevel.HASH_AND_DP]:
             # Create a salted hash of the content
             hash_obj = hashlib.sha256((content + self.hash_salt).encode())
             return hash_obj.hexdigest()
@@ -84,12 +93,15 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         Add differential privacy noise to an embedding.
 
         Args:
+        ----
             embedding: Embedding vector
 
         Returns:
+        -------
             np.ndarray: Embedding with noise
+
         """
-        if self.privacy_level in [PrivacyLevel.DP_NOISE, PrivacyLevel.HASH_AND_DP]:
+        if self.privacy_level == PrivacyLevel.HASH_AND_DP:
             # Add Laplace noise with scale 1/epsilon
             noise_scale = 1.0 / self.dp_epsilon
             noise = np.random.laplace(0, noise_scale, embedding.shape)
@@ -102,10 +114,13 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         Apply security measures to a document.
 
         Args:
+        ----
             document: Document to secure
 
         Returns:
+        -------
             Document: Secured document
+
         """
         # Create a copy of the document
         secured_doc = Document(
@@ -145,7 +160,9 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         Add a document to the vector store.
 
         Args:
+        ----
             document: Document to add
+
         """
         # Apply security measures
         secured_doc = self._secure_document(document)
@@ -153,12 +170,14 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         # Add to inner store
         self._inner_store.add_document(secured_doc)
 
-    def add_documents(self, documents: List[Document]) -> None:
+    def add_documents(self, documents: builtins.list[Document]) -> None:
         """
         Add multiple documents to the vector store.
 
         Args:
+        ----
             documents: Documents to add
+
         """
         # Apply security measures to all documents
         secured_docs = [self._secure_document(doc) for doc in documents]
@@ -170,18 +189,21 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         self,
         query_embedding: np.ndarray,
         limit: int = 10,
-        filter_dict: Optional[Dict[str, Any]] = None,
-    ) -> List[Tuple[Document, float]]:
+        filter_dict: dict[str, Any] | None = None,
+    ) -> builtins.list[tuple[Document, float]]:
         """
         Search for similar documents.
 
         Args:
+        ----
             query_embedding: Query embedding vector
             limit: Maximum number of results
             filter_dict: Optional filter criteria
 
         Returns:
+        -------
             List[Tuple[Document, float]]: List of (document, similarity_score) tuples
+
         """
         # Add DP noise to query embedding for privacy
         secured_embedding = self._add_dp_noise(query_embedding)
@@ -189,15 +211,18 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         # Search inner store
         return self._inner_store.search(secured_embedding, limit, filter_dict)
 
-    def get(self, document_id: str) -> Optional[Document]:
+    def get(self, document_id: str) -> Document | None:
         """
         Get a document by ID.
 
         Args:
+        ----
             document_id: ID of the document
 
         Returns:
+        -------
             Optional[Document]: The document, or None if not found
+
         """
         return self._inner_store.get(document_id)
 
@@ -206,14 +231,17 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         Delete a document from the vector store.
 
         Args:
+        ----
             document_id: ID of the document to delete
 
         Returns:
+        -------
             bool: True if the document was deleted, False otherwise
+
         """
         return self._inner_store.delete(document_id)
 
-    def clear(self) -> None:
+    def clear(self):
         """Clear all data from the vector store."""
         self._inner_store.clear()
 
@@ -222,7 +250,9 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         Save the vector store to disk.
 
         Args:
+        ----
             directory: Directory to save to
+
         """
         self._inner_store.save(directory)
 
@@ -231,25 +261,31 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         Load the vector store from disk.
 
         Args:
+        ----
             directory: Directory to load from
+
         """
         self._inner_store.load(directory)
 
-    def count(self) -> int:
+    def count(self):
         """
         Get the number of documents in the vector store.
 
-        Returns:
+        Returns
+        -------
             int: Number of documents
+
         """
         return len(self._inner_store.documents)
 
-    def list(self) -> List[str]:
+    def list(self):
         """
         List all document IDs in the vector store.
 
-        Returns:
+        Returns
+        -------
             List[str]: List of document IDs
+
         """
         return list(self._inner_store.documents.keys())
 
@@ -258,7 +294,9 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         Update a document in the vector store.
 
         Args:
+        ----
             document: Document to update
+
         """
         # Apply security measures
         secured_doc = self._secure_document(document)

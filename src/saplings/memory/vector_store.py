@@ -1,21 +1,26 @@
+from __future__ import annotations
+
 """
 Vector store module for Saplings memory.
 
 This module defines the VectorStore abstract base class and implementations.
 """
 
+
 import datetime
 import json
 import logging
-import os
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from saplings.memory.config import MemoryConfig, PrivacyLevel, SimilarityMetric, VectorStoreType
 from saplings.memory.document import Document
+
+if TYPE_CHECKING:
+    import builtins
 
 logger = logging.getLogger(__name__)
 
@@ -34,39 +39,43 @@ class VectorStore(ABC):
         Add a document to the vector store.
 
         Args:
+        ----
             document: Document to add
+
         """
-        pass
 
     @abstractmethod
-    def add_documents(self, documents: List[Document]) -> None:
+    def add_documents(self, documents: builtins.list[Document]) -> None:
         """
         Add multiple documents to the vector store.
 
         Args:
+        ----
             documents: Documents to add
+
         """
-        pass
 
     @abstractmethod
     def search(
         self,
         query_embedding: np.ndarray,
         limit: int = 10,
-        filter_dict: Optional[Dict[str, Any]] = None,
-    ) -> List[Tuple[Document, float]]:
+        filter_dict: dict[str, Any] | None = None,
+    ) -> builtins.list[tuple[Document, float]]:
         """
         Search for similar documents.
 
         Args:
+        ----
             query_embedding: Query embedding vector
             limit: Maximum number of results
             filter_dict: Optional filter criteria
 
         Returns:
+        -------
             List[Tuple[Document, float]]: List of (document, similarity_score) tuples
+
         """
-        pass
 
     @abstractmethod
     def delete(self, document_id: str) -> bool:
@@ -74,12 +83,14 @@ class VectorStore(ABC):
         Delete a document from the vector store.
 
         Args:
+        ----
             document_id: ID of the document to delete
 
         Returns:
+        -------
             bool: True if the document was deleted, False otherwise
+
         """
-        pass
 
     @abstractmethod
     def update(self, document: Document) -> None:
@@ -87,56 +98,62 @@ class VectorStore(ABC):
         Update a document in the vector store.
 
         Args:
+        ----
             document: Updated document
+
         """
-        pass
 
     @abstractmethod
-    def get(self, document_id: str) -> Optional[Document]:
+    def get(self, document_id: str) -> Document | None:
         """
         Get a document by ID.
 
         Args:
+        ----
             document_id: ID of the document to get
 
         Returns:
+        -------
             Optional[Document]: Document if found, None otherwise
+
         """
-        pass
 
     @abstractmethod
     def list(
-        self, limit: int = 100, filter_dict: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+        self, limit: int = 100, filter_dict: dict[str, Any] | None = None
+    ) -> builtins.list[Document]:
         """
         List documents in the vector store.
 
         Args:
+        ----
             limit: Maximum number of documents to return
             filter_dict: Optional filter criteria
 
         Returns:
+        -------
             List[Document]: List of documents
+
         """
-        pass
 
     @abstractmethod
-    def count(self, filter_dict: Optional[Dict[str, Any]] = None) -> int:
+    def count(self, filter_dict: dict[str, Any] | None = None) -> int:
         """
         Count documents in the vector store.
 
         Args:
+        ----
             filter_dict: Optional filter criteria
 
         Returns:
+        -------
             int: Number of documents
+
         """
-        pass
 
     @abstractmethod
-    def clear(self) -> None:
+    def clear(self):
         """Clear all documents from the vector store."""
-        pass
 
     @abstractmethod
     def save(self, directory: str) -> None:
@@ -144,9 +161,10 @@ class VectorStore(ABC):
         Save the vector store to disk.
 
         Args:
+        ----
             directory: Directory to save to
+
         """
-        pass
 
     @abstractmethod
     def load(self, directory: str) -> None:
@@ -154,9 +172,10 @@ class VectorStore(ABC):
         Load the vector store from disk.
 
         Args:
+        ----
             directory: Directory to load from
+
         """
-        pass
 
 
 class InMemoryVectorStore(VectorStore):
@@ -167,16 +186,18 @@ class InMemoryVectorStore(VectorStore):
     It's suitable for small to medium-sized collections but doesn't scale to very large datasets.
     """
 
-    def __init__(self, config: Optional[MemoryConfig] = None):
+    def __init__(self, config: MemoryConfig | None = None) -> None:
         """
         Initialize the in-memory vector store.
 
         Args:
+        ----
             config: Memory configuration
+
         """
         self.config = config or MemoryConfig.default()
-        self.documents: Dict[str, Document] = {}
-        self.embeddings: Dict[str, np.ndarray] = {}
+        self.documents: dict[str, Document] = {}
+        self.embeddings: dict[str, np.ndarray] = {}
         self.similarity_metric = self.config.vector_store.similarity_metric
 
     def add_document(self, document: Document) -> None:
@@ -184,10 +205,13 @@ class InMemoryVectorStore(VectorStore):
         Add a document to the vector store.
 
         Args:
+        ----
             document: Document to add
+
         """
         if document.embedding is None:
-            raise ValueError(f"Document {document.id} has no embedding")
+            msg = f"Document {document.id} has no embedding"
+            raise ValueError(msg)
 
         self.documents[document.id] = document
         self.embeddings[document.id] = document.embedding
@@ -198,12 +222,14 @@ class InMemoryVectorStore(VectorStore):
                 self.documents[chunk.id] = chunk
                 self.embeddings[chunk.id] = chunk.embedding
 
-    def add_documents(self, documents: List[Document]) -> None:
+    def add_documents(self, documents: builtins.list[Document]) -> None:
         """
         Add multiple documents to the vector store.
 
         Args:
+        ----
             documents: Documents to add
+
         """
         for document in documents:
             self.add_document(document)
@@ -212,18 +238,21 @@ class InMemoryVectorStore(VectorStore):
         self,
         query_embedding: np.ndarray,
         limit: int = 10,
-        filter_dict: Optional[Dict[str, Any]] = None,
-    ) -> List[Tuple[Document, float]]:
+        filter_dict: dict[str, Any] | None = None,
+    ) -> builtins.list[tuple[Document, float]]:
         """
         Search for similar documents.
 
         Args:
+        ----
             query_embedding: Query embedding vector
             limit: Maximum number of results
             filter_dict: Optional filter criteria
 
         Returns:
+        -------
             List[Tuple[Document, float]]: List of (document, similarity_score) tuples
+
         """
         if not self.embeddings:
             return []
@@ -259,10 +288,13 @@ class InMemoryVectorStore(VectorStore):
         Delete a document from the vector store.
 
         Args:
+        ----
             document_id: ID of the document to delete
 
         Returns:
+        -------
             bool: True if the document was deleted, False otherwise
+
         """
         if document_id in self.documents:
             del self.documents[document_id]
@@ -275,41 +307,51 @@ class InMemoryVectorStore(VectorStore):
         Update a document in the vector store.
 
         Args:
+        ----
             document: Updated document
+
         """
         if document.id not in self.documents:
-            raise ValueError(f"Document {document.id} not found")
+            msg = f"Document {document.id} not found"
+            raise ValueError(msg)
 
         if document.embedding is None:
-            raise ValueError(f"Document {document.id} has no embedding")
+            msg = f"Document {document.id} has no embedding"
+            raise ValueError(msg)
 
         self.documents[document.id] = document
         self.embeddings[document.id] = document.embedding
 
-    def get(self, document_id: str) -> Optional[Document]:
+    def get(self, document_id: str) -> Document | None:
         """
         Get a document by ID.
 
         Args:
+        ----
             document_id: ID of the document to get
 
         Returns:
+        -------
             Optional[Document]: Document if found, None otherwise
+
         """
         return self.documents.get(document_id)
 
     def list(
-        self, limit: int = 100, filter_dict: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+        self, limit: int = 100, filter_dict: dict[str, Any] | None = None
+    ) -> builtins.list[Document]:
         """
         List documents in the vector store.
 
         Args:
+        ----
             limit: Maximum number of documents to return
             filter_dict: Optional filter criteria
 
         Returns:
+        -------
             List[Document]: List of documents
+
         """
         if filter_dict:
             docs = [
@@ -320,15 +362,18 @@ class InMemoryVectorStore(VectorStore):
 
         return docs[:limit]
 
-    def count(self, filter_dict: Optional[Dict[str, Any]] = None) -> int:
+    def count(self, filter_dict: dict[str, Any] | None = None) -> int:
         """
         Count documents in the vector store.
 
         Args:
+        ----
             filter_dict: Optional filter criteria
 
         Returns:
+        -------
             int: Number of documents
+
         """
         if filter_dict:
             return len(
@@ -336,7 +381,7 @@ class InMemoryVectorStore(VectorStore):
             )
         return len(self.documents)
 
-    def clear(self) -> None:
+    def clear(self):
         """Clear all documents from the vector store."""
         self.documents.clear()
         self.embeddings.clear()
@@ -346,7 +391,9 @@ class InMemoryVectorStore(VectorStore):
         Save the vector store to disk.
 
         Args:
+        ----
             directory: Directory to save to
+
         """
         directory_path = Path(directory)
         directory_path.mkdir(parents=True, exist_ok=True)
@@ -380,21 +427,23 @@ class InMemoryVectorStore(VectorStore):
         Load the vector store from disk.
 
         Args:
+        ----
             directory: Directory to load from
+
         """
         directory_path = Path(directory)
 
         # Load config
         config_path = directory_path / "config.json"
         if config_path.exists():
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 config_data = json.load(f)
                 self.config = MemoryConfig(**config_data)
 
         # Load documents
         documents_path = directory_path / "documents.json"
         if documents_path.exists():
-            with open(documents_path, "r") as f:
+            with open(documents_path) as f:
                 documents_data = json.load(f)
                 self.documents = {
                     doc_id: Document.from_dict(doc_data)
@@ -404,7 +453,7 @@ class InMemoryVectorStore(VectorStore):
         # Load embeddings
         embeddings_path = directory_path / "embeddings.json"
         if embeddings_path.exists():
-            with open(embeddings_path, "r") as f:
+            with open(embeddings_path) as f:
                 embeddings_data = json.load(f)
                 self.embeddings = {
                     doc_id: np.array(embedding, dtype=np.float32)
@@ -416,11 +465,14 @@ class InMemoryVectorStore(VectorStore):
         Calculate similarity between two embeddings.
 
         Args:
+        ----
             embedding1: First embedding
             embedding2: Second embedding
 
         Returns:
+        -------
             float: Similarity score
+
         """
         if self.similarity_metric == SimilarityMetric.COSINE:
             # Cosine similarity
@@ -428,31 +480,34 @@ class InMemoryVectorStore(VectorStore):
             norm2 = np.linalg.norm(embedding2)
             if norm1 == 0 or norm2 == 0:
                 return 0.0
-            return np.dot(embedding1, embedding2) / (norm1 * norm2)
+            return float(np.dot(embedding1, embedding2) / (norm1 * norm2))
 
-        elif self.similarity_metric == SimilarityMetric.DOT_PRODUCT:
+        if self.similarity_metric == SimilarityMetric.DOT_PRODUCT:
             # Dot product
-            return np.dot(embedding1, embedding2)
+            return float(np.dot(embedding1, embedding2))
 
-        elif self.similarity_metric == SimilarityMetric.EUCLIDEAN:
+        if self.similarity_metric == SimilarityMetric.EUCLIDEAN:
             # Euclidean distance (converted to similarity)
             distance = np.linalg.norm(embedding1 - embedding2)
-            # Convert distance to similarity (1 / (1 + distance))
-            return 1.0 / (1.0 + distance)
+            # Convert distance to similarity (1 / (1 + distance)) and ensure it's a Python float
+            return float(1.0 / (1.0 + distance))
 
-        else:
-            raise ValueError(f"Unknown similarity metric: {self.similarity_metric}")
+        msg = f"Unknown similarity metric: {self.similarity_metric}"
+        raise ValueError(msg)
 
-    def _matches_filter(self, document: Document, filter_dict: Dict[str, Any]) -> bool:
+    def _matches_filter(self, document: Document, filter_dict: dict[str, Any]) -> bool:
         """
         Check if a document matches a filter.
 
         Args:
+        ----
             document: Document to check
             filter_dict: Filter criteria
 
         Returns:
+        -------
             bool: True if the document matches the filter, False otherwise
+
         """
         for key, value in filter_dict.items():
             # Check document ID
@@ -486,8 +541,12 @@ class InMemoryVectorStore(VectorStore):
                 # Handle direct metadata fields
                 elif hasattr(document.metadata, field):
                     field_value = getattr(document.metadata, field)
-                elif field in document.metadata.custom:
-                    field_value = document.metadata.custom[field]
+                elif hasattr(document.metadata, "custom") and document.metadata is not None:
+                    custom = getattr(document.metadata, "custom", None)
+                    if isinstance(custom, dict) and field in custom:
+                        field_value = custom[field]
+                    else:
+                        return False
                 else:
                     return False
 
@@ -506,16 +565,19 @@ class InMemoryVectorStore(VectorStore):
 
 
 def get_vector_store(
-    config: Optional[MemoryConfig] = None,
+    config: MemoryConfig | None = None,
 ) -> VectorStore:
     """
     Get a vector store instance based on configuration.
 
     Args:
+    ----
         config: Memory configuration
 
     Returns:
+    -------
         VectorStore: Vector store instance
+
     """
     config = config or MemoryConfig.default()
     store_type = config.vector_store.store_type
@@ -536,8 +598,28 @@ def get_vector_store(
             if plugin_name.lower() == store_type.lower() or plugin_name.lower().replace(
                 "_", ""
             ) == store_type.lower().replace("_", ""):
-                # Create an instance of the plugin
-                return plugin_class(config)
+                # Check if the plugin class is a VectorStore
+                if issubclass(plugin_class, VectorStore):
+                    # Create an instance of the plugin
+                    # Since we can't pass config directly due to type issues,
+                    # we'll create a wrapper class that inherits from the plugin class
+                    # and overrides the __init__ method to accept config
+
+                    class ConfigurableVectorStore(plugin_class):  # type: ignore
+                        """A wrapper class that allows passing config to a plugin."""
+
+                        def __init__(self, config: MemoryConfig | None = None) -> None:
+                            """Initialize with config."""
+                            # Call the parent class's __init__ without arguments
+                            super().__init__()
+                            # Set the config attribute if it exists
+                            if hasattr(self, "config"):
+                                self.config = config
+
+                    return ConfigurableVectorStore(config)
+                logger.warning(f"Plugin {plugin_name} is not a VectorStore")
+                # Fall back to in-memory store
+                return InMemoryVectorStore(config)
 
         # If we're looking for a secure store, try to find a secure memory store plugin
         if (
@@ -546,8 +628,28 @@ def get_vector_store(
         ):
             for plugin_name, plugin_class in memory_store_plugins.items():
                 if "secure" in plugin_name.lower():
-                    # Create an instance of the secure plugin
-                    return plugin_class(config)
+                    # Check if the plugin class is a VectorStore
+                    if issubclass(plugin_class, VectorStore):
+                        # Create an instance of the plugin
+                        # Since we can't pass config directly due to type issues,
+                        # we'll create a wrapper class that inherits from the plugin class
+                        # and overrides the __init__ method to accept config
+
+                        class ConfigurableVectorStore(plugin_class):  # type: ignore
+                            """A wrapper class that allows passing config to a plugin."""
+
+                            def __init__(self, config: MemoryConfig | None = None) -> None:
+                                """Initialize with config."""
+                                # Call the parent class's __init__ without arguments
+                                super().__init__()
+                                # Set the config attribute if it exists
+                                if hasattr(self, "config"):
+                                    self.config = config
+
+                        return ConfigurableVectorStore(config)
+                    logger.warning(f"Plugin {plugin_name} is not a VectorStore")
+                    # Fall back to in-memory store
+                    return InMemoryVectorStore(config)
 
     except ImportError:
         # Plugin system not available
@@ -561,4 +663,5 @@ def get_vector_store(
     # elif store_type == VectorStoreType.PINECONE:
     #     return PineconeVectorStore(config)
 
-    raise ValueError(f"Unsupported vector store type: {store_type}")
+    msg = f"Unsupported vector store type: {store_type}"
+    raise ValueError(msg)

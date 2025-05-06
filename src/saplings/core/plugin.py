@@ -1,14 +1,16 @@
+from __future__ import annotations
+
 """
 Plugin system for Saplings.
 
 This module provides the plugin discovery and loading mechanism for Saplings.
 """
 
-import importlib
+
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type, TypeVar, cast
+from typing import Any, TypeVar
 
 from importlib_metadata import entry_points
 
@@ -32,25 +34,21 @@ class Plugin(ABC):
     @abstractmethod
     def name(self) -> str:
         """Name of the plugin."""
-        pass
 
     @property
     @abstractmethod
     def version(self) -> str:
         """Version of the plugin."""
-        pass
 
     @property
     @abstractmethod
     def description(self) -> str:
         """Description of the plugin."""
-        pass
 
     @property
     @abstractmethod
     def plugin_type(self) -> PluginType:
         """Type of the plugin."""
-        pass
 
 
 T = TypeVar("T", bound=Plugin)
@@ -59,25 +57,20 @@ T = TypeVar("T", bound=Plugin)
 class PluginRegistry:
     """Registry for plugins."""
 
-    _instance: Optional["PluginRegistry"] = None
-    _plugins: Dict[PluginType, Dict[str, Type[Plugin]]] = {}
+    def __init__(self) -> None:
+        """Initialize the plugin registry."""
+        self._plugins: dict[PluginType, dict[str, type[Plugin]]] = {}
+        for plugin_type in PluginType:
+            self._plugins[plugin_type] = {}
 
-    def __new__(cls) -> "PluginRegistry":
-        """Create a singleton instance of the registry."""
-        if cls._instance is None:
-            cls._instance = super(PluginRegistry, cls).__new__(cls)
-            # Initialize plugin dictionaries
-            cls._instance._plugins = {}
-            for plugin_type in PluginType:
-                cls._instance._plugins[plugin_type] = {}
-        return cls._instance
-
-    def register_plugin(self, plugin_class: Type[Plugin]) -> None:
+    def register_plugin(self, plugin_class: type[Plugin]) -> None:
         """
         Register a plugin class.
 
         Args:
+        ----
             plugin_class: The plugin class to register
+
         """
         # Create a temporary instance to access property values
         temp_instance = plugin_class()
@@ -86,43 +79,51 @@ class PluginRegistry:
 
         if plugin_name in self._plugins[plugin_type]:
             logger.warning(
-                f"Plugin {plugin_name} of type {plugin_type} is already registered. Overwriting."
+                "Plugin %s of type %s is already registered. Overwriting.", plugin_name, plugin_type
             )
 
         self._plugins[plugin_type][plugin_name] = plugin_class
-        logger.info(f"Registered plugin {plugin_name} of type {plugin_type}")
+        logger.info("Registered plugin %s of type %s", plugin_name, plugin_type)
 
-    def get_plugin(self, plugin_type: PluginType, plugin_name: str) -> Optional[Type[Plugin]]:
+    def get_plugin(self, plugin_type: PluginType, plugin_name: str) -> type[Plugin] | None:
         """
         Get a plugin by type and name.
 
         Args:
+        ----
             plugin_type: Type of the plugin
             plugin_name: Name of the plugin
 
         Returns:
+        -------
             Optional[Type[Plugin]]: The plugin class if found, None otherwise
+
         """
         return self._plugins.get(plugin_type, {}).get(plugin_name)
 
-    def get_plugins_by_type(self, plugin_type: PluginType) -> Dict[str, Type[Plugin]]:
+    def get_plugins_by_type(self, plugin_type: PluginType) -> dict[str, type[Plugin]]:
         """
         Get all plugins of a specific type.
 
         Args:
+        ----
             plugin_type: Type of plugins to get
 
         Returns:
+        -------
             Dict[str, Type[Plugin]]: Dictionary of plugin name to plugin class
+
         """
         return self._plugins.get(plugin_type, {})
 
-    def get_plugin_types(self) -> List[PluginType]:
+    def get_plugin_types(self) -> list[PluginType]:
         """
         Get all plugin types.
 
-        Returns:
+        Returns
+        -------
             List[PluginType]: List of plugin types
+
         """
         return list(PluginType)
 
@@ -133,7 +134,7 @@ class PluginRegistry:
         logger.info("Cleared all registered plugins")
 
 
-def discover_plugins() -> None:
+def discover_plugins():
     """
     Discover and register plugins from entry points.
 
@@ -162,23 +163,27 @@ def discover_plugins() -> None:
                 plugin_class = entry_point.load()
                 if not issubclass(plugin_class, Plugin):
                     logger.warning(
-                        f"Entry point {entry_point.name} in group {group_name} "
-                        f"does not provide a Plugin subclass"
+                        "Entry point %s in group %s does not provide a Plugin subclass",
+                        entry_point.name,
+                        group_name,
                     )
                     continue
 
                 # Verify that the plugin type matches the entry point group
                 if plugin_class.plugin_type != plugin_type:
                     logger.warning(
-                        f"Plugin {plugin_class.name} has type {plugin_class.plugin_type} "
-                        f"but was registered in group {group_name} for type {plugin_type}"
+                        "Plugin %s has type %s but was registered in group %s for type %s",
+                        plugin_class.name,
+                        plugin_class.plugin_type,
+                        group_name,
+                        plugin_type,
                     )
                     continue
 
                 registry.register_plugin(plugin_class)
-            except Exception as e:
-                logger.error(
-                    f"Error loading plugin {entry_point.name} from group {group_name}: {e}"
+            except Exception:
+                logger.exception(
+                    "Error loading plugin %s from group %s", entry_point.name, group_name
                 )
 
     logger.info("Plugin discovery completed")
@@ -188,45 +193,66 @@ def get_plugin_registry() -> PluginRegistry:
     """
     Get the plugin registry.
 
-    Returns:
-        PluginRegistry: The plugin registry
+    This function is maintained for backward compatibility.
+    New code should use constructor injection via the DI container.
+
+    Returns
+    -------
+        PluginRegistry: The plugin registry from the DI container
+
     """
-    return PluginRegistry()
+    from saplings.di import container
+
+    # Explicitly cast the result to ensure type safety
+    result = container.resolve(PluginRegistry)
+    if not isinstance(result, PluginRegistry):
+        # Create a new instance if the container doesn't have one
+        result = PluginRegistry()
+
+    return result
 
 
-def get_plugin(plugin_type: PluginType, plugin_name: str) -> Optional[Type[Plugin]]:
+def get_plugin(plugin_type: PluginType, plugin_name: str) -> type[Plugin] | None:
     """
     Get a plugin by type and name.
 
     Args:
+    ----
         plugin_type: Type of the plugin
         plugin_name: Name of the plugin
 
     Returns:
+    -------
         Optional[Type[Plugin]]: The plugin class if found, None otherwise
+
     """
     return get_plugin_registry().get_plugin(plugin_type, plugin_name)
 
 
-def get_plugins_by_type(plugin_type: PluginType) -> Dict[str, Type[Plugin]]:
+def get_plugins_by_type(plugin_type: PluginType) -> dict[str, type[Plugin]]:
     """
     Get all plugins of a specific type.
 
     Args:
+    ----
         plugin_type: Type of plugins to get
 
     Returns:
+    -------
         Dict[str, Type[Plugin]]: Dictionary of plugin name to plugin class
+
     """
     return get_plugin_registry().get_plugins_by_type(plugin_type)
 
 
-def register_plugin(plugin_class: Type[Plugin]) -> None:
+def register_plugin(plugin_class: type[Plugin]) -> None:
     """
     Register a plugin class.
 
     Args:
+    ----
         plugin_class: The plugin class to register
+
     """
     get_plugin_registry().register_plugin(plugin_class)
 
@@ -241,6 +267,24 @@ class ModelAdapterPlugin(Plugin):
     def plugin_type(self) -> PluginType:
         """Type of the plugin."""
         return PluginType.MODEL_ADAPTER
+
+    def create_adapter(self, _provider: str, _model_name: str, **_kwargs: Any) -> object:
+        """
+        Create a model adapter instance.
+
+        Args:
+        ----
+            _provider: The model provider
+            _model_name: The model name
+            **_kwargs: Additional arguments for the adapter
+
+        Returns:
+        -------
+            Any: The model adapter instance
+
+        """
+        msg = "Subclasses must implement create_adapter method"
+        raise NotImplementedError(msg)
 
 
 class MemoryStorePlugin(Plugin):

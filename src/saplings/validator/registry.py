@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 ValidatorRegistry module for Saplings.
 
@@ -12,17 +14,16 @@ import os
 import pkgutil
 import sys
 import time
-from typing import Any, Dict, List, Optional, Set, Type, TypeVar, cast
+from typing import TypeVar, cast
 
 from importlib_metadata import entry_points
 
 from saplings.core.plugin import PluginType, get_plugins_by_type
 from saplings.validator.config import ValidatorConfig, ValidatorType
+from saplings.validator.result import ValidationResult, ValidationStatus
 from saplings.validator.validator import (
     RuntimeValidator,
     StaticValidator,
-    ValidationResult,
-    ValidationStatus,
     Validator,
 )
 
@@ -38,27 +39,14 @@ class ValidatorRegistry:
     This class provides methods for registering, discovering, and retrieving validators.
     """
 
-    _instance = None
-
-    def __new__(cls):
-        """Create a singleton instance."""
-        if cls._instance is None:
-            cls._instance = super(ValidatorRegistry, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the validator registry."""
-        if self._initialized:
-            return
-
-        self._validators: Dict[str, Type[Validator]] = {}
-        self._validator_instances: Dict[str, Validator] = {}
+        self._validators: dict[str, type[Validator]] = {}
+        self._validator_instances: dict[str, Validator] = {}
         self._config = ValidatorConfig.default()
         self._validation_count = 0  # Counter for budget enforcement
-        self._initialized = True
 
-    def reset_budget(self):
+    def reset_budget(self) -> None:
         """Reset the validation budget counter."""
         self._validation_count = 0
 
@@ -67,26 +55,32 @@ class ValidatorRegistry:
         Configure the validator registry.
 
         Args:
+        ----
             config: Validator configuration
+
         """
         self._config = config
 
-    def register_validator(self, validator_class: Type[Validator]) -> None:
+    def register_validator(self, validator_class: type[Validator]) -> None:
         """
         Register a validator class.
 
         Args:
+        ----
             validator_class: Validator class to register
 
         Raises:
+        ------
             ValueError: If a validator with the same ID is already registered
+
         """
         # Create a temporary instance to get the ID
         validator = validator_class()
         validator_id = validator.id
 
         if validator_id in self._validators:
-            raise ValueError(f"Validator with ID '{validator_id}' is already registered")
+            msg = f"Validator with ID '{validator_id}' is already registered"
+            raise ValueError(msg)
 
         self._validators[validator_id] = validator_class
         logger.debug(f"Registered validator: {validator_id}")
@@ -96,13 +90,17 @@ class ValidatorRegistry:
         Get a validator by ID.
 
         Args:
+        ----
             validator_id: ID of the validator
 
         Returns:
+        -------
             Validator: Validator instance
 
         Raises:
+        ------
             ValueError: If the validator is not found
+
         """
         # Check if we already have an instance
         if validator_id in self._validator_instances:
@@ -110,7 +108,8 @@ class ValidatorRegistry:
 
         # Check if we have the class
         if validator_id not in self._validators:
-            raise ValueError(f"Validator not found: {validator_id}")
+            msg = f"Validator not found: {validator_id}"
+            raise ValueError(msg)
 
         # Create a new instance
         validator_class = self._validators[validator_id]
@@ -121,24 +120,29 @@ class ValidatorRegistry:
 
         return validator
 
-    def list_validators(self) -> List[str]:
+    def list_validators(self) -> list[str]:
         """
         List all registered validators.
 
-        Returns:
+        Returns
+        -------
             List[str]: List of validator IDs
+
         """
         return list(self._validators.keys())
 
-    def get_validators_by_type(self, validator_type: ValidatorType) -> List[str]:
+    def get_validators_by_type(self, validator_type: ValidatorType) -> list[str]:
         """
         Get validators of a specific type.
 
         Args:
+        ----
             validator_type: Type of validators to get
 
         Returns:
+        -------
             List[str]: List of validator IDs
+
         """
         result = []
         for validator_id, validator_class in self._validators.items():
@@ -149,9 +153,7 @@ class ValidatorRegistry:
         return result
 
     def discover_validators(self) -> None:
-        """
-        Discover validators from plugins and specified directories.
-        """
+        """Discover validators from plugins and specified directories."""
         # Discover validators from plugins
         if self._config.use_entry_points:
             self._discover_validators_from_entry_points()
@@ -161,14 +163,12 @@ class ValidatorRegistry:
             self._discover_validators_from_directory(directory)
 
     def _discover_validators_from_entry_points(self) -> None:
-        """
-        Discover validators from entry points.
-        """
+        """Discover validators from entry points."""
         # Get validators from plugin registry
         validator_plugins = get_plugins_by_type(PluginType.VALIDATOR)
-        for plugin_name, plugin_class in validator_plugins.items():
+        for plugin_class in validator_plugins.values():
             if issubclass(plugin_class, Validator):
-                self.register_validator(cast(Type[Validator], plugin_class))
+                self.register_validator(cast("type[Validator]", plugin_class))
 
         # Get validators from entry points
         try:
@@ -189,7 +189,9 @@ class ValidatorRegistry:
         Discover validators from a directory.
 
         Args:
+        ----
             directory: Directory to search for validators
+
         """
         if not os.path.isdir(directory):
             logger.warning(f"Validator directory not found: {directory}")
@@ -199,7 +201,7 @@ class ValidatorRegistry:
         sys.path.insert(0, directory)
 
         # Find all Python modules in the directory
-        for _, name, is_pkg in pkgutil.iter_modules([directory]):
+        for _, name, _is_pkg in pkgutil.iter_modules([directory]):
             try:
                 # Import the module
                 module = importlib.import_module(name)
@@ -212,9 +214,7 @@ class ValidatorRegistry:
                     if (
                         inspect.isclass(attr)
                         and issubclass(attr, Validator)
-                        and attr != Validator
-                        and attr != StaticValidator
-                        and attr != RuntimeValidator
+                        and attr not in (Validator, StaticValidator, RuntimeValidator)
                     ):
                         self.register_validator(attr)
             except Exception as e:
@@ -227,14 +227,15 @@ class ValidatorRegistry:
         self,
         output: str,
         prompt: str,
-        validator_ids: Optional[List[str]] = None,
-        validator_type: Optional[ValidatorType] = None,
+        validator_ids: list[str] | None = None,
+        validator_type: ValidatorType | None = None,
         **kwargs,
-    ) -> List[ValidationResult]:
+    ) -> list[ValidationResult]:
         """
         Validate an output using the specified validators.
 
         Args:
+        ----
             output: Output to validate
             prompt: Prompt that generated the output
             validator_ids: IDs of validators to use (if None, use all)
@@ -242,7 +243,9 @@ class ValidatorRegistry:
             **kwargs: Additional validation parameters
 
         Returns:
+        -------
             List[ValidationResult]: Validation results
+
         """
         # Check budget constraints if enabled
         if self._config.enforce_budget and self._config.max_validations_per_session is not None:
@@ -261,16 +264,15 @@ class ValidatorRegistry:
                         )
                         for validator_id in validator_ids
                     ]
-                else:
-                    # If no specific validators were requested, return a generic result
-                    return [
-                        ValidationResult(
-                            validator_id="budget_enforcer",
-                            status=ValidationStatus.SKIPPED,
-                            message=f"Validation budget exceeded: {self._validation_count} >= {self._config.max_validations_per_session}",
-                            metadata={"budget_exceeded": True},
-                        )
-                    ]
+                # If no specific validators were requested, return a generic result
+                return [
+                    ValidationResult(
+                        validator_id="budget_enforcer",
+                        status=ValidationStatus.SKIPPED,
+                        message=f"Validation budget exceeded: {self._validation_count} >= {self._config.max_validations_per_session}",
+                        metadata={"budget_exceeded": True},
+                    )
+                ]
 
         # Get the validators to use
         validators_to_use = []
@@ -342,13 +344,16 @@ class ValidatorRegistry:
         Validate with a timeout.
 
         Args:
+        ----
             validator: Validator to use
             output: Output to validate
             prompt: Prompt that generated the output
             **kwargs: Additional validation parameters
 
         Returns:
+        -------
             ValidationResult: Validation result
+
         """
         # Start timing
         start_time = time.time()
@@ -394,18 +399,18 @@ class ValidatorRegistry:
             )
 
 
-# Singleton instance
-_validator_registry = None
-
-
-def get_validator_registry() -> ValidatorRegistry:
+def get_validator_registry():
     """
-    Get the validator registry singleton.
+    Get the validator registry.
 
-    Returns:
-        ValidatorRegistry: Validator registry
+    This function is maintained for backward compatibility.
+    New code should use constructor injection via the DI container.
+
+    Returns
+    -------
+        ValidatorRegistry: Validator registry from the DI container
+
     """
-    global _validator_registry
-    if _validator_registry is None:
-        _validator_registry = ValidatorRegistry()
-    return _validator_registry
+    from saplings.di import container
+
+    return container.resolve(ValidatorRegistry)

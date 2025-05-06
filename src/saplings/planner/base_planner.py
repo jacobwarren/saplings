@@ -1,17 +1,22 @@
+from __future__ import annotations
+
 """
 Base planner module for Saplings.
 
 This module defines the BasePlanner abstract class that all planners must implement.
 """
 
+
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from saplings.core.model_adapter import LLM, ModelRole
-from saplings.monitoring.trace import TraceManager
 from saplings.planner.config import PlannerConfig
 from saplings.planner.plan_step import PlanStep, PlanStepStatus
+
+if TYPE_CHECKING:
+    from saplings.monitoring.trace import TraceManager
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +30,23 @@ class BasePlanner(ABC):
 
     def __init__(
         self,
-        config: Optional[PlannerConfig] = None,
-        model: Optional[LLM] = None,
-        trace_manager: Optional["TraceManager"] = None,
-    ):
+        config: PlannerConfig | None = None,
+        model: LLM | None = None,
+        trace_manager: "TraceManager | None" = None,
+    ) -> None:
         """
         Initialize the planner.
 
         Args:
+        ----
             config: Planner configuration
             model: LLM model to use for planning
             trace_manager: TraceManager for tracing execution
+
         """
         self.config = config or PlannerConfig.default()
         self.model = model
-        self.steps: List[PlanStep] = []
+        self.steps: list[PlanStep] = []
         self.total_cost: float = 0.0
         self.total_tokens: int = 0
         self.trace_manager = trace_manager
@@ -49,71 +56,100 @@ class BasePlanner(ABC):
         if self.model is not None:
             self._validate_model()
 
-    def _validate_model(self) -> None:
+    def _validate_model(self):
         """
         Validate that the model is suitable for planning.
 
-        Raises:
+        Raises
+        ------
             ValueError: If the model is not suitable for planning
+
         """
+        if self.model is None:
+            return
+
         metadata = self.model.get_metadata()
-        if ModelRole.PLANNER not in metadata.roles and ModelRole.GENERAL not in metadata.roles:
-            raise ValueError(
-                f"Model {metadata.name} is not suitable for planning. "
+        if not metadata:
+            logger.warning("Could not get model metadata for validation")
+            return
+
+        # Handle both ModelMetadata objects and dictionaries
+        if isinstance(metadata, dict):
+            roles = metadata.get("roles", [])
+            model_name = metadata.get("name", "unknown")
+        else:
+            # Assume it's a ModelMetadata object
+            roles = getattr(metadata, "roles", [])
+            model_name = getattr(metadata, "name", "unknown")
+
+        # Check if the model has the required roles
+        if roles and ModelRole.PLANNER not in roles and ModelRole.GENERAL not in roles:
+            msg = (
+                f"Model {model_name} is not suitable for planning. "
                 f"It must have either PLANNER or GENERAL role."
             )
+            raise ValueError(msg)
 
     @abstractmethod
-    async def create_plan(self, task: str, **kwargs) -> List[PlanStep]:
+    async def create_plan(self, task: str, **kwargs) -> list[PlanStep]:
         """
         Create a plan for a task.
 
         Args:
+        ----
             task: Task description
             **kwargs: Additional arguments
 
         Returns:
+        -------
             List[PlanStep]: List of plan steps
+
         """
-        pass
 
     @abstractmethod
-    async def optimize_plan(self, steps: List[PlanStep], **kwargs) -> List[PlanStep]:
+    async def optimize_plan(self, steps: list[PlanStep], **kwargs) -> list[PlanStep]:
         """
         Optimize a plan.
 
         Args:
+        ----
             steps: List of plan steps
             **kwargs: Additional arguments
 
         Returns:
+        -------
             List[PlanStep]: Optimized list of plan steps
+
         """
-        pass
 
     @abstractmethod
-    async def execute_plan(self, steps: List[PlanStep], **kwargs) -> Tuple[bool, Any]:
+    async def execute_plan(self, steps: list[PlanStep], **kwargs) -> tuple[bool, Any]:
         """
         Execute a plan.
 
         Args:
+        ----
             steps: List of plan steps
             **kwargs: Additional arguments
 
         Returns:
+        -------
             Tuple[bool, Any]: Success flag and result
-        """
-        pass
 
-    def validate_plan(self, steps: List[PlanStep]) -> bool:
+        """
+
+    def validate_plan(self, steps: list[PlanStep]) -> bool:
         """
         Validate a plan.
 
         Args:
+        ----
             steps: List of plan steps
 
         Returns:
+        -------
             bool: True if the plan is valid, False otherwise
+
         """
         # Check if the plan is empty
         if not steps:
@@ -171,15 +207,18 @@ class BasePlanner(ABC):
         # If we get here, the plan is valid
         return True
 
-    def _has_circular_dependencies(self, steps: List[PlanStep]) -> bool:
+    def _has_circular_dependencies(self, steps: list[PlanStep]) -> bool:
         """
         Check if a plan has circular dependencies.
 
         Args:
+        ----
             steps: List of plan steps
 
         Returns:
+        -------
             bool: True if the plan has circular dependencies, False otherwise
+
         """
         # Create a mapping from step ID to step
         step_map = {step.id: step for step in steps}
@@ -208,22 +247,20 @@ class BasePlanner(ABC):
             path.remove(step_id)
             return False
 
-        for step in steps:
-            if step.id not in visited:
-                if has_cycle(step.id):
-                    return True
+        return any(step.id not in visited and has_cycle(step.id) for step in steps)
 
-        return False
-
-    def _has_missing_dependencies(self, steps: List[PlanStep]) -> bool:
+    def _has_missing_dependencies(self, steps: list[PlanStep]) -> bool:
         """
         Check if a plan has missing dependencies.
 
         Args:
+        ----
             steps: List of plan steps
 
         Returns:
+        -------
             bool: True if the plan has missing dependencies, False otherwise
+
         """
         # Create a set of all step IDs
         step_ids = {step.id for step in steps}
@@ -237,15 +274,18 @@ class BasePlanner(ABC):
 
         return False
 
-    def get_execution_order(self, steps: List[PlanStep]) -> List[List[PlanStep]]:
+    def get_execution_order(self, steps: list[PlanStep]) -> list[list[PlanStep]]:
         """
         Get the execution order for a plan.
 
         Args:
+        ----
             steps: List of plan steps
 
         Returns:
+        -------
             List[List[PlanStep]]: List of batches of steps to execute in order
+
         """
         # Create a mapping from step ID to step
         step_map = {step.id: step for step in steps}
@@ -257,7 +297,7 @@ class BasePlanner(ABC):
         batches = []
 
         # Keep track of remaining steps
-        remaining = set(step.id for step in steps)
+        remaining = {step.id for step in steps}
 
         # Process steps in batches
         while remaining:
@@ -283,108 +323,132 @@ class BasePlanner(ABC):
 
         return batches
 
-    def estimate_cost(self, steps: List[PlanStep]) -> float:
+    def estimate_cost(self, steps: list[PlanStep]) -> float:
         """
         Estimate the total cost of a plan.
 
         Args:
+        ----
             steps: List of plan steps
 
         Returns:
+        -------
             float: Estimated total cost in USD
+
         """
         return sum(step.estimated_cost for step in steps)
 
-    def estimate_tokens(self, steps: List[PlanStep]) -> int:
+    def estimate_tokens(self, steps: list[PlanStep]) -> int:
         """
         Estimate the total number of tokens required for a plan.
 
         Args:
+        ----
             steps: List of plan steps
 
         Returns:
+        -------
             int: Estimated total number of tokens
+
         """
         return sum(step.estimated_tokens for step in steps)
 
-    def get_step_by_id(self, step_id: str) -> Optional[PlanStep]:
+    def get_step_by_id(self, step_id: str) -> PlanStep | None:
         """
         Get a step by its ID.
 
         Args:
+        ----
             step_id: Step ID
 
         Returns:
+        -------
             Optional[PlanStep]: Step with the given ID, or None if not found
+
         """
         for step in self.steps:
             if step.id == step_id:
                 return step
         return None
 
-    def get_steps_by_status(self, status: PlanStepStatus) -> List[PlanStep]:
+    def get_steps_by_status(self, status: PlanStepStatus) -> list[PlanStep]:
         """
         Get steps with a given status.
 
         Args:
+        ----
             status: Step status
 
         Returns:
+        -------
             List[PlanStep]: Steps with the given status
+
         """
         return [step for step in self.steps if step.status == status]
 
-    def get_completed_steps(self) -> List[PlanStep]:
+    def get_completed_steps(self):
         """
         Get completed steps.
 
-        Returns:
+        Returns
+        -------
             List[PlanStep]: Completed steps
+
         """
         return self.get_steps_by_status(PlanStepStatus.COMPLETED)
 
-    def get_failed_steps(self) -> List[PlanStep]:
+    def get_failed_steps(self):
         """
         Get failed steps.
 
-        Returns:
+        Returns
+        -------
             List[PlanStep]: Failed steps
+
         """
         return self.get_steps_by_status(PlanStepStatus.FAILED)
 
-    def get_pending_steps(self) -> List[PlanStep]:
+    def get_pending_steps(self):
         """
         Get pending steps.
 
-        Returns:
+        Returns
+        -------
             List[PlanStep]: Pending steps
+
         """
         return self.get_steps_by_status(PlanStepStatus.PENDING)
 
-    def get_in_progress_steps(self) -> List[PlanStep]:
+    def get_in_progress_steps(self):
         """
         Get steps in progress.
 
-        Returns:
+        Returns
+        -------
             List[PlanStep]: Steps in progress
+
         """
         return self.get_steps_by_status(PlanStepStatus.IN_PROGRESS)
 
-    def get_skipped_steps(self) -> List[PlanStep]:
+    def get_skipped_steps(self):
         """
         Get skipped steps.
 
-        Returns:
+        Returns
+        -------
             List[PlanStep]: Skipped steps
+
         """
         return self.get_steps_by_status(PlanStepStatus.SKIPPED)
 
-    def get_plan_status(self) -> Dict[str, Any]:
+    def get_plan_status(self):
         """
         Get the status of the plan.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Plan status
+
         """
         completed = self.get_completed_steps()
         failed = self.get_failed_steps()
@@ -415,45 +479,51 @@ class BasePlanner(ABC):
             "is_successful": self.is_plan_successful(),
         }
 
-    def is_plan_complete(self) -> bool:
+    def is_plan_complete(self):
         """
         Check if the plan is complete.
 
-        Returns:
+        Returns
+        -------
             bool: True if the plan is complete, False otherwise
+
         """
         return all(step.is_complete() for step in self.steps)
 
-    def is_plan_successful(self) -> bool:
+    def is_plan_successful(self):
         """
         Check if the plan completed successfully.
 
-        Returns:
+        Returns
+        -------
             bool: True if the plan completed successfully, False otherwise
+
         """
         return self.is_plan_complete() and all(
             step.is_successful() or step.is_skipped() for step in self.steps
         )
 
-    def reset_plan(self) -> None:
+    def reset_plan(self):
         """Reset the plan to its initial state."""
         for step in self.steps:
             step.reset()
         self.total_cost = 0.0
         self.total_tokens = 0
 
-    def clear_plan(self) -> None:
+    def clear_plan(self):
         """Clear the plan."""
         self.steps = []
         self.total_cost = 0.0
         self.total_tokens = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the planner to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation of the planner
+
         """
         return {
             "config": self.config.model_dump(),
@@ -463,15 +533,18 @@ class BasePlanner(ABC):
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "BasePlanner":
+    def from_dict(cls, data: dict[str, Any]) -> "BasePlanner":
         """
         Create a planner from a dictionary.
 
         Args:
+        ----
             data: Dictionary representation of a planner
 
         Returns:
+        -------
             BasePlanner: Created planner
+
         """
         config = PlannerConfig(**data["config"])
         planner = cls(config=config)

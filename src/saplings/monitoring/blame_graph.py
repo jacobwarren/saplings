@@ -1,19 +1,21 @@
+from __future__ import annotations
+
 """
 Blame graph module for Saplings monitoring.
 
 This module provides the causal blame graph functionality for identifying performance bottlenecks.
 """
 
+
 import json
 import logging
 import os
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-
-import numpy as np
+from typing import TYPE_CHECKING, Any
 
 from saplings.monitoring.config import MonitoringConfig
-from saplings.monitoring.trace import Span, Trace, TraceManager
+
+if TYPE_CHECKING:
+    from saplings.monitoring.trace import Trace, TraceManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +39,18 @@ class BlameNode:
         node_id: str,
         name: str,
         component: str,
-        attributes: Optional[Dict[str, Any]] = None,
-    ):
+        attributes: dict[str, Any] | None = None,
+    ) -> None:
         """
         Initialize a blame node.
 
         Args:
+        ----
             node_id: ID of the node
             name: Name of the node
             component: Component the node belongs to
             attributes: Additional attributes
+
         """
         self.node_id = node_id
         self.name = name
@@ -66,8 +70,10 @@ class BlameNode:
         Update performance metrics.
 
         Args:
+        ----
             duration_ms: Duration in milliseconds
             is_error: Whether the operation resulted in an error
+
         """
         self.total_time_ms += duration_ms
         self.call_count += 1
@@ -79,12 +85,14 @@ class BlameNode:
         self.max_time_ms = max(self.max_time_ms, duration_ms)
         self.min_time_ms = min(self.min_time_ms, duration_ms)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the node to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation
+
         """
         return {
             "node_id": self.node_id,
@@ -110,16 +118,18 @@ class BlameEdge:
         source_id: str,
         target_id: str,
         relationship: str,
-        attributes: Optional[Dict[str, Any]] = None,
-    ):
+        attributes: dict[str, Any] | None = None,
+    ) -> None:
         """
         Initialize a blame edge.
 
         Args:
+        ----
             source_id: ID of the source node
             target_id: ID of the target node
             relationship: Type of relationship
             attributes: Additional attributes
+
         """
         self.source_id = source_id
         self.target_id = target_id
@@ -137,8 +147,10 @@ class BlameEdge:
         Update performance metrics.
 
         Args:
+        ----
             duration_ms: Duration in milliseconds
             is_error: Whether the operation resulted in an error
+
         """
         self.total_time_ms += duration_ms
         self.call_count += 1
@@ -148,12 +160,14 @@ class BlameEdge:
 
         self.avg_time_ms = self.total_time_ms / self.call_count
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the edge to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation
+
         """
         return {
             "source_id": self.source_id,
@@ -179,34 +193,38 @@ class BlameGraph:
 
     def __init__(
         self,
-        trace_manager: Optional[TraceManager] = None,
-        config: Optional[MonitoringConfig] = None,
-    ):
+        trace_manager: TraceManager | None = None,
+        config: MonitoringConfig | None = None,
+    ) -> None:
         """
         Initialize the blame graph.
 
         Args:
+        ----
             trace_manager: Trace manager to use
             config: Monitoring configuration
+
         """
         self.trace_manager = trace_manager
         self.config = config or MonitoringConfig()
 
         # Initialize graph
-        self.nodes: Dict[str, BlameNode] = {}
-        self.edges: Dict[Tuple[str, str], BlameEdge] = {}
+        self.nodes: dict[str, BlameNode] = {}
+        self.edges: dict[tuple[str, str], BlameEdge] = {}
 
         # Initialize NetworkX graph if available
         self.graph = None
         if NETWORKX_AVAILABLE:
             self.graph = nx.DiGraph()
 
-    def process_trace(self, trace: Union[str, Trace]) -> None:
+    def process_trace(self, trace: str | Trace) -> None:
         """
         Process a trace to update the blame graph.
 
         Args:
+        ----
             trace: Trace or trace ID to process
+
         """
         # Get trace if ID is provided
         if isinstance(trace, str):
@@ -301,16 +319,19 @@ class BlameGraph:
         self,
         threshold_ms: float = 100.0,
         min_call_count: int = 5,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Identify performance bottlenecks in the graph.
 
         Args:
+        ----
             threshold_ms: Threshold for average duration (ms)
             min_call_count: Minimum number of calls to consider
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of bottleneck nodes
+
         """
         bottlenecks = []
 
@@ -344,16 +365,19 @@ class BlameGraph:
         self,
         min_error_rate: float = 0.1,
         min_call_count: int = 5,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Identify error sources in the graph.
 
         Args:
+        ----
             min_error_rate: Minimum error rate to consider
             min_call_count: Minimum number of calls to consider
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of error source nodes
+
         """
         error_sources = []
 
@@ -383,15 +407,18 @@ class BlameGraph:
 
         return error_sources
 
-    def get_critical_path(self, trace_id: str) -> List[Dict[str, Any]]:
+    def get_critical_path(self, trace_id: str) -> list[dict[str, Any]]:
         """
         Get the critical path for a trace.
 
         Args:
+        ----
             trace_id: ID of the trace
 
         Returns:
+        -------
             List[Dict[str, Any]]: Nodes in the critical path
+
         """
         if not self.trace_manager:
             logger.error("Trace manager not provided, cannot get trace by ID")
@@ -465,10 +492,13 @@ class BlameGraph:
         Export the blame graph to a file.
 
         Args:
+        ----
             output_path: Path to save the graph
 
         Returns:
+        -------
             bool: Whether the export was successful
+
         """
         # Convert nodes and edges to dictionaries
         nodes = [node.to_dict() for node in self.nodes.values()]
@@ -491,18 +521,102 @@ class BlameGraph:
             logger.info(f"Exported blame graph to {output_path}")
             return True
         except Exception as e:
-            logger.error(f"Failed to export blame graph: {e}")
+            logger.exception(f"Failed to export blame graph: {e}")
             return False
+
+    def has_node(self, node_id: str) -> bool:
+        """
+        Check if a node exists in the graph.
+
+        Args:
+        ----
+            node_id: ID of the node to check
+
+        Returns:
+        -------
+            bool: Whether the node exists
+
+        """
+        return node_id in self.nodes
+
+    def has_edge(self, edge_id: str) -> bool:
+        """
+        Check if an edge exists in the graph.
+
+        Args:
+        ----
+            edge_id: ID of the edge to check
+
+        Returns:
+        -------
+            bool: Whether the edge exists
+
+        """
+        # Parse edge ID to get source and target
+        parts = edge_id.split("-")
+        if len(parts) < 3:
+            return False
+
+        # Reconstruct source and target IDs
+        source_id = parts[1]
+        target_id = parts[2]
+
+        # Check if edge exists
+        return (source_id, target_id) in self.edges
+
+    def get_node(self, node_id: str) -> BlameNode | None:
+        """
+        Get a node by ID.
+
+        Args:
+        ----
+            node_id: ID of the node to get
+
+        Returns:
+        -------
+            Optional[BlameNode]: The node if found
+
+        """
+        return self.nodes.get(node_id)
+
+    def get_edge(self, edge_id: str) -> BlameEdge | None:
+        """
+        Get an edge by ID.
+
+        Args:
+        ----
+            edge_id: ID of the edge to get
+
+        Returns:
+        -------
+            Optional[BlameEdge]: The edge if found
+
+        """
+        # Parse edge ID to get source and target
+        parts = edge_id.split("-")
+        if len(parts) < 3:
+            return None
+
+        # Reconstruct source and target IDs
+        source_id = parts[1]
+        target_id = parts[2]
+
+        # Get edge
+        edge_key = (source_id, target_id)
+        return self.edges.get(edge_key)
 
     def export_graphml(self, output_path: str) -> bool:
         """
         Export the blame graph to GraphML format.
 
         Args:
+        ----
             output_path: Path to save the graph
 
         Returns:
+        -------
             bool: Whether the export was successful
+
         """
         if not NETWORKX_AVAILABLE:
             logger.error("NetworkX not installed. Install with: pip install networkx")
@@ -515,7 +629,7 @@ class BlameGraph:
                     )
                 return True
             except Exception as e:
-                logger.error(f"Failed to create empty GraphML file: {e}")
+                logger.exception(f"Failed to create empty GraphML file: {e}")
                 return False
 
         if not self.graph:
@@ -532,5 +646,5 @@ class BlameGraph:
             logger.info(f"Exported blame graph to GraphML: {output_path}")
             return True
         except Exception as e:
-            logger.error(f"Failed to export blame graph to GraphML: {e}")
+            logger.exception(f"Failed to export blame graph to GraphML: {e}")
             return False

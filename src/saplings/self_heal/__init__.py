@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Self-healing module for Saplings.
 
@@ -10,6 +12,7 @@ This module provides self-healing capabilities for Saplings, including:
 - Integration with JudgeAgent feedback
 """
 
+
 from saplings.self_heal.adapter_manager import (
     Adapter,
     AdapterManager,
@@ -21,16 +24,16 @@ from saplings.self_heal.patch_generator import Patch, PatchGenerator, PatchResul
 from saplings.self_heal.success_pair_collector import SuccessPairCollector
 
 __all__ = [
-    "PatchGenerator",
-    "PatchResult",
-    "PatchStatus",
-    "Patch",
-    "SuccessPairCollector",
-    "LoRaTrainer",
-    "LoRaConfig",
-    "TrainingMetrics",
+    "Adapter",
     "AdapterManager",
     "AdapterMetadata",
     "AdapterPriority",
-    "Adapter",
+    "LoRaConfig",
+    "LoRaTrainer",
+    "Patch",
+    "PatchGenerator",
+    "PatchResult",
+    "PatchStatus",
+    "SuccessPairCollector",
+    "TrainingMetrics",
 ]

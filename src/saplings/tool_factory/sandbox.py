@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Sandbox module for Saplings tool factory.
 
@@ -5,15 +7,26 @@ This module provides sandbox execution environments for safely running
 dynamically generated tools.
 """
 
+
 import logging
 import os
 import subprocess
 import tempfile
-import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 from saplings.tool_factory.config import SandboxType, ToolFactoryConfig
+
+if TYPE_CHECKING:
+    # These imports are only used for type checking
+    # The actual imports are done at runtime with try/except
+    # It's expected that these imports might show as unused
+    # since they're only referenced in type annotations
+    try:
+        import e2b  # type: ignore # noqa
+        from e2b import Session  # type: ignore # noqa
+    except ImportError:
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -27,37 +40,40 @@ class Sandbox(ABC):
     running code in a secure environment.
     """
 
-    def __init__(self, config: Optional[ToolFactoryConfig] = None):
+    def __init__(self, config: ToolFactoryConfig | None = None) -> None:
         """
         Initialize the sandbox.
 
         Args:
+        ----
             config: Configuration for the sandbox
+
         """
         self.config = config or ToolFactoryConfig()
 
     @abstractmethod
     async def execute(
-        self, code: str, function_name: str, args: List[Any], kwargs: Dict[str, Any]
+        self, code: str, function_name: str, args: list[Any], kwargs: dict[str, Any]
     ) -> Any:
         """
         Execute code in the sandbox.
 
         Args:
+        ----
             code: Code to execute
             function_name: Name of the function to call
             args: Positional arguments to pass to the function
             kwargs: Keyword arguments to pass to the function
 
         Returns:
+        -------
             Any: Result of the function call
+
         """
-        pass
 
     @abstractmethod
     def cleanup(self) -> None:
         """Clean up any resources used by the sandbox."""
-        pass
 
 
 class LocalSandbox(Sandbox):
@@ -68,30 +84,35 @@ class LocalSandbox(Sandbox):
     isolation. It should only be used for trusted code or in development.
     """
 
-    def __init__(self, config: Optional[ToolFactoryConfig] = None):
+    def __init__(self, config: ToolFactoryConfig | None = None) -> None:
         """
         Initialize the local sandbox.
 
         Args:
+        ----
             config: Configuration for the sandbox
+
         """
         super().__init__(config)
-        self._temp_files: List[str] = []
+        self._temp_files: list[str] = []
 
     async def execute(
-        self, code: str, function_name: str, args: List[Any], kwargs: Dict[str, Any]
+        self, code: str, function_name: str, args: list[Any], kwargs: dict[str, Any]
     ) -> Any:
         """
         Execute code in the local Python interpreter.
 
         Args:
+        ----
             code: Code to execute
             function_name: Name of the function to call
             args: Positional arguments to pass to the function
             kwargs: Keyword arguments to pass to the function
 
         Returns:
+        -------
             Any: Result of the function call
+
         """
         # Create a temporary file with the code
         with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as temp_file:
@@ -104,19 +125,20 @@ class LocalSandbox(Sandbox):
             namespace = {}
 
             # Execute the code in the namespace
-            with open(temp_path, "r") as f:
+            with open(temp_path) as f:
                 exec(f.read(), namespace)
 
             # Get the function
             if function_name not in namespace:
-                raise ValueError(f"Function '{function_name}' not found in the code")
+                msg = f"Function '{function_name}' not found in the code"
+                raise ValueError(msg)
 
             function = namespace[function_name]
 
             # Call the function
             return function(*args, **kwargs)
         except Exception as e:
-            logger.error(f"Error executing code in local sandbox: {e}")
+            logger.exception(f"Error executing code in local sandbox: {e}")
             raise
 
     def cleanup(self) -> None:
@@ -138,12 +160,14 @@ class DockerSandbox(Sandbox):
     It requires Docker to be installed and available on the system.
     """
 
-    def __init__(self, config: Optional[ToolFactoryConfig] = None):
+    def __init__(self, config: ToolFactoryConfig | None = None) -> None:
         """
         Initialize the Docker sandbox.
 
         Args:
+        ----
             config: Configuration for the sandbox
+
         """
         super().__init__(config)
         self._temp_dir = tempfile.mkdtemp(prefix="saplings_docker_sandbox_")
@@ -154,26 +178,29 @@ class DockerSandbox(Sandbox):
             subprocess.run(
                 ["docker", "--version"],
                 check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
             )
         except (subprocess.SubprocessError, FileNotFoundError) as e:
-            raise RuntimeError(f"Docker is not available: {e}")
+            msg = f"Docker is not available: {e}"
+            raise RuntimeError(msg)
 
     async def execute(
-        self, code: str, function_name: str, args: List[Any], kwargs: Dict[str, Any]
+        self, code: str, function_name: str, args: list[Any], kwargs: dict[str, Any]
     ) -> Any:
         """
         Execute code in a Docker container.
 
         Args:
+        ----
             code: Code to execute
             function_name: Name of the function to call
             args: Positional arguments to pass to the function
             kwargs: Keyword arguments to pass to the function
 
         Returns:
+        -------
             Any: Result of the function call
+
         """
         import json
 
@@ -273,13 +300,16 @@ print(json.dumps({{"result": result}}))
                 result_data = json.loads(result)
                 return result_data["result"]
             except (json.JSONDecodeError, KeyError) as e:
-                raise ValueError(f"Invalid result from Docker sandbox: {e}")
+                msg = f"Invalid result from Docker sandbox: {e}"
+                raise ValueError(msg)
 
         except subprocess.TimeoutExpired:
-            raise TimeoutError(f"Docker sandbox execution timed out after {timeout} seconds")
+            msg = f"Docker sandbox execution timed out after {timeout} seconds"
+            raise TimeoutError(msg)
 
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Docker sandbox execution failed: {e.stderr.decode()}")
+            msg = f"Docker sandbox execution failed: {e.stderr.decode()}"
+            raise RuntimeError(msg)
 
         finally:
             # Stop and remove the container
@@ -288,8 +318,7 @@ print(json.dumps({{"result": result}}))
                     subprocess.run(
                         ["docker", "stop", self._container_id],
                         check=False,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                        capture_output=True,
                     )
                 except Exception as e:
                     logger.warning(f"Error stopping Docker container: {e}")
@@ -304,8 +333,7 @@ print(json.dumps({{"result": result}}))
                 subprocess.run(
                     ["docker", "stop", self._container_id],
                     check=False,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    capture_output=True,
                 )
             except Exception as e:
                 logger.warning(f"Error stopping Docker container: {e}")
@@ -329,44 +357,51 @@ class E2BSandbox(Sandbox):
     It requires an E2B API key to be configured.
     """
 
-    def __init__(self, config: Optional[ToolFactoryConfig] = None):
+    def __init__(self, config: ToolFactoryConfig | None = None) -> None:
         """
         Initialize the E2B sandbox.
 
         Args:
+        ----
             config: Configuration for the sandbox
+
         """
         super().__init__(config)
         self._session = None
 
         # Check if E2B API key is configured
         if not self.config.e2b_api_key:
-            raise ValueError("E2B API key is required for E2B sandbox")
-
-        # Check if E2B is available
-        try:
-            import e2b
-        except ImportError:
-            raise ImportError("E2B package is not installed. Install it with: pip install e2b")
+            msg = "E2B API key is required for E2B sandbox"
+            raise ValueError(msg)
 
     async def execute(
-        self, code: str, function_name: str, args: List[Any], kwargs: Dict[str, Any]
+        self, code: str, function_name: str, args: list[Any], kwargs: dict[str, Any]
     ) -> Any:
         """
         Execute code in an E2B cloud sandbox.
 
         Args:
+        ----
             code: Code to execute
             function_name: Name of the function to call
             args: Positional arguments to pass to the function
             kwargs: Keyword arguments to pass to the function
 
         Returns:
+        -------
             Any: Result of the function call
+
         """
         import json
 
-        import e2b
+        # Import e2b at runtime to handle optional dependency
+        # It's expected that this import might fail if e2b is not installed
+        # The error will be properly handled and a clear message will be shown
+        try:
+            import e2b  # type: ignore # noqa
+        except ImportError:
+            msg = "E2B package is not installed. Install it with: pip install e2b"
+            raise ImportError(msg)
 
         # Set the API key
         e2b.api_key = self.config.e2b_api_key
@@ -424,9 +459,8 @@ print(json.dumps({{"result": result}}))
 
             if exit_code != 0:
                 stderr = await process.stderr.read_all()
-                raise RuntimeError(
-                    f"E2B sandbox execution failed with exit code {exit_code}: {stderr}"
-                )
+                msg = f"E2B sandbox execution failed with exit code {exit_code}: {stderr}"
+                raise RuntimeError(msg)
 
             # Get the output
             stdout = await process.stdout.read_all()
@@ -436,7 +470,8 @@ print(json.dumps({{"result": result}}))
                 result_data = json.loads(stdout)
                 return result_data["result"]
             except (json.JSONDecodeError, KeyError) as e:
-                raise ValueError(f"Invalid result from E2B sandbox: {e}")
+                msg = f"Invalid result from E2B sandbox: {e}"
+                raise ValueError(msg)
 
         finally:
             # Clean up the session
@@ -448,24 +483,25 @@ print(json.dumps({{"result": result}}))
         """Clean up the E2B sandbox."""
         # The session is automatically closed in the execute method,
         # but we'll add this method for consistency with the interface
-        pass
 
 
-def get_sandbox(config: Optional[ToolFactoryConfig] = None) -> Sandbox:
+def get_sandbox(config: ToolFactoryConfig | None = None) -> Sandbox:
     """
     Get a sandbox instance based on configuration.
 
     Args:
+    ----
         config: Configuration for the sandbox
 
     Returns:
+    -------
         Sandbox: Sandbox instance
+
     """
     config = config or ToolFactoryConfig()
 
     if config.sandbox_type == SandboxType.DOCKER:
         return DockerSandbox(config)
-    elif config.sandbox_type == SandboxType.E2B:
+    if config.sandbox_type == SandboxType.E2B:
         return E2BSandbox(config)
-    else:
-        return LocalSandbox(config)
+    return LocalSandbox(config)

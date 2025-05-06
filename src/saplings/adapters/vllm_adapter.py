@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 vLLM adapter for Saplings.
 
@@ -5,13 +7,13 @@ This module provides a vLLM-based implementation of the LLM interface,
 allowing for high-performance inference with vLLM.
 """
 
-import asyncio
+
 import json
 import logging
 import os
 import re
 import traceback
-from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 from saplings.core.model_adapter import (
     LLM,
@@ -19,21 +21,33 @@ from saplings.core.model_adapter import (
     ModelCapability,
     ModelMetadata,
     ModelRole,
-    ModelURI,
 )
 from saplings.core.plugin import ModelAdapterPlugin, PluginType
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
 try:
-    import vllm
-    from vllm import SamplingParams
-    from vllm.transformers_utils.tokenizer import get_tokenizer
+    import vllm  # type: ignore
+    from vllm import SamplingParams  # type: ignore
+    from vllm.transformers_utils.tokenizer import get_tokenizer  # type: ignore
 
+    # Log vLLM version
+    logger.debug(f"vLLM version: {getattr(vllm, '__version__', 'unknown')}")
     VLLM_AVAILABLE = True
 except ImportError:
     VLLM_AVAILABLE = False
     logger.warning("vLLM not installed. Please install it with: pip install vllm")
+
+
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from transformers.modeling_utils import PreTrainedModel
+    from transformers.tokenization_utils import PreTrainedTokenizer
+    from vllm import LLM as VLLM_LLM
 
 
 class VLLMAdapter(LLM, ModelAdapterPlugin):
@@ -43,35 +57,41 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
     This adapter provides high-performance inference using vLLM.
     """
 
-    def __init__(self, model_uri: Union[str, ModelURI], **kwargs):
+    tokenizer: Optional["PreTrainedTokenizer"]
+    model: Optional["PreTrainedModel"]
+    engine: Optional["VLLM_LLM"]
+
+    def __init__(self, provider: str, model_name: str, **kwargs) -> None:
         """
         Initialize the vLLM adapter.
 
         Args:
-            model_uri: URI of the model to use
+        ----
+            provider: The model provider (e.g., 'vllm')
+            model_name: The model name
             **kwargs: Additional arguments for the adapter
+
         """
         if not VLLM_AVAILABLE:
-            raise ImportError("vLLM not installed. Please install it with: pip install vllm")
+            msg = "vLLM not installed. Please install it with: pip install vllm"
+            raise ImportError(msg)
 
-        # Parse the model URI
-        if isinstance(model_uri, str):
-            self.model_uri = ModelURI.parse(model_uri)
-        else:
-            self.model_uri = model_uri
+        # Store provider and model information
+        self.provider = provider
+        self.model_name = model_name
 
-        # Extract parameters from URI
-        self.model_name = self.model_uri.model_name
-        self.temperature = float(self.model_uri.parameters.get("temperature", 0.7))
-        self.max_tokens = int(self.model_uri.parameters.get("max_tokens", 1024))
-        self.quantization = self.model_uri.parameters.get("quantization", None)
+        # Extract parameters from kwargs
+        self.temperature = float(kwargs.get("temperature", 0.7))
+        self.max_tokens = int(kwargs.get("max_tokens", 1024))
+        self.quantization = kwargs.get("quantization")
 
-        # Extract function calling parameters from URI
-        self.enable_tool_choice = (
-            self.model_uri.parameters.get("enable_tool_choice", "true").lower() == "true"
-        )
-        self.tool_call_parser = self.model_uri.parameters.get("tool_call_parser", None)
-        self.chat_template = self.model_uri.parameters.get("chat_template", None)
+        # Extract function calling parameters
+        self.enable_tool_choice = kwargs.get("enable_tool_choice", True)
+        if isinstance(self.enable_tool_choice, str):
+            self.enable_tool_choice = self.enable_tool_choice.lower() == "true"
+
+        self.tool_call_parser = kwargs.get("tool_call_parser")
+        self.chat_template = kwargs.get("chat_template")
 
         # Special handling for Hugging Face models with organization prefixes
         # vLLM has an issue with models specified as "Org/Model" format
@@ -82,44 +102,43 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         # For local models, use the model name as is
         if os.path.exists(self.model_name):
             model_name_for_engine = self.model_name
-            logger.info(f"Using local model: {model_name_for_engine}")
-        else:
-            # For Hugging Face models, we need to modify how the model is loaded
-            # vLLM expects the model to be in the format "Org/Model" but has issues with
-            # how it constructs the API URL
+            logger.info("Using local model: %s", model_name_for_engine)
+        # For Hugging Face models, we need to modify how the model is loaded
+        # vLLM expects the model to be in the format "Org/Model" but has issues with
+        # how it constructs the API URL
 
-            # Let's try to use a direct download approach
-            # This will force vLLM to download the model from the full URL
-            # instead of trying to construct the API URL itself
-            if "/" in self.model_name:
-                # Use the huggingface_hub library to get the full repo ID
+        # Let's try to use a direct download approach
+        # This will force vLLM to download the model from the full URL
+        # instead of trying to construct the API URL itself
+        elif "/" in self.model_name:
+            # Use the huggingface_hub library to get the full repo ID
+            try:
+                from huggingface_hub import HfApi
+
+                HfApi()
+
+                # Try to get the model info to verify it exists
+                # This will raise an error if the model doesn't exist
+                # or if we don't have access to it
                 try:
-                    from huggingface_hub import HfApi
-
-                    api = HfApi()
-
-                    # Try to get the model info to verify it exists
-                    # This will raise an error if the model doesn't exist
-                    # or if we don't have access to it
-                    try:
-                        # Use the full model name as is
-                        model_name_for_engine = self.model_name
-                        logger.info(f"Using Hugging Face model: {model_name_for_engine}")
-                    except Exception as e:
-                        logger.warning(f"Error accessing model {self.model_name}: {e}")
-                        # Fall back to a different approach
-                        model_name_for_engine = self.model_name
-                        logger.info(f"Falling back to direct model name: {model_name_for_engine}")
-                except ImportError:
-                    # If huggingface_hub is not installed, just use the model name as is
+                    # Use the full model name as is
                     model_name_for_engine = self.model_name
-                    logger.info(
-                        f"Using Hugging Face model (without hub library): {model_name_for_engine}"
-                    )
-            else:
-                # If there's no organization prefix, just use the model name as is
+                    logger.info("Using Hugging Face model: %s", model_name_for_engine)
+                except Exception as e:
+                    logger.warning("Error accessing model %s: %s", self.model_name, str(e))
+                    # Fall back to a different approach
+                    model_name_for_engine = self.model_name
+                    logger.info("Falling back to direct model name: %s", model_name_for_engine)
+            except ImportError:
+                # If huggingface_hub is not installed, just use the model name as is
                 model_name_for_engine = self.model_name
-                logger.info(f"Using Hugging Face model: {model_name_for_engine}")
+                logger.info(
+                    "Using Hugging Face model (without hub library): %s", model_name_for_engine
+                )
+        else:
+            # If there's no organization prefix, just use the model name as is
+            model_name_for_engine = self.model_name
+            logger.info("Using Hugging Face model: %s", model_name_for_engine)
 
         # Initialize vLLM engine
         engine_kwargs = {
@@ -140,7 +159,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
             # vLLM 0.8.0+ supports function calling with different parameters
             if pkg_resources.parse_version(vllm_version) >= pkg_resources.parse_version("0.8.0"):
-                logger.info(f"Using vLLM {vllm_version} function calling features")
+                logger.info("Using vLLM %s function calling features", vllm_version)
 
                 # In vLLM 0.8.0+, function calling is enabled by default
                 # We just need to set the appropriate parameters for the model
@@ -148,19 +167,33 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 # In vLLM 0.8.5, tool_call_parser and chat_template are not supported as engine arguments
                 # Instead, we need to use the enable_auto_tool_choice parameter
 
-                # Check if enable_auto_tool_choice is supported in this vLLM version
+                # Check if enable_auto_tool_choice or enable_tool_choice is supported in this vLLM version
                 try:
                     # Create a test EngineArgs to check if enable_auto_tool_choice is supported
-                    from vllm.engine.arg_utils import EngineArgs
+                    from vllm.engine.arg_utils import EngineArgs  # type: ignore
 
-                    test_args = {"enable_auto_tool_choice": True}
-                    EngineArgs(**test_args)
+                    # Check if enable_auto_tool_choice is supported
+                    try:
+                        # Instead of directly creating EngineArgs, check if the parameter exists in the class
+                        import inspect
 
-                    # If we get here, enable_auto_tool_choice is supported
-                    engine_kwargs["enable_auto_tool_choice"] = True
-                    logger.info("Using enable_auto_tool_choice for function calling")
-                except (TypeError, ImportError, AttributeError):
-                    # enable_auto_tool_choice is not supported in this vLLM version
+                        engine_args_params = inspect.signature(EngineArgs.__init__).parameters
+                        if "enable_auto_tool_choice" in engine_args_params:
+                            engine_kwargs["enable_auto_tool_choice"] = True
+                            logger.info("Using enable_auto_tool_choice for function calling")
+                        else:
+                            logger.warning(
+                                "enable_auto_tool_choice parameter not supported in this vLLM version. "
+                                "Function calling may not work as expected."
+                            )
+                    except (TypeError, AttributeError):
+                        # If there's an error checking parameters, don't add it to engine_kwargs
+                        logger.warning(
+                            "enable_auto_tool_choice parameter not supported in this vLLM version. "
+                            "Function calling may not work as expected."
+                        )
+                except (ImportError, AttributeError):
+                    # EngineArgs is not available or has a different structure
                     logger.warning(
                         "Function calling may not work as expected in this vLLM version."
                     )
@@ -181,24 +214,43 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 # For older versions, try to use enable_auto_tool_choice
                 try:
                     # Create a test EngineArgs to check if enable_auto_tool_choice is supported
-                    from vllm.engine.arg_utils import EngineArgs
+                    from vllm.engine.arg_utils import EngineArgs  # type: ignore
 
-                    test_args = {"enable_auto_tool_choice": True}
-                    EngineArgs(**test_args)
-                    # If we get here, enable_auto_tool_choice is supported
-                    engine_kwargs["enable_auto_tool_choice"] = True
+                    # Check if enable_auto_tool_choice is supported
+                    try:
+                        # Instead of directly creating EngineArgs, check if the parameter exists in the class
+                        import inspect
+
+                        engine_args_params = inspect.signature(EngineArgs.__init__).parameters
+                        if "enable_auto_tool_choice" in engine_args_params:
+                            engine_kwargs["enable_auto_tool_choice"] = True
+                        else:
+                            logger.warning(
+                                "enable_auto_tool_choice parameter not supported in this vLLM version. "
+                                "Function calling may not work as expected."
+                            )
+                    except (TypeError, AttributeError):
+                        # If there's an error checking parameters, don't add it to engine_kwargs
+                        logger.warning(
+                            "enable_auto_tool_choice parameter not supported in this vLLM version. "
+                            "Function calling may not work as expected."
+                        )
 
                     # Check if tool_call_parser is supported in this vLLM version
                     try:
-                        # Create a test EngineArgs to check if tool_call_parser is supported
-                        test_args = {"tool_call_parser": "test"}
-                        EngineArgs(**test_args)
+                        # Check if the parameter exists in the class
+                        import inspect
 
-                        # If we get here, tool_call_parser is supported
-                        if self.tool_call_parser:
+                        engine_args_params = inspect.signature(EngineArgs.__init__).parameters
+                        if "tool_call_parser" in engine_args_params and self.tool_call_parser:
                             engine_kwargs["tool_call_parser"] = self.tool_call_parser
+                        elif self.tool_call_parser:
+                            logger.warning(
+                                "tool_call_parser parameter not supported in this vLLM version. "
+                                "Function calling may not work as expected."
+                            )
                     except (TypeError, AttributeError):
-                        # tool_call_parser is not supported in this vLLM version
+                        # Error checking parameters
                         logger.warning(
                             "tool_call_parser parameter not supported in this vLLM version. "
                             "Function calling may not work as expected."
@@ -206,15 +258,19 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
                     # Check if chat_template is supported in this vLLM version
                     try:
-                        # Create a test EngineArgs to check if chat_template is supported
-                        test_args = {"chat_template": "test"}
-                        EngineArgs(**test_args)
+                        # Check if the parameter exists in the class
+                        import inspect
 
-                        # If we get here, chat_template is supported
-                        if self.chat_template:
+                        engine_args_params = inspect.signature(EngineArgs.__init__).parameters
+                        if "chat_template" in engine_args_params and self.chat_template:
                             engine_kwargs["chat_template"] = self.chat_template
+                        elif self.chat_template:
+                            logger.warning(
+                                "chat_template parameter not supported in this vLLM version. "
+                                "Chat formatting may not work as expected."
+                            )
                     except (TypeError, AttributeError):
-                        # chat_template is not supported in this vLLM version
+                        # Error checking parameters
                         logger.warning(
                             "chat_template parameter not supported in this vLLM version. "
                             "Chat formatting may not work as expected."
@@ -226,62 +282,98 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                         "Function calling may not work as expected."
                     )
 
-        # Add any additional kwargs
+        # Filter out generation parameters that shouldn't be passed to the engine
+        generation_params = [
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "top_k",
+            "frequency_penalty",
+            "presence_penalty",
+            "repetition_penalty",
+            "stop",
+            "stop_token_ids",
+        ]
+
+        # Parameters specific to Saplings that shouldn't be passed to vLLM
+        saplings_params = ["gasa_cache", "use_cache", "cache_namespace", "cache_ttl", "trace_id"]
+
+        # Add any additional kwargs, filtering out generation parameters and Saplings-specific parameters
         for key, value in kwargs.items():
-            if key not in engine_kwargs and key != "trust_remote_code":
+            if (
+                key not in engine_kwargs
+                and key != "trust_remote_code"
+                and key not in generation_params
+                and key not in saplings_params
+            ):
                 engine_kwargs[key] = value
 
         # Create the vLLM engine
         try:
-            # Try to load the model with the current engine_kwargs
+            # First attempt: try with original model name
             try:
                 self.engine = vllm.LLM(**engine_kwargs)
+                logger.info(f"Successfully loaded model: {self.model_name}")
+                return
             except Exception as first_error:
-                # If the error is about the repository not being found and the model name contains a slash
-                if (
-                    "Repository Not Found" in str(first_error)
-                    or "Invalid repository ID" in str(first_error)
-                ) and "/" in self.model_name:
-                    # Try a different approach - use the model name without the organization prefix
+                error_msg = str(first_error).lower()
+                is_repo_error = any(
+                    msg in error_msg
+                    for msg in [
+                        "repository not found",
+                        "invalid repository id",
+                        "model not found",
+                        "unable to find model",
+                    ]
+                )
+
+                if is_repo_error and "/" in self.model_name:
+                    # Second attempt: try with model name only
                     org, model_without_org = self.model_name.split("/", 1)
-                    logger.warning(
-                        f"Error loading model with full name. Trying with model name only: {model_without_org}"
-                    )
-
-                    # Update the engine kwargs with the new model name
                     engine_kwargs["model"] = model_without_org
+                    logger.warning(f"Retrying with model name only: {model_without_org}")
 
-                    # Try again with the new model name
                     try:
                         self.engine = vllm.LLM(**engine_kwargs)
-                    except Exception as second_error:
-                        # If that also fails, try with just the organization name
-                        logger.warning(
-                            f"Error loading model with model name only. Trying with organization name: {org}"
+                        logger.info(
+                            f"Successfully loaded model using name only: {model_without_org}"
                         )
+                        return
+                    except Exception as second_error:
+                        logger.warning(f"Failed to load with model name only: {second_error}")
 
-                        # Update the engine kwargs with the organization name
+                        # Third attempt: try with organization name
                         engine_kwargs["model"] = org
+                        logger.warning(f"Retrying with organization name: {org}")
 
-                        # Try one more time
                         try:
                             self.engine = vllm.LLM(**engine_kwargs)
+                            logger.info(f"Successfully loaded model using org name: {org}")
+                            return
                         except Exception as third_error:
-                            # If all approaches fail, raise the original error
-                            logger.error(f"All approaches failed. Original error: {first_error}")
-                            raise RuntimeError(f"Error initializing vLLM engine: {first_error}")
+                            logger.error(f"Failed to load with organization name: {third_error}")
+                            # Raise detailed error with all attempts
+                            msg = (
+                                f"Failed to initialize vLLM engine after multiple attempts:\n"
+                                f"1. Full name ({self.model_name}): {first_error}\n"
+                                f"2. Model name ({model_without_org}): {second_error}\n"
+                                f"3. Org name ({org}): {third_error}"
+                            )
+                            raise RuntimeError(msg)
                 else:
-                    # If it's a different error, re-raise it
-                    raise RuntimeError(f"Error initializing vLLM engine: {first_error}")
+                    # Not a repository error or no organization prefix
+                    msg = f"Error initializing vLLM engine: {first_error}"
+                    raise RuntimeError(msg)
+
         except Exception as e:
-            logger.error(f"Error initializing vLLM engine: {e}")
-            logger.error(traceback.format_exc())
-            raise RuntimeError(f"Error initializing vLLM engine: {e}")
+            logger.error(f"Fatal error initializing vLLM engine: {e}")
+            logger.debug(traceback.format_exc())
+            raise RuntimeError(f"Fatal error initializing vLLM engine: {e}") from e
 
         # Log function calling configuration
         if self.enable_tool_choice:
             logger.info(
-                f"Function calling enabled with parser: {self.tool_call_parser or 'default'}"
+                "Function calling enabled with parser: %s", self.tool_call_parser or "default"
             )
 
         # Get the tokenizer
@@ -290,25 +382,26 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         # Cache for model metadata
         self._metadata = None
 
-        logger.info(f"Initialized vLLM adapter for model: {self.model_name}")
+        logger.info("Initialized vLLM adapter for model: %s", self.model_name)
 
     async def generate(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        prompt: str | list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
         json_mode: bool = False,
         use_cache: bool = False,
         cache_namespace: str = "default",
-        cache_ttl: Optional[int] = 3600,
+        cache_ttl: int | None = 3600,
         **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model.
 
         Args:
+        ----
             prompt: The prompt to generate from (string or list of message dictionaries)
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -322,7 +415,9 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             **kwargs: Additional arguments for generation
 
         Returns:
+        -------
             LLMResponse: The generated response
+
         """
         # Use caching if requested
         if use_cache:
@@ -350,9 +445,18 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
         # Add JSON mode if requested
         if json_mode:
-            # Add JSON grammar constraints if available
-            if hasattr(sampling_params, "grammar"):
-                sampling_params.grammar = "json"
+            # vLLM may support JSON mode in different ways depending on version
+            # Try to set grammar if available, otherwise log a warning
+            try:
+                if hasattr(sampling_params, "grammar"):
+                    # Use setattr to avoid static type checking errors
+                    sampling_params.grammar = "json"
+                else:
+                    logger.warning(
+                        "JSON mode requested but grammar attribute not available in SamplingParams"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to set JSON mode: {e}")
 
         # Handle function calling
         tool_choice = None
@@ -377,27 +481,56 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
         try:
             # Generate text
+            assert self.engine is not None
+
+            # Prepare generation arguments
+            generate_args = {
+                "prompt": processed_prompt,
+                "sampling_params": sampling_params,
+            }
+
+            # Add tools and tool_choice if supported
             if tools and self.enable_tool_choice:
-                # Use the OpenAI-compatible API for function calling
-                outputs = self.engine.generate(
-                    processed_prompt,
-                    sampling_params=sampling_params,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                )
-            else:
-                # Standard generation without function calling
-                outputs = self.engine.generate(
-                    processed_prompt,
-                    sampling_params=sampling_params,
-                )
+                # Try to use the OpenAI-compatible API for function calling
+                try:
+                    # Check if the generate method accepts tools and tool_choice parameters
+                    import inspect
+
+                    generate_params = inspect.signature(self.engine.generate).parameters
+
+                    if "tools" in generate_params:
+                        generate_args["tools"] = tools
+
+                    if "tool_choice" in generate_params:
+                        generate_args["tool_choice"] = tool_choice
+                except Exception as e:
+                    logger.warning(f"Failed to add tools to generation: {e}")
+
+            # Generate text
+            # Handle deprecation warning by using the current API
+            # The generate method is deprecated but still works
+            # In future versions, prompt_token_ids will be part of prompts
+            outputs = self.engine.generate(**generate_args)  # type: ignore
 
             # Get the generated text
             generated_text = outputs[0].outputs[0].text
 
             # Calculate token usage
-            prompt_tokens = len(outputs[0].prompt_token_ids)
-            completion_tokens = len(outputs[0].outputs[0].token_ids)
+            prompt_tokens = 0
+            completion_tokens = 0
+
+            # Safely get token counts
+            if hasattr(outputs[0], "prompt_token_ids") and outputs[0].prompt_token_ids is not None:
+                prompt_tokens = len(outputs[0].prompt_token_ids)
+
+            if (
+                hasattr(outputs[0], "outputs")
+                and outputs[0].outputs
+                and hasattr(outputs[0].outputs[0], "token_ids")
+                and outputs[0].outputs[0].token_ids is not None
+            ):
+                completion_tokens = len(outputs[0].outputs[0].token_ids)
+
             total_tokens = prompt_tokens + completion_tokens
 
             # Process function calls if needed
@@ -405,10 +538,13 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             tool_calls_result = None
 
             # Check if the output has tool calls (native vLLM function calling)
-            if hasattr(outputs[0], "tool_calls") and outputs[0].tool_calls:
-                # Native vLLM function calling
-                tool_calls = outputs[0].tool_calls
+            # Use getattr to avoid static type checking errors
+            tool_calls = None
+            if hasattr(outputs[0], "tool_calls"):
+                tool_calls = getattr(outputs[0], "tool_calls", None)
 
+            if tool_calls:
+                # Native vLLM function calling
                 if len(tool_calls) == 1:
                     # Single function call
                     tool_call = tool_calls[0]
@@ -446,7 +582,8 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             # Create response
             return LLMResponse(
                 text=generated_text if not function_call_result and not tool_calls_result else None,
-                model_uri=str(self.model_uri),
+                provider=self.provider,
+                model_name=self.model_name,
                 usage={
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
@@ -454,32 +591,34 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 },
                 metadata={
                     "model": self.model_name,
-                    "provider": "vllm",
+                    "provider": self.provider,
                 },
                 function_call=function_call_result,
                 tool_calls=tool_calls_result,
             )
         except Exception as e:
-            logger.error(f"Error generating text with vLLM: {e}")
-            logger.error(traceback.format_exc())
-            raise RuntimeError(f"Error generating text with vLLM: {e}")
+            error_msg = f"Error generating text with vLLM: {e!s}"
+            logger.exception(error_msg)
+            logger.debug(traceback.format_exc())
+            raise RuntimeError(error_msg) from e
 
     async def generate_with_cache(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        prompt: str | list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
         json_mode: bool = False,
         cache_namespace: str = "default",
-        cache_ttl: Optional[int] = 3600,
+        cache_ttl: int | None = 3600,
         **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model with caching.
 
         Args:
+        ----
             prompt: The prompt to generate from (string or list of message dictionaries)
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -492,76 +631,88 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             **kwargs: Additional arguments for generation
 
         Returns:
+        -------
             LLMResponse: The generated response
+
         """
         # Import here to avoid circular imports
-        from saplings.core.model_caching import generate_cache_key, get_model_cache
+        from saplings.core.caching import generate_with_cache_async
+        from saplings.core.caching.interface import CacheStrategy
 
-        # Generate a cache key
-        cache_key = generate_cache_key(
-            model_uri=str(self.model_uri),
+        # Convert strategy string to enum if provided
+        strategy = None
+        if cache_strategy := kwargs.pop("cache_strategy", None):
+            strategy = CacheStrategy(cache_strategy)
+
+        # Define the generate function
+        async def _generate(p, **kw):
+            return await self.generate(
+                prompt=p,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                functions=functions,
+                function_call=function_call,
+                json_mode=json_mode,
+                use_cache=False,  # Important to avoid infinite recursion
+                **kw,
+            )
+
+        # Use the unified caching system
+        logger.debug(
+            f"Using cache with namespace: {cache_namespace} for vLLM model {self.model_name}"
+        )
+        if strategy is not None:
+            return await generate_with_cache_async(
+                generate_func=_generate,
+                model_uri=f"{self.provider}:{self.model_name}",
+                prompt=prompt,
+                namespace=cache_namespace,
+                ttl=cache_ttl,
+                provider=kwargs.pop("cache_provider", "memory"),
+                strategy=strategy,
+                **kwargs,
+            )
+        return await generate_with_cache_async(
+            generate_func=_generate,
+            model_uri=f"{self.provider}:{self.model_name}",
             prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            functions=functions,
-            function_call=function_call,
-            json_mode=json_mode,
+            namespace=cache_namespace,
+            ttl=cache_ttl,
+            provider=kwargs.pop("cache_provider", "memory"),
             **kwargs,
         )
-
-        # Get the cache
-        cache = get_model_cache(namespace=cache_namespace, ttl=cache_ttl)
-
-        # Check if the response is in the cache
-        cached_response = cache.get(cache_key)
-        if cached_response is not None:
-            logger.debug(f"Cache hit for vLLM model {self.model_name}")
-            return cached_response
-
-        # Generate the response
-        logger.debug(f"Cache miss for vLLM model {self.model_name}")
-        response = await self.generate(
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            functions=functions,
-            function_call=function_call,
-            json_mode=json_mode,
-            use_cache=False,  # Important to avoid infinite recursion
-            **kwargs,
-        )
-
-        # Cache the response
-        cache.set(cache_key, response)
-
-        return response
 
     def _process_prompt(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
-        json_mode: bool = False,
+        prompt: str | list[dict[str, Any]],
+        functions: list[dict[str, Any]] | None = None,
+        # Unused parameters kept for API compatibility
+        # pylint: disable=unused-argument
+        _function_call: str | dict[str, str] | None = None,
+        _json_mode: bool = False,
     ) -> str:
         """
         Process the prompt to include functions and other features.
 
         Args:
+        ----
             prompt: The prompt to process
             functions: List of function definitions
             function_call: Function call control
             json_mode: Whether to force JSON output
 
         Returns:
+        -------
             str: The processed prompt
+
         """
         if isinstance(prompt, str):
             # Simple string prompt
             return prompt
 
         # Handle message list
-        if not hasattr(self.tokenizer, "apply_chat_template"):
-            # If the tokenizer doesn't support chat templates, convert to a simple prompt
+        if self.tokenizer is None or not hasattr(self.tokenizer, "apply_chat_template"):
+            # If the tokenizer doesn't support chat templates or is None, convert to a simple prompt
             return self._messages_to_prompt(prompt)
 
         # Use the tokenizer's chat template
@@ -575,17 +726,41 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         if functions:
             chat_template_args["tools"] = functions
 
-        return self.tokenizer.apply_chat_template(**chat_template_args)
+        # Apply chat template and ensure we return a string
+        result = self.tokenizer.apply_chat_template(**chat_template_args)
 
-    def _messages_to_prompt(self, messages: List[Dict[str, Any]]) -> str:
+        # Convert to string if it's not already
+        if not isinstance(result, str):
+            # Handle different return types
+            if hasattr(result, "text"):
+                # Some tokenizers might return an object with a text attribute
+                return str(getattr(result, "text", ""))
+            if hasattr(result, "__str__"):
+                # Try to convert to string
+                return str(result)
+            # Last resort: convert to JSON string if possible
+            try:
+                import json
+
+                return json.dumps(result)
+            except Exception:
+                # If all else fails, force string conversion
+                return str(result)
+
+        return result
+
+    def _messages_to_prompt(self, messages: list[dict[str, Any]]) -> str:
         """
         Convert a list of messages to a simple prompt string.
 
         Args:
+        ----
             messages: List of message dictionaries
 
         Returns:
+        -------
             str: The prompt string
+
         """
         prompt_parts = []
 
@@ -619,16 +794,19 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
     def _extract_function_calls(
         self, text: str
-    ) -> Tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, Any]]]]:
+    ) -> tuple[dict[str, Any] | None, list[dict[str, Any]] | None]:
         """
         Extract function calls from generated text.
 
         Args:
+        ----
             text: The generated text
 
         Returns:
+        -------
             Tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, Any]]]]:
                 The function call and tool calls if found
+
         """
         # Try to find function calls in the format:
         # ```json
@@ -651,7 +829,7 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                         if isinstance(func_data["arguments"], dict)
                         else func_data["arguments"],
                     }, None
-                elif "tool_calls" in func_data:
+                if "tool_calls" in func_data:
                     # Multiple tool calls
                     return None, func_data["tool_calls"]
             except json.JSONDecodeError:
@@ -676,23 +854,26 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
     async def generate_streaming(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        chunk_size: Optional[int] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        prompt: str | list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        # Unused parameters kept for API compatibility
+        # pylint: disable=unused-argument
+        _chunk_size: int | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
         json_mode: bool = False,
         **kwargs,
-    ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
+    ) -> AsyncGenerator[str | dict[str, Any], None]:
         """
         Generate text from the model with streaming output.
 
         Args:
+        ----
             prompt: The prompt to generate from (string or list of message dictionaries)
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
-            chunk_size: Number of tokens per chunk
+            _chunk_size: Number of tokens per chunk (unused in this implementation)
             functions: List of function definitions that the model may call
             function_call: Controls how the model calls functions
                            Can be "auto", "none", or {"name": "function_name"}
@@ -700,7 +881,9 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             **kwargs: Additional arguments for generation
 
         Yields:
+        ------
             Union[str, Dict[str, Any]]: Text chunks or function call chunks as they are generated
+
         """
         # Set parameters
         max_tokens = max_tokens or self.max_tokens
@@ -713,8 +896,18 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         sampling_params = SamplingParams(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         # Add JSON mode if requested
-        if json_mode and hasattr(sampling_params, "grammar"):
-            sampling_params.grammar = "json"
+        if json_mode:
+            # vLLM may support JSON mode in different ways depending on version
+            try:
+                if hasattr(sampling_params, "grammar"):
+                    # Use setattr to avoid static type checking errors
+                    sampling_params.grammar = "json"
+                else:
+                    logger.warning(
+                        "JSON mode requested but grammar attribute not available in SamplingParams"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to set JSON mode: {e}")
 
         # Handle function calling
         tool_choice = None
@@ -738,20 +931,49 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 tool_choice = "required"
 
         # Generate text with streaming
+        assert self.engine is not None
+
+        # Prepare generation arguments
+        generate_args = {
+            "prompts": [processed_prompt],
+            "sampling_params": sampling_params,
+        }
+
+        # Add tools and tool_choice if supported
         if tools and self.enable_tool_choice:
-            # Use the OpenAI-compatible API for function calling
-            outputs_generator = self.engine.generate_iterator(
-                [processed_prompt],
-                sampling_params=sampling_params,
-                tools=tools,
-                tool_choice=tool_choice,
+            # Try to use the OpenAI-compatible API for function calling
+            try:
+                # Check if the generate_iterator method accepts tools and tool_choice parameters
+                import inspect
+
+                # Check if generate_iterator exists
+                if hasattr(self.engine, "generate_iterator"):
+                    # Use getattr to avoid static type checking errors
+                    generate_iterator_method = self.engine.generate_iterator
+                    generate_params = inspect.signature(generate_iterator_method).parameters
+
+                    if "tools" in generate_params:
+                        generate_args["tools"] = tools
+
+                    if "tool_choice" in generate_params:
+                        generate_args["tool_choice"] = tool_choice
+            except Exception as e:
+                logger.warning(f"Failed to add tools to streaming generation: {e}")
+
+        # Check if generate_iterator exists
+        if not hasattr(self.engine, "generate_iterator"):
+            logger.warning(
+                "generate_iterator not available in this vLLM version. Falling back to non-streaming generation."
             )
-        else:
-            # Standard generation without function calling
-            outputs_generator = self.engine.generate_iterator(
-                [processed_prompt],
-                sampling_params=sampling_params,
-            )
+            # Fall back to non-streaming generation
+            # Handle deprecation warning by using the current API
+            outputs = self.engine.generate(**generate_args)  # type: ignore
+            yield outputs[0].outputs[0].text
+            return
+
+        # Use generate_iterator for streaming
+        # Type ignore is needed because the static type checker doesn't know about this method
+        outputs_generator = self.engine.generate_iterator(**generate_args)  # type: ignore
 
         # For function calling, we need to accumulate the text
         accumulated_text = ""
@@ -831,8 +1053,10 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         """
         Get metadata about the model.
 
-        Returns:
+        Returns
+        -------
             ModelMetadata: Metadata about the model
+
         """
         if self._metadata is None:
             capabilities = [
@@ -850,8 +1074,8 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
 
             self._metadata = ModelMetadata(
                 name=self.model_name,
-                provider="vllm",
-                version=self.model_uri.version,
+                provider=self.provider,
+                version="latest",  # Default version
                 description=f"vLLM adapter for {self.model_name}",
                 capabilities=capabilities,
                 roles=[ModelRole.GENERAL],
@@ -866,74 +1090,120 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
         """
         Get the context window size for the model.
 
-        Returns:
+        Returns
+        -------
             int: Context window size in tokens
+
         """
         # Try to get the context window from the model config
         model_name = self.model_name.lower()
 
+        # Try to get context window from model config first
+        if (
+            self.model is not None
+            and hasattr(self.model, "config")
+            and hasattr(self.model.config, "max_position_embeddings")
+        ):
+            return self.model.config.max_position_embeddings
+
         # Common model context windows
-        if "llama-3-70b" in model_name:
-            return 8192
-        elif "llama-3" in model_name:
-            return 8192
-        elif "llama-2-70b" in model_name:
+        if "llama-3-70b" in model_name or "llama-3" in model_name:
+            return 128000  # Updated for Llama 3
+        if "llama-2-70b" in model_name:
             return 4096
-        elif "llama-2" in model_name:
+        if "llama-2-13b" in model_name:
             return 4096
-        elif "mistral" in model_name:
-            return 8192
-        elif "mixtral" in model_name:
+        if "llama-2-7b" in model_name:
+            return 4096
+        if "mistral-7b" in model_name:
             return 32768
-        elif "qwen" in model_name:
+        if "mixtral-8x7b" in model_name:
+            return 32768
+        if "qwen-7b" in model_name:
+            return 32768
+        if "qwen-14b" in model_name:
+            return 32768
+        if "qwen-72b" in model_name:
+            return 32768
+        if "yi-34b" in model_name:
+            return 32768
+        if "yi-6b" in model_name:
+            return 4096
+        if "phi-2" in model_name:
+            return 2048
+        if "gemma-7b" in model_name:
             return 8192
-        else:
-            return 4096  # Default
+        if "gemma-2b" in model_name:
+            return 8192
+        if "mamba" in model_name:
+            return 2048
+
+        # Try to infer from model name
+        for size in ["32k", "16k", "8k", "4k", "2k"]:
+            if size in model_name:
+                return int(size.replace("k", "000"))
+
+        return 4096  # Conservative default
 
     def estimate_tokens(self, text: str) -> int:
         """
         Estimate the number of tokens in a text.
 
         Args:
+        ----
             text: The text to estimate tokens for
 
         Returns:
+        -------
             int: Estimated number of tokens
+
         """
-        # Use the tokenizer to get the exact token count
-        return len(self.tokenizer.encode(text))
+        # Use the tokenizer to get the exact token count if available
+        if self.tokenizer is not None:
+            return len(self.tokenizer.encode(text))
+
+        # Fallback to a simple estimation if tokenizer is not available
+        words = len(text.split())
+        return int(words * 1.3)  # Rough estimation
 
     def estimate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
         """
         Estimate the cost of a request.
 
         Args:
-            prompt_tokens: Number of tokens in the prompt
-            completion_tokens: Number of tokens in the completion
+        ----
+            _prompt_tokens: Number of tokens in the prompt (unused for local models)
+            _completion_tokens: Number of tokens in the completion (unused for local models)
 
         Returns:
+        -------
             float: Estimated cost in USD
+
         """
         # Local models have no API cost
+        # Suppress unused parameter warnings
+        _ = prompt_tokens
+        _ = completion_tokens
         return 0.0
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        messages: list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
         json_mode: bool = False,
         use_cache: bool = False,
         cache_namespace: str = "default",
-        cache_ttl: Optional[int] = 3600,
+        cache_ttl: int | None = 3600,
         **kwargs,
     ) -> LLMResponse:
         """
         Generate a response to a conversation.
 
         Args:
+        ----
             messages: List of message dictionaries
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -947,7 +1217,9 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             **kwargs: Additional arguments for generation
 
         Returns:
+        -------
             LLMResponse: The generated response
+
         """
         if use_cache:
             return await self.generate_with_cache(
@@ -961,16 +1233,15 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
                 cache_ttl=cache_ttl,
                 **kwargs,
             )
-        else:
-            return await self.generate(
-                prompt=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                functions=functions,
-                function_call=function_call,
-                json_mode=json_mode,
-                **kwargs,
-            )
+        return await self.generate(
+            prompt=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            functions=functions,
+            function_call=function_call,
+            json_mode=json_mode,
+            **kwargs,
+        )
 
     def cleanup(self) -> None:
         """
@@ -984,11 +1255,17 @@ class VLLMAdapter(LLM, ModelAdapterPlugin):
             import torch
 
             # Clean up vLLM resources
-            if hasattr(self.engine, "llm_engine") and hasattr(
-                self.engine.llm_engine, "model_executor"
-            ):
-                if hasattr(self.engine.llm_engine.model_executor, "driver_worker"):
-                    del self.engine.llm_engine.model_executor.driver_worker
+            # Try to clean up any resources that might be available
+            try:
+                if hasattr(self.engine, "llm_engine"):
+                    llm_engine = self.engine.llm_engine
+                    if hasattr(llm_engine, "model_executor"):
+                        model_executor = llm_engine.model_executor
+                        if hasattr(model_executor, "driver_worker"):
+                            # Use delattr to avoid static type checking errors
+                            delattr(model_executor, "driver_worker")
+            except Exception as e:
+                logger.warning(f"Error during cleanup of vLLM resources: {e}")
 
             # Delete the engine
             del self.engine

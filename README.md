@@ -2,8 +2,7 @@
 
 A graph-first, self-improving agent framework that takes root in your repository or knowledge base, builds a structural map, and grows smarter each day through automated critique → fine-tune loops—all without locking you to a single model provider.
 
-<img src="logo.svg" alt="Saplings - A graph-first, self-improving agent framework for building AI agents" width="200">
-
+<img src="logo.png" alt="Saplings - A graph-first, self-improving agent framework for building AI agents" width="200">
 - Provided by [Fine-Tuna](https://fine-tuna.ai): A dataset creation and fine-tuning agency.
 
 ## What is Saplings?
@@ -11,6 +10,8 @@ A graph-first, self-improving agent framework that takes root in your repository
 Saplings is a Python framework for building intelligent agents that can understand, reason about, and interact with complex information structures like codebases, knowledge bases, and document collections. Unlike traditional RAG (Retrieval-Augmented Generation) systems that treat documents as isolated chunks, Saplings builds and leverages structural relationships between information pieces, enabling more coherent and accurate reasoning.
 
 The framework's name reflects its philosophy: every "sapling" starts small but takes root in your data, builds a structural map, and grows smarter through continuous learning and self-improvement.
+
+Saplings is a lightweight (≤ 1.2k LOC core) framework for building domain-aware, self-critiquing autonomous agents with key pillars including structural memory, cascaded retrieval, guard-railed generation, self-improvement loops, and Graph-Aligned Sparse Attention (GASA) for faster, better-grounded reasoning.
 
 ## When to Use Saplings
 
@@ -43,6 +44,7 @@ Saplings may not be the best choice when:
 - **Extremely Resource-constrained Environments**: The full framework may be overkill for very limited computing environments
 
 For simple tasks with well-defined outputs, consider using:
+
 - Direct API calls to language models
 - Template-based generation systems
 - Rule-based systems
@@ -56,38 +58,65 @@ For simple tasks with well-defined outputs, consider using:
 - **JudgeAgent & Validator Loop** — Reflexive scoring, self-healing patches for continuous improvement
 - **Self-Healing & Adaptation** — Error analysis, automatic patching, and LoRA fine-tuning
 - **Extensibility** — Hot-pluggable models, tools, validators with a unified interface
+- **Dependency Injection** — Centralized service lifecycle and dependency management
 - **Graph-Aligned Sparse Attention (GASA)** — Graph-conditioned attention masks for faster, better-grounded reasoning
 - **Comprehensive Monitoring** — Tracing, visualization, and performance analysis tools
+- **Multimodal Support** — Handling text, image, audio, and video content with a unified interface
+- **Model Flexibility** — Support for OpenAI, Anthropic, vLLM, and HuggingFace models
+- **Tool Integration** — Built-in tools and dynamic tool creation capabilities
 
 ## How It Differs From Existing Libraries
 
-| Feature | Saplings | LlamaIndex | LangChain | AutoGPT |
-|---------|---------|------------|-----------|---------|
-| Memory model | Vector + dependency graph, SecureStore | Vector stores (graph optional) | Vector stores | Short-term memory only |
-| Context packing | Graph-Aligned Sparse Attention (GASA) → 40% fewer FLOPs | Dense concat or basic chunk window | Dense concat | Dense concat |
-| Self-improvement | Built-in JudgeAgent + Validator → daily LoRA adapters, online RL | Manual re-index / retrain only | None | Limited |
-| Extensibility | Plug-in adapters, indexers, validators, dynamic tool synthesis | Integrations but no dynamic tool creation | Tool integrations | Fixed tool set |
-| Cost governance | Budget-aware planner, usage metering | None | Basic tracking | None |
-| Privacy | Hash-key, DP-noise SecureStore | Varies by vector DB | Depends on implementation | Limited |
-| Model support | Multiple providers, local models, custom adapters | Multiple providers | Multiple providers | Primarily OpenAI |
-| Monitoring | Comprehensive tracing, visualization, blame graph | Basic | Basic | Limited |
+| Feature          | Saplings                                                        | LlamaIndex                                | LangChain                 | AutoGPT                |
+| ---------------- | --------------------------------------------------------------- | ----------------------------------------- | ------------------------- | ---------------------- |
+| Memory model     | Vector + dependency graph, MemoryStore                          | Vector stores (graph optional)            | Vector stores             | Short-term memory only |
+| Context packing  | Graph-Aligned Sparse Attention (GASA) → 40% fewer FLOPs         | Dense concat or basic chunk window        | Dense concat              | Dense concat           |
+| Self-improvement | Built-in JudgeAgent + Validator → LoRA adapters, self-healing   | Manual re-index / retrain only            | None                      | Limited                |
+| Extensibility    | Plug-in adapters, indexers, validators, dynamic tool synthesis  | Integrations but no dynamic tool creation | Tool integrations         | Fixed tool set         |
+| Cost governance  | Budget-aware planner, usage metering                            | None                                      | Basic tracking            | None                   |
+| Privacy          | Configurable memory stores, local model support                 | Varies by vector DB                       | Depends on implementation | Limited                |
+| Model support    | OpenAI, Anthropic, vLLM, HuggingFace, custom adapters           | Multiple providers                        | Multiple providers        | Primarily OpenAI       |
+| Monitoring       | Comprehensive tracing, visualization, blame graph               | Basic                                     | Basic                     | Limited                |
+| Multimodal       | Goal-specific agents with unified modality support              | Modality-specific agents                  | Modality-specific agents  | Limited                |
+| GASA             | Full support with vLLM, optimized context with third-party APIs | Not available                             | Not available             | Not available          |
 
 ## Core Concepts
 
 ### Agent Architecture
 
-Saplings agents are composed of several key components:
+Saplings agents are composed of several key components that work together to provide a comprehensive framework for building intelligent agents:
 
 1. **Memory**: Stores and indexes documents, code, and other information
-   - The `MemoryStore` is an in-memory object by default that combines vector storage and graph-based memory
+   - The `MemoryStore` combines vector storage and graph-based memory
    - Memory can be persisted to disk using `memory_store.save("path/to/directory")` and loaded with `memory_store.load("path/to/directory")`
    - When saved, it creates a directory structure with vector embeddings, dependency graph data, and configuration
-2. **Retriever**: Finds relevant information based on queries
-3. **Planner**: Breaks down complex tasks into steps
-4. **Executor**: Carries out individual steps using models and tools
-5. **Validator**: Verifies outputs against expectations
-6. **JudgeAgent**: Evaluates overall performance and suggests improvements
-7. **Tool Factory**: Dynamically creates tools based on needs
+2. **Retrieval**: Finds relevant information based on queries using a cascaded approach
+   - **CascadeRetriever**: Orchestrates the entire retrieval pipeline
+   - **TFIDFRetriever**: Performs initial filtering using TF-IDF
+   - **EmbeddingRetriever**: Finds similar documents using embeddings
+   - **GraphExpander**: Expands results using the dependency graph
+3. **Planning**: Breaks down complex tasks into manageable steps
+   - **SequentialPlanner**: Creates and optimizes execution plans
+   - **PlanStep**: Represents a single step in a plan
+   - **BudgetStrategy**: Manages resource allocation and constraints
+4. **Execution**: Carries out individual steps using models and tools
+   - **Executor**: Executes prompts with retrieved context
+   - **RefinementStrategy**: Improves outputs through iterative refinement
+   - **VerificationStrategy**: Verifies outputs against expectations
+5. **Validation**: Ensures outputs meet quality standards
+   - **ValidatorService**: Validates outputs against requirements
+   - **JudgeAgent**: Evaluates output quality and provides feedback
+6. **Tools**: Provides functionality for agents to interact with the world
+   - **Tool**: Base class for all tools
+   - **ToolRegistry**: Manages tool registration and discovery
+   - **Default Tools**: Built-in tools for common tasks
+   - **MCPClient**: Client for Machine Control Protocol servers
+7. **Tool Factory**: Enables dynamic creation of tools
+   - **ToolFactory**: Creates tools from specifications
+   - **ToolValidator**: Validates generated tool code
+8. **Monitoring**: Tracks agent performance and behavior
+   - **TraceManager**: Manages execution traces
+   - **Visualization**: Provides visual representations of performance
 
 ### Graph-Aligned Sparse Attention (GASA)
 
@@ -101,9 +130,13 @@ GASA is a novel technique that injects learned binary attention masks—derived 
 #### GASA with Third-Party LLMs
 
 When using GASA with third-party APIs like OpenAI and Anthropic:
+
 - Full GASA implementation is only possible with local models (vLLM) where we have direct access to the attention mechanism
-- With third-party APIs, Saplings uses a "soft GASA" approach that performs intelligent context packing based on the dependency graph
-- The `enable_gasa` flag still works with third-party models, but activates context optimization rather than true sparse attention masks
+- With third-party APIs, Saplings provides several alternative approaches:
+  - **Shadow Model Tokenization**: Uses a small local model (default: Qwen/Qwen3-0.6B) for tokenization and mask generation
+  - **Graph-Aware Prompt Composition**: Structures prompts based on graph relationships
+  - **Block-Diagonal Packing**: Reorders chunks to create a block-diagonal structure
+- The `enable_gasa` flag works with all model providers, automatically selecting the appropriate strategy
 
 ### Self-Improvement Loop
 
@@ -115,6 +148,16 @@ Saplings agents improve over time through:
 4. **Adaptation**: Automatically adjusting prompts, retrieval strategies, and other parameters
 5. **Fine-tuning**: Creating specialized LoRA adapters for recurring tasks
 
+### Multimodal Support
+
+Saplings provides a flexible system for handling multiple modalities:
+
+1. **Unified Interface**: Goal-specific agents that handle multiple modalities rather than separate agents for each modality
+2. **Modality Handlers**: Specialized handlers for text, image, audio, and video content
+3. **Flexible Input/Output**: Specify input and output modalities when running tasks
+4. **Message Integration**: Seamless conversion between modalities and message content
+5. **Extensibility**: Easy to add support for new modalities
+
 ## Installation
 
 ```bash
@@ -124,7 +167,7 @@ pip install saplings
 For development installations with all optional dependencies:
 
 ```bash
-pip install "saplings[dev,viz,monitoring]"
+pip install "saplings[dev,viz,monitoring,tools]"
 ```
 
 ### Running Tests
@@ -191,187 +234,441 @@ load_dotenv()  # Load environment variables from .env file
 
 ### Specifying API Keys in Code
 
-While not recommended for production, you can also specify API keys directly in the model URI:
+While not recommended for production, you can also specify API keys directly when creating the model:
 
 ```python
 # OpenAI
-model = LLM.from_uri("openai://gpt-4?api_key=your_openai_api_key")
+model = LLM.create(provider="openai", model_name="gpt-4o", api_key="your_openai_api_key")
 
 # Anthropic
-model = LLM.from_uri("anthropic://claude-3-opus-20240229?api_key=your_anthropic_api_key")
+model = LLM.create(provider="anthropic", model_name="claude-3-opus-20240229", api_key="your_anthropic_api_key")
+```
+
+## Default Tools
+
+Saplings provides a set of ready-to-use tools that can be easily integrated into your agents:
+
+### Available Tools
+
+| Tool                    | Description                                             | Dependencies                       |
+| ----------------------- | ------------------------------------------------------- | ---------------------------------- |
+| `PythonInterpreterTool` | Executes Python code in a sandboxed environment         | None                               |
+| `FinalAnswerTool`       | Provides a final answer to a problem                    | None                               |
+| `UserInputTool`         | Gets input from the user                                | None                               |
+| `DuckDuckGoSearchTool`  | Performs web searches using DuckDuckGo                  | `duckduckgo-search`                |
+| `GoogleSearchTool`      | Performs web searches using Google                      | `requests`                         |
+| `VisitWebpageTool`      | Visits a webpage and returns its content as markdown    | `markdownify`, `requests`          |
+| `WikipediaSearchTool`   | Searches Wikipedia and returns article content          | `wikipedia-api`                    |
+| `SpeechToTextTool`      | Transcribes audio to text                               | `transformers`, `torch`, `librosa` |
+| `MCPClient`             | Connects to MCP servers and makes their tools available | `mcpadapt`                         |
+
+### Using Default Tools
+
+```python
+from saplings import Agent, AgentConfig
+from saplings.tools import PythonInterpreterTool, DuckDuckGoSearchTool, WikipediaSearchTool
+
+# Create tools
+python_tool = PythonInterpreterTool()
+search_tool = DuckDuckGoSearchTool(max_results=5)
+wiki_tool = WikipediaSearchTool(user_agent="YourApp/1.0")
+
+# Create an agent with the tools
+agent = Agent(
+    config=AgentConfig(
+        provider="openai",
+        model_name="gpt-4o",
+        tools=[python_tool, search_tool, wiki_tool]
+    )
+)
+
+# Run a task that uses the tools
+import asyncio
+result = asyncio.run(agent.run(
+    "Find information about neural networks on Wikipedia, then write a Python function to create a simple neural network structure."
+))
+```
+
+### Helper Functions
+
+Saplings provides helper functions to easily access default tools:
+
+```python
+from saplings.tools import get_default_tool, get_all_default_tools
+
+# Get a specific tool
+python_tool = get_default_tool("python_interpreter")
+
+# Get all default tools
+all_tools = get_all_default_tools()
+```
+
+### Using MCP Client
+
+The MCP (Machine Control Protocol) client allows Saplings agents to use tools from MCP servers:
+
+```python
+from saplings import Agent, AgentConfig
+from saplings.tools import MCPClient
+
+# Connect to an MCP server
+with MCPClient({"command": "path/to/mcp/server"}) as mcp_tools:
+    # Create an agent with the MCP tools
+    agent = Agent(
+        config=AgentConfig(
+            provider="openai",
+            model_name="gpt-4o",
+            tools=mcp_tools
+        )
+    )
+
+    # Run a task that uses the MCP tools
+    import asyncio
+    result = asyncio.run(agent.run(
+        "Use the MCP tools to perform a task."
+    ))
+```
+
+You can also connect to multiple MCP servers at once:
+
+```python
+server_parameters = [
+    {"command": "path/to/first/mcp/server"},
+    {"url": "http://localhost:8000/sse"},  # SSE server
+]
+
+with MCPClient(server_parameters) as mcp_tools:
+    # Create an agent with tools from both MCP servers
+    agent = Agent(
+        config=AgentConfig(
+            provider="openai",
+            model_name="gpt-4o",
+            tools=mcp_tools
+        )
+    )
+```
+
+### Installing Dependencies
+
+To use all default tools, install the required dependencies:
+
+```bash
+pip install "saplings[tools]"
+```
+
+For MCP support:
+
+```bash
+pip install "saplings[mcp]"
+```
+
+Or install specific dependencies as needed:
+
+```bash
+pip install duckduckgo-search markdownify wikipedia-api mcpadapt
 ```
 
 ## Model Providers
 
-Saplings supports multiple model providers that can be easily switched using the model URI format:
+Saplings supports multiple model providers that can be easily switched:
 
 ### Available Providers
 
-| Provider | URI Format | Example |
-|----------|------------|---------|
-| OpenAI | `openai://model_name` | `openai://gpt-4o` |
-| Anthropic | `anthropic://model_name` | `anthropic://claude-3-opus-20240229` |
-| vLLM (local) | `vllm://model_name` | `vllm://meta-llama/Llama-3.1-8B-Instruct` |
-| HuggingFace | `huggingface://model_name` | `huggingface://meta-llama/Llama-3-8b-instruct` |
+| Provider    | Description                              | Example                              |
+| ----------- | ---------------------------------------- | ------------------------------------ |
+| OpenAI      | OpenAI API models (GPT-4, GPT-3.5, etc.) | `"gpt-4o"`, `"gpt-4-turbo"`          |
+| Anthropic   | Anthropic API models (Claude 3, etc.)    | `"claude-3-opus-20240229"`           |
+| vLLM        | Local models served through vLLM         | `"meta-llama/Llama-3.1-8B-Instruct"` |
+| HuggingFace | Models from Hugging Face                 | `"meta-llama/Llama-3-8b-instruct"`   |
 
 ### Changing Providers
 
-You can easily switch between providers by changing the model URI:
+You can easily switch between providers by specifying the provider and model name:
 
 ```python
 # Using OpenAI
-config = AgentConfig(model_uri="openai://gpt-4o")
+config = AgentConfig(
+    provider="openai",
+    model_name="gpt-4o"
+)
 
 # Using Anthropic
-config = AgentConfig(model_uri="anthropic://claude-3-opus-20240229")
+config = AgentConfig(
+    provider="anthropic",
+    model_name="claude-3-opus-20240229"
+)
 
 # Using vLLM (local)
-config = AgentConfig(model_uri="vllm://meta-llama/Llama-3.1-8B-Instruct")
+config = AgentConfig(
+    provider="vllm",
+    model_name="meta-llama/Llama-3.1-8B-Instruct"
+)
 ```
 
 ### Provider-Specific Parameters
 
-Each provider supports additional parameters in the URI:
+Each provider supports additional parameters:
 
 ```python
 # OpenAI with parameters
-model_uri = "openai://gpt-4o?temperature=0.7&max_tokens=1024"
+config = AgentConfig(
+    provider="openai",
+    model_name="gpt-4o",
+    temperature=0.7,
+    max_tokens=1024
+)
 
 # Anthropic with parameters
-model_uri = "anthropic://claude-3-opus-20240229?temperature=0.5&max_tokens=2048"
+config = AgentConfig(
+    provider="anthropic",
+    model_name="claude-3-opus-20240229",
+    temperature=0.5,
+    max_tokens=2048
+)
 
 # vLLM with parameters
-model_uri = "vllm://meta-llama/Llama-3.1-8B-Instruct?temperature=0.8&quantization=awq"
+config = AgentConfig(
+    provider="vllm",
+    model_name="meta-llama/Llama-3.1-8B-Instruct",
+    temperature=0.8,
+    quantization="awq"
+)
 ```
+
+### Model Registry
+
+Saplings includes a model registry that ensures only one instance of a model with the same configuration is created. This helps reduce memory usage and improve performance, especially when using multiple agents with the same model.
+
+The model registry is enabled by default and works automatically. When you create multiple agents with the same model configuration, they will share a single model instance:
+
+```python
+# Create two agents with the same model configuration
+agent1 = Agent(AgentConfig(provider="openai", model_name="gpt-4o"))
+agent2 = Agent(AgentConfig(provider="openai", model_name="gpt-4o"))
+
+# Both agents will use the same model instance
+# This saves memory and improves performance
+```
+
+You can disable the model registry by setting the `SAPLINGS_ENABLE_MODEL_REGISTRY` environment variable:
+
+```bash
+# Disable the model registry
+export SAPLINGS_ENABLE_MODEL_REGISTRY=0
+```
+
+This is particularly useful for:
+
+- Multi-agent systems where several agents use the same model
+- Applications with multiple components that need access to the same model
+- Reducing VRAM usage when running local models like vLLM
 
 ## Quick Start
 
 ### Basic Agent
 
 ```python
+import asyncio
 from saplings import Agent, AgentConfig
 from saplings.memory import MemoryStore
 
-# Initialize a memory store with your repository
-memory = MemoryStore()
-memory.index_repository("/path/to/your/repo")
+async def main():
+    # Create a memory store
+    memory = MemoryStore()
 
-# Create an agent configuration
-# Note: memory_path enables automatic persistence of the memory store
-config = AgentConfig(
-    model_uri="openai://gpt-4o",
-    memory_path="./agent_memory"  # Directory where memory will be saved/loaded
-)
+    # Add a simple document
+    await memory.add_document(
+        "Saplings is a graph-first, self-improving agent framework that takes root in your repository or knowledge base, builds a structural map, and grows smarter each day."
+    )
 
-# Create an agent with the configuration
-agent = Agent(config=config)
+    # Create an agent with basic configuration
+    agent = Agent(
+        config=AgentConfig(
+            provider="openai",
+            model_name="gpt-4o",
+            memory_path="./agent_memory"  # Directory where memory will be saved/loaded
+        )
+    )
 
-# Set the memory store
-agent.memory_store = memory
+    # Set the memory store
+    agent.memory_store = memory
 
-# Memory will be automatically saved to the memory_path directory
-# You can also manually save/load memory:
-# memory.save("./custom_memory_path")
-# memory.load("./custom_memory_path")
+    # Memory will be automatically saved to the memory_path directory
+    # You can also manually save/load memory:
+    # memory.save("./custom_memory_path")
+    # memory.load("./custom_memory_path")
 
-# Run a task (note: this is an async method)
-import asyncio
-result = asyncio.run(agent.run("Explain the architecture of this codebase"))
-print(result)
+    # Run a simple query
+    result = await agent.run("What is Saplings?")
+    print(result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-### Custom Agent with GASA
+### Agent with GASA
 
 ```python
+import asyncio
 from saplings import Agent, AgentConfig
 from saplings.memory import MemoryStore, DependencyGraph
-from saplings.gasa import GASAConfig
-from saplings.executor import ExecutorConfig
 
-# Initialize memory components
-memory = MemoryStore()
-graph = DependencyGraph()
+async def main():
+    # Initialize memory components
+    memory = MemoryStore()
+    graph = DependencyGraph()
 
-# Index a repository
-memory.index_repository("/path/to/your/repo")
-graph.build_from_memory(memory)
+    # Add documents to memory
+    await memory.add_document(
+        "Graph-Aligned Sparse Attention (GASA) is a technique that improves efficiency and grounding in language models by focusing attention on relevant context based on document relationships.",
+        metadata={"source": "docs.txt", "section": "gasa"}
+    )
 
-# Configure GASA
-gasa_config = GASAConfig(
-    max_hops=2,  # Maximum graph distance for attention
-    mask_strategy="binary",  # Binary attention mask
-)
+    await memory.add_document(
+        "GASA injects a binary attention mask—derived from the retrieval dependency graph—into each transformer layer, permitting full attention only between tokens whose source chunks are within a defined number of hops in the graph.",
+        metadata={"source": "docs.txt", "section": "gasa_details"}
+    )
 
-# Configure executor
-executor_config = ExecutorConfig(
-    enable_gasa=True,
-    max_tokens=1024,
-    temperature=0.7,
-)
+    # Build dependency graph
+    await graph.build_from_memory(memory)
 
-# Create agent configuration
-config = AgentConfig(
-    model_uri="openai://gpt-4o",
-    memory_path="./agent_memory",
-    enable_gasa=True,
-    gasa_max_hops=2,
-    max_tokens=1024,
-    temperature=0.7,
-)
+    # Create agent configuration with GASA enabled
+    agent = Agent(
+        config=AgentConfig(
+            provider="openai",
+            model_name="gpt-4o",
+            enable_gasa=True,
+            gasa_max_hops=2,
+            gasa_strategy="binary",
+            gasa_fallback="prompt_composer",
+            gasa_shadow_model=True,
+            gasa_shadow_model_name="Qwen/Qwen3-0.6B",
+        )
+    )
 
-# Create agent with custom configuration
-agent = Agent(config=config)
+    # Set memory components
+    agent.memory_store = memory
+    agent.dependency_graph = graph
 
-# Set memory components
-agent.memory_store = memory
-agent.dependency_graph = graph
+    # Run a query
+    result = await agent.run("Explain how GASA works")
+    print(result)
 
-# Run a task (note: this is an async method)
-import asyncio
-result = asyncio.run(agent.run("Refactor the error handling in the authentication module"))
-print(result)
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-### Agent with Monitoring
+### Agent with Tools
 
 ```python
+import asyncio
+from saplings import Agent, AgentConfig
+from saplings.tools import PythonInterpreterTool, WikipediaSearchTool
+
+async def main():
+    # Create tools
+    python_tool = PythonInterpreterTool()
+    wiki_tool = WikipediaSearchTool()
+
+    # Create an agent with tools
+    agent = Agent(
+        config=AgentConfig(
+            provider="openai",
+            model_name="gpt-4o",
+            tools=[python_tool, wiki_tool],
+        )
+    )
+
+    # Run a task that requires using tools
+    result = await agent.run(
+        "Search for information about Graph Attention Networks on Wikipedia, "
+        "then write a Python function that creates a simple representation of "
+        "a graph attention mechanism."
+    )
+    print(result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Self-Hosted Model with vLLM
+
+```python
+import asyncio
 from saplings import Agent, AgentConfig
 from saplings.memory import MemoryStore
-from saplings.monitoring import MonitoringConfig, TraceManager
 
-# Configure monitoring
-monitoring_config = MonitoringConfig(
-    visualization_output_dir="./visualizations",
-)
-trace_manager = TraceManager(config=monitoring_config)
+async def main():
+    # Create a memory store
+    memory = MemoryStore()
 
-# Create agent configuration
-config = AgentConfig(
-    model_uri="openai://gpt-4o",
-    memory_path="./agent_memory",
-    enable_monitoring=True,
-)
+    # Add some documents
+    await memory.add_document(
+        "Saplings is a graph-first, self-improving agent framework that takes root in your repository.",
+        metadata={"type": "documentation", "section": "overview"}
+    )
 
-# Create agent with monitoring
-agent = Agent(config=config)
-agent.memory_store = MemoryStore()
-agent.trace_manager = trace_manager
+    # Create an agent with self-hosted model
+    agent = Agent(
+        config=AgentConfig(
+            provider="vllm",
+            model_name="Qwen/Qwen3-1.7B",
+            # vLLM specific parameters
+            tensor_parallel_size=1,
+            gpu_memory_utilization=0.8,
+            quantization="awq",
+            # Enable GASA - fully supported with vLLM
+            enable_gasa=True,
+            gasa_max_hops=2,
+        )
+    )
 
-# Run a task with tracing (note: this is an async method)
+    # Set the memory store
+    agent.memory_store = memory
+
+    # Run a query
+    result = await agent.run("Explain what Saplings is")
+    print(result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Multimodal Agent
+
+```python
 import asyncio
-result = asyncio.run(agent.run("Analyze the performance bottlenecks in this codebase"))
+from saplings import Agent, AgentConfig
 
-# Get the trace ID from the result
-trace_id = result.get("trace_id", "performance-analysis-1")
+async def main():
+    # Create agent configuration with multimodal support
+    agent = Agent(
+        config=AgentConfig(
+            provider="openai",
+            model_name="gpt-4o",
+            memory_path="./agent_memory",
+            supported_modalities=["text", "image"],  # Specify supported modalities
+        )
+    )
 
-# Visualize the execution trace
-from saplings.monitoring import TraceViewer
-viewer = TraceViewer(trace_manager=trace_manager)
-viewer.view_trace(
-    trace_id=trace_id,
-    output_path="performance_analysis_trace.html",
-    show=True,
-)
+    # Run a task with specific input and output modalities
+    result = await agent.run(
+        task="Generate a description of a sunset over mountains and create an image of it.",
+        input_modalities=["text"],
+        output_modalities=["text", "image"]
+    )
+
+    # Access the text output
+    text_output = result.get("text")
+    print(text_output)
+
+    # Access the image output (if available)
+    image_output = result.get("image")
+    if image_output:
+        print(f"Image generated: {image_output}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Multi-Agent Orchestration
@@ -379,61 +676,72 @@ viewer.view_trace(
 Saplings supports orchestrating multiple specialized agents that work together:
 
 ```python
+import asyncio
 from saplings import Agent, AgentConfig
 from saplings.memory import MemoryStore
-from saplings.orchestration import GraphRunner, GraphRunnerConfig, AgentNode
+from saplings.orchestration import GraphRunner, AgentNode
 from saplings.core.model_adapter import LLM
 
-# Create a model for orchestration
-model = LLM.from_uri("openai://gpt-4o")
+async def main():
+    # Create a model for orchestration
+    model = LLM.create(provider="openai", model_name="gpt-4o")
 
-# Create a graph runner for agent coordination
-graph_runner = GraphRunner(model=model)
+    # Create a graph runner for agent coordination
+    graph_runner = GraphRunner(model=model)
 
-# Create specialized agents
-code_analyzer = Agent(AgentConfig(
-    model_uri="openai://gpt-4o",
-    name="CodeAnalyzer",
-))
-code_analyzer.memory_store = MemoryStore()
+    # Create specialized agents
+    code_analyzer = Agent(AgentConfig(
+        provider="openai",
+        model_name="gpt-4o",
+        name="CodeAnalyzer",
+    ))
+    code_analyzer.memory_store = MemoryStore()
 
-refactoring_expert = Agent(AgentConfig(
-    model_uri="openai://gpt-4o",
-    name="RefactoringExpert",
-))
-refactoring_expert.memory_store = MemoryStore()
+    refactoring_expert = Agent(AgentConfig(
+        provider="openai",
+        model_name="gpt-4o",
+        name="RefactoringExpert",
+    ))
+    refactoring_expert.memory_store = MemoryStore()
 
-documentation_writer = Agent(AgentConfig(
-    model_uri="openai://gpt-4o",
-    name="DocumentationWriter",
-))
-documentation_writer.memory_store = MemoryStore()
+    documentation_writer = Agent(AgentConfig(
+        provider="openai",
+        model_name="gpt-4o",
+        name="DocumentationWriter",
+    ))
+    documentation_writer.memory_store = MemoryStore()
 
-# Register agents with the graph runner
-graph_runner.register_agent(AgentNode(
-    id="code_analyzer",
-    name="Code Analyzer",
-    description="Analyzes code structure and identifies patterns",
-))
+    # Register agents with the graph runner
+    graph_runner.register_agent(AgentNode(
+        id="code_analyzer",
+        name="Code Analyzer",
+        description="Analyzes code structure and identifies patterns",
+        agent=code_analyzer
+    ))
 
-graph_runner.register_agent(AgentNode(
-    id="refactoring_expert",
-    name="Refactoring Expert",
-    description="Suggests and implements code refactoring",
-))
+    graph_runner.register_agent(AgentNode(
+        id="refactoring_expert",
+        name="Refactoring Expert",
+        description="Suggests and implements code refactoring",
+        agent=refactoring_expert
+    ))
 
-graph_runner.register_agent(AgentNode(
-    id="documentation_writer",
-    name="Documentation Writer",
-    description="Creates clear, comprehensive documentation",
-))
+    graph_runner.register_agent(AgentNode(
+        id="documentation_writer",
+        name="Documentation Writer",
+        description="Creates clear, comprehensive documentation",
+        agent=documentation_writer
+    ))
 
-# Run a debate between agents (note: this is an async method)
-import asyncio
-result = asyncio.run(graph_runner.run_debate(
-    task="Improve the error handling in auth.py and update the documentation",
-    agent_ids=["code_analyzer", "refactoring_expert", "documentation_writer"]
-))
+    # Run a debate between agents
+    result = await graph_runner.run_debate(
+        task="Improve the error handling in auth.py and update the documentation",
+        agent_ids=["code_analyzer", "refactoring_expert", "documentation_writer"]
+    )
+    print(result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Advanced Usage
@@ -441,150 +749,188 @@ result = asyncio.run(graph_runner.run_debate(
 ### Custom Model Adapters
 
 ```python
+import asyncio
 from saplings.core.model_adapter import LLM
 from saplings import Agent, AgentConfig
 
-# Use a specific model
-openai_model = LLM.from_uri("openai://gpt-4o")
-agent = Agent(AgentConfig(model_uri="openai://gpt-4o"))
+async def main():
+    # Use a specific model
+    openai_model = LLM.create(provider="openai", model_name="gpt-4o")
+    agent = Agent(AgentConfig(provider="openai", model_name="gpt-4o"))
 
-# Use a local model
-local_model = LLM.from_uri("local://llama3?model_path=/path/to/model")
-agent = Agent(AgentConfig(model_uri="local://llama3?model_path=/path/to/model"))
+    # Use a local model with vLLM
+    vllm_model = LLM.create(
+        provider="vllm",
+        model_name="Qwen/Qwen3-1.7B",
+        tensor_parallel_size=1,
+        gpu_memory_utilization=0.8
+    )
 
-# Create a custom adapter by inheriting from LLM
-class MyCustomAdapter(LLM):
-    def __init__(self, model_uri, **kwargs):
-        super().__init__(model_uri, **kwargs)
-        # Custom initialization
+    # Create a custom adapter by inheriting from LLM
+    class MyCustomAdapter(LLM):
+        def __init__(self, provider: str, model_name: str, **kwargs):
+            self.provider = provider
+            self.model_name = model_name
+            # Custom initialization
 
-    async def generate(self, prompt, **kwargs):
-        # Custom implementation
-        pass
+        async def generate(self, prompt, **kwargs):
+            # Custom implementation
+            pass
 
-    async def generate_streaming(self, prompt, **kwargs):
-        # Custom implementation
-        pass
+        async def generate_streaming(self, prompt, **kwargs):
+            # Custom implementation
+            pass
 
-# Use the custom adapter
-custom_model = MyCustomAdapter("custom://my-model")
-agent = Agent(AgentConfig(model_uri="custom://my-model"))
-agent.model = custom_model
+        @property
+        def metadata(self):
+            # Return metadata about the model
+            return {
+                "provider": self.provider,
+                "model_name": self.model_name,
+                "context_window": 4096,
+                "capabilities": ["text-generation"]
+            }
+
+    # Use the custom adapter
+    custom_model = MyCustomAdapter(provider="custom", model_name="my-model")
+    agent = Agent(AgentConfig(provider="custom", model_name="my-model"))
+    agent.model = custom_model
+
+    # Run a task with the custom model
+    result = await agent.run("Explain what a custom model adapter is")
+    print(result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ### Dynamic Tool Creation
 
 ```python
-from saplings.tool_factory import ToolFactory, ToolFactoryConfig, ToolSpecification
-from saplings.executor import Executor, ExecutorConfig
+import asyncio
+from saplings import Agent, AgentConfig
 from saplings.core.model_adapter import LLM
 
-# Create a model for the tool factory
-model = LLM.from_uri("openai://gpt-4o")
+async def main():
+    # Create an agent with tool factory enabled
+    agent = Agent(
+        config=AgentConfig(
+            provider="openai",
+            model_name="gpt-4o",
+            enable_tool_factory=True,
+            tool_factory_sandbox_enabled=True,
+            allowed_imports=["os", "json", "math", "numpy", "pandas", "matplotlib"],
+        )
+    )
 
-# Create an executor
-executor_config = ExecutorConfig(max_tokens=1024, temperature=0.7)
-executor = Executor(model=model, config=executor_config)
-
-# Create a tool factory
-tool_factory_config = ToolFactoryConfig(output_dir="./tools")
-tool_factory = ToolFactory(model=model, config=tool_factory_config)
-
-# Create a tool specification
-visualization_spec = ToolSpecification(
-    id="data_visualizer",
-    name="Data Visualizer",
-    description="Creates visualizations from data",
-    template_id="python_tool",
-    parameters={
-        "function_name": "visualize_data",
-        "parameters": "data: dict, output_path: str",
-        "description": "Creates a bar chart visualization from data",
-        "code_body": """
+    # Create a dynamic tool
+    visualization_tool = await agent.create_tool(
+        name="VisualizationTool",
+        description="Creates visualizations from data",
+        code="""
 import matplotlib.pyplot as plt
-import pandas as pd
+import numpy as np
 
-df = pd.DataFrame(data)
-plt.figure(figsize=(10, 6))
-df.plot(kind='bar')
-plt.savefig(output_path)
-return output_path
+def execute(data, output_path="visualization.png"):
+    """Create a visualization from data."""
+    # Convert data to numpy arrays
+    x = [item["x"] for item in data]
+    y = [item["y"] for item in data]
+
+    # Create the plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, y, marker='o')
+    plt.title("Data Visualization")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.grid(True)
+
+    # Save the plot
+    plt.savefig(output_path)
+
+    return {"status": "success", "output_path": output_path}
 """
-    }
-)
+    )
 
-# Dynamically create a tool (note: this is an async method)
-import asyncio
-visualization_tool = asyncio.run(tool_factory.create_tool(visualization_spec))
+    # Register the tool with the agent
+    agent.register_tool(visualization_tool)
 
-# Use the tool
-result = visualization_tool().execute(
-    data=[{"x": 1, "y": 10}, {"x": 2, "y": 20}],
-    output_path="visualization.png"
-)
+    # Use the agent with the new tool
+    result = await agent.run(
+        "Create a visualization of the following data points: x=[1,2,3,4,5], y=[10,25,15,30,20]"
+    )
+    print(result)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ### Self-Improvement
 
 ```python
+import asyncio
 from saplings import Agent, AgentConfig
-from saplings.judge import JudgeAgent, JudgeConfig
+from saplings.judge import JudgeAgent
 from saplings.validator import ValidatorRegistry
 from saplings.core.model_adapter import LLM
 
-# Create a model
-model = LLM.from_uri("openai://gpt-4o")
+async def main():
+    # Create a model
+    model = LLM.create(provider="openai", model_name="gpt-4o")
 
-# Create components
-agent = Agent(AgentConfig(
-    model_uri="openai://gpt-4o",
-    enable_self_healing=True,
-))
+    # Create an agent with self-healing enabled
+    agent = Agent(
+        config=AgentConfig(
+            provider="openai",
+            model_name="gpt-4o",
+            enable_self_healing=True,
+            self_healing_max_retries=3,
+        )
+    )
 
-judge = JudgeAgent(model=model)
-validator_registry = ValidatorRegistry()
+    # Create judge and validator components
+    judge = JudgeAgent(model=model)
+    validator_registry = ValidatorRegistry()
 
-# Run a task (note: this is an async method)
-import asyncio
-result = asyncio.run(agent.run("Implement a sorting algorithm"))
+    # Run a task
+    result = await agent.run("Implement a sorting algorithm")
 
-# Get the output from the result
-output = result.get("final_result", "")
+    # Get the output from the result
+    output = result.get("output", "")
 
-# Validate the result
-validator = validator_registry.get_validator("code_validator")
-validation = asyncio.run(validator.validate(
-    output=output,
-    prompt="Implement a sorting algorithm"
-))
+    # Validate the result
+    validator = validator_registry.get_validator("code_validator")
+    validation = await validator.validate(
+        output=output,
+        prompt="Implement a sorting algorithm"
+    )
 
-# Judge the performance
-judgment = asyncio.run(judge.judge(
-    output=output,
-    prompt="Implement a sorting algorithm"
-))
+    # Judge the performance
+    judgment = await judge.judge(
+        output=output,
+        prompt="Implement a sorting algorithm"
+    )
 
-# Analyze performance
-performance_data = agent.analyze_performance(trace_id=result.get("trace_id"))
+    # Improve the agent
+    improvement_plan = await agent.self_improve(
+        validation_results=[validation],
+        judgment_results=[judgment]
+    )
 
-# Improve the agent
-improvement_plan = asyncio.run(agent.self_improve(
-    validation_results=[validation],
-    judgment_results=[judgment],
-    performance_data=performance_data
-))
+    print(f"Improvement plan: {improvement_plan}")
 
-# Apply improvements
-asyncio.run(agent.apply_improvements(improvement_plan))
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Project Roadmap
 
 The Saplings framework is under active development with the following roadmap:
 
-### Short-term (Q2 2025)
+### Short-term
+
 - **GASA Enhancements**
-  - Learned attention masks that adapt to specific tasks
+  - Improved shadow model tokenization for third-party LLMs
   - Multi-head attention with different masks for different heads
   - Dynamic masks that change during generation based on context
 - **Retrieval Improvements**
@@ -596,7 +942,8 @@ The Saplings framework is under active development with the following roadmap:
   - Support for more vision-language models
   - Improved function calling across all model providers
 
-### Mid-term (Q3-Q4 2025)
+### Mid-term
+
 - **Memory and Storage**
   - Distributed vector stores and graph databases
   - Incremental indexing for efficient document updates
@@ -611,7 +958,8 @@ The Saplings framework is under active development with the following roadmap:
   - Multi-model verification for improved accuracy
   - Adaptive refinement strategies based on verification results
 
-### Long-term (2026+)
+### Long-term
+
 - **Multi-modal Support**
   - Memory stores for images, audio, and other modalities
   - Multi-modal retrieval and reasoning
@@ -629,15 +977,17 @@ The Saplings framework is under active development with the following roadmap:
 
 For detailed documentation, see the [docs](./docs) directory:
 
+- [Quick Start Guide](./docs/quick_start.md)
 - [Core Concepts](./docs/core_concepts.md)
 - [Memory and Retrieval](./docs/memory.md)
 - [GASA Implementation](./docs/gasa.md)
+- [GASA with Third-Party LLMs](./docs/gasa_third_party.md)
+- [Model Adapters](./docs/model_adapters.md)
+- [Agent](./docs/agent.md)
 - [Executor and Planning](./docs/executor.md)
-- [Monitoring and Visualization](./docs/monitoring.md)
-- [Tool Factory](./docs/tool_factory.md)
+- [Tools](./docs/tools.md)
 - [Validation and Judging](./docs/validation.md)
-- [Security Guidelines](./docs/security_guidelines.md)
-- [API Reference](./docs/api_reference.md)
+- [Multimodal Support](./docs/multimodal.md)
 - [Examples](./docs/examples.md)
 
 ## Development
@@ -645,20 +995,21 @@ For detailed documentation, see the [docs](./docs) directory:
 ### Prerequisites
 
 - Python 3.9+
-- Poetry
+- Poetry (optional, for development)
 
 ### Setup
 
 ```bash
-# Clone the repository
+# Install from PyPI
+pip install saplings
+
+# For development installation
 git clone https://github.com/jacobwarren/saplings.git
 cd saplings
-
-# Install dependencies
-poetry install
+pip install -e ".[dev]"
 
 # Run tests
-poetry run pytest
+pytest
 ```
 
 ### Contributing
@@ -679,11 +1030,11 @@ MIT
 If you use Saplings in your research, please cite:
 
 ```bibtex
-@software{saplings2025,
-  author = {Jacob Warren, Fine-Tuna},
+@software{saplings2023,
+  author = {Jacob Warren},
   title = {Saplings: A Graphs-first, Self-improving Agent Framework},
   url = {https://github.com/jacobwarren/saplings},
-  year = {2025},
+  year = {2023},
 }
 ```
 

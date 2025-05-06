@@ -63,27 +63,27 @@ from saplings.memory.vector_store import VectorStore
 
 class MyMemoryStore(MemoryStorePlugin, VectorStore):
     """My custom memory store."""
-    
+
     @property
     def name(self) -> str:
         """Name of the plugin."""
         return "my_memory_store"
-    
+
     @property
     def version(self) -> str:
         """Version of the plugin."""
         return "0.1.0"
-    
+
     @property
     def description(self) -> str:
         """Description of the plugin."""
         return "My custom memory store"
-    
+
     @property
     def plugin_type(self) -> PluginType:
         """Type of the plugin."""
         return PluginType.MEMORY_STORE
-    
+
     # Implement the required methods...
 ```
 

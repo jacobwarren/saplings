@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 """
 Configuration module for Saplings planner.
 
 This module defines the configuration classes for the planner module.
 """
 
+
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -47,6 +50,25 @@ class CostHeuristicConfig(BaseModel):
     )
 
 
+def default_cost_heuristics() -> CostHeuristicConfig:
+    """
+    Create a default cost heuristics configuration.
+
+    Returns
+    -------
+        CostHeuristicConfig: Default cost heuristics configuration
+
+    """
+    return CostHeuristicConfig(
+        token_cost_multiplier=1.0,
+        base_cost_per_step=0.01,
+        complexity_factor=1.5,
+        tool_use_cost=0.05,
+        retrieval_cost_per_doc=0.001,
+        max_cost_per_step=1.0,
+    )
+
+
 class PlannerConfig(BaseModel):
     """Configuration for the planner module."""
 
@@ -64,55 +86,78 @@ class PlannerConfig(BaseModel):
         0.1, description="Margin by which the budget can be exceeded (as a fraction)"
     )
     cost_heuristics: CostHeuristicConfig = Field(
-        default_factory=CostHeuristicConfig, description="Cost heuristic configuration"
+        default_factory=default_cost_heuristics, description="Cost heuristic configuration"
     )
     enable_pruning: bool = Field(True, description="Whether to enable pruning of unnecessary steps")
     enable_parallelization: bool = Field(
         True, description="Whether to enable parallel execution of independent steps"
     )
     enable_caching: bool = Field(True, description="Whether to enable caching of step results")
-    cache_dir: Optional[str] = Field(None, description="Directory to cache plan results")
+    cache_dir: str | None = Field(None, description="Directory to cache plan results")
 
     @classmethod
-    def default(cls) -> "PlannerConfig":
+    def default(cls):
         """
         Create a default configuration.
 
-        Returns:
+        Returns
+        -------
             PlannerConfig: Default configuration
+
         """
-        return cls()
+        return cls(
+            budget_strategy=BudgetStrategy.PROPORTIONAL,
+            optimization_strategy=OptimizationStrategy.BALANCED,
+            max_steps=10,
+            min_steps=1,
+            total_budget=1.0,
+            allow_budget_overflow=False,
+            budget_overflow_margin=0.1,
+            enable_pruning=True,
+            enable_parallelization=True,
+            enable_caching=True,
+            cache_dir=None,
+        )
 
     @classmethod
-    def minimal(cls) -> "PlannerConfig":
+    def minimal(cls):
         """
         Create a minimal configuration with only essential features enabled.
 
-        Returns:
+        Returns
+        -------
             PlannerConfig: Minimal configuration
+
         """
         return cls(
             budget_strategy=BudgetStrategy.EQUAL,
             optimization_strategy=OptimizationStrategy.COST,
             max_steps=5,
+            min_steps=1,
             total_budget=0.5,
+            allow_budget_overflow=False,
+            budget_overflow_margin=0.1,
             enable_pruning=False,
             enable_parallelization=False,
             enable_caching=False,
+            cache_dir=None,
         )
 
     @classmethod
-    def comprehensive(cls) -> "PlannerConfig":
+    def comprehensive(cls):
         """
         Create a comprehensive configuration with all features enabled.
 
-        Returns:
+        Returns
+        -------
             PlannerConfig: Comprehensive configuration
+
         """
         return cls(
             budget_strategy=BudgetStrategy.DYNAMIC,
             optimization_strategy=OptimizationStrategy.BALANCED,
             max_steps=20,
+            min_steps=3,
             total_budget=2.0,
             allow_budget_overflow=True,
             budget_overflow_margin=0.2,
@@ -131,17 +176,21 @@ class PlannerConfig(BaseModel):
         )
 
     @classmethod
-    def from_cli_args(cls, args: Dict[str, Any]) -> "PlannerConfig":
+    def from_cli_args(cls, args: dict[str, Any]) -> "PlannerConfig":
         """
         Create a configuration from command-line arguments.
 
         Args:
+        ----
             args: Command-line arguments
 
         Returns:
+        -------
             PlannerConfig: Configuration
+
         """
-        config = cls()
+        # Start with default configuration to ensure all parameters are set
+        config = cls.default()
 
         if "planner_budget_strategy" in args:
             config.budget_strategy = BudgetStrategy(args["planner_budget_strategy"])
@@ -152,11 +201,17 @@ class PlannerConfig(BaseModel):
         if "planner_max_steps" in args:
             config.max_steps = args["planner_max_steps"]
 
+        if "planner_min_steps" in args:
+            config.min_steps = args["planner_min_steps"]
+
         if "planner_budget" in args:
             config.total_budget = args["planner_budget"]
 
         if "planner_allow_overflow" in args:
             config.allow_budget_overflow = args["planner_allow_overflow"]
+
+        if "planner_overflow_margin" in args:
+            config.budget_overflow_margin = args["planner_overflow_margin"]
 
         if "planner_enable_pruning" in args:
             config.enable_pruning = args["planner_enable_pruning"]

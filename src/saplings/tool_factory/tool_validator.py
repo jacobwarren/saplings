@@ -1,14 +1,16 @@
+from __future__ import annotations
+
 """
 Tool validator module for Saplings tool factory.
 
 This module provides validation capabilities for dynamically generated tools.
 """
 
+
 import ast
 import logging
 import re
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Tuple
+from dataclasses import dataclass, field
 
 from saplings.tool_factory.config import SecurityLevel, ToolFactoryConfig
 
@@ -20,13 +22,10 @@ class ValidationResult:
     """Result of a tool validation."""
 
     is_valid: bool
-    error_message: Optional[str] = None
-    warnings: List[str] = None
+    error_message: str | None = None
+    warnings: list[str] = field(default_factory=list)
 
-    def __post_init__(self):
-        """Initialize default values."""
-        if self.warnings is None:
-            self.warnings = []
+    # No need for __post_init__ since we're using default_factory
 
 
 class ToolValidator:
@@ -37,12 +36,14 @@ class ToolValidator:
     meets security and quality standards.
     """
 
-    def __init__(self, config: Optional[ToolFactoryConfig] = None):
+    def __init__(self, config: ToolFactoryConfig | None = None) -> None:
         """
         Initialize the tool validator.
 
         Args:
+        ----
             config: Configuration for the validator
+
         """
         self.config = config or ToolFactoryConfig()
 
@@ -76,10 +77,13 @@ class ToolValidator:
         Validate tool code.
 
         Args:
+        ----
             code: Code to validate
 
         Returns:
+        -------
             ValidationResult: Result of the validation
+
         """
         # Check for syntax errors
         syntax_result = self._check_syntax(code)
@@ -109,10 +113,13 @@ class ToolValidator:
         Check for syntax errors in the code.
 
         Args:
+        ----
             code: Code to check
 
         Returns:
+        -------
             ValidationResult: Result of the syntax check
+
         """
         try:
             ast.parse(code)
@@ -120,12 +127,12 @@ class ToolValidator:
         except SyntaxError as e:
             return ValidationResult(
                 is_valid=False,
-                error_message=f"Syntax error: {str(e)}",
+                error_message=f"Syntax error: {e!s}",
             )
         except Exception as e:
             return ValidationResult(
                 is_valid=False,
-                error_message=f"Parsing error: {str(e)}",
+                error_message=f"Parsing error: {e!s}",
             )
 
     def _check_security(self, code: str) -> ValidationResult:
@@ -133,10 +140,13 @@ class ToolValidator:
         Check for security issues in the code.
 
         Args:
+        ----
             code: Code to check
 
         Returns:
+        -------
             ValidationResult: Result of the security check
+
         """
         warnings = []
 
@@ -148,7 +158,7 @@ class ToolValidator:
                         is_valid=False,
                         error_message=f"Dangerous import: {imp}",
                     )
-                elif self.config.security_level == SecurityLevel.MEDIUM:
+                if self.config.security_level == SecurityLevel.MEDIUM:
                     warnings.append(f"Potentially dangerous import: {imp}")
 
         # Check for dangerous functions
@@ -159,7 +169,7 @@ class ToolValidator:
                         is_valid=False,
                         error_message=f"Dangerous function call: {func}",
                     )
-                elif self.config.security_level == SecurityLevel.LOW:
+                if self.config.security_level == SecurityLevel.LOW:
                     warnings.append(f"Potentially dangerous function call: {func}")
 
         # Additional checks for HIGH security level
@@ -195,17 +205,20 @@ class ToolValidator:
         Check for code quality issues.
 
         Args:
+        ----
             code: Code to check
 
         Returns:
+        -------
             ValidationResult: Result of the quality check
+
         """
         warnings = []
 
         # Check for long lines
         for i, line in enumerate(code.splitlines()):
             if len(line) > 100:
-                warnings.append(f"Line {i+1} is too long ({len(line)} characters)")
+                warnings.append(f"Line {i + 1} is too long ({len(line)} characters)")
 
         # Check for too many nested blocks
         try:
@@ -222,12 +235,14 @@ class ToolValidator:
 class SecurityVisitor(ast.NodeVisitor):
     """AST visitor for security checks."""
 
-    def __init__(self, config: ToolFactoryConfig):
+    def __init__(self, config: ToolFactoryConfig) -> None:
         """
         Initialize the security visitor.
 
         Args:
+        ----
             config: Configuration for the validator
+
         """
         self.config = config
         self.errors = []
@@ -286,7 +301,7 @@ class SecurityVisitor(ast.NodeVisitor):
 class QualityVisitor(ast.NodeVisitor):
     """AST visitor for quality checks."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the quality visitor."""
         self.warnings = []
         self.nesting_level = 0

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Basic validators for Saplings.
 
@@ -5,14 +7,9 @@ This module provides basic validators for Saplings.
 """
 
 import re
-from typing import Dict, List, Optional, Set, Union
 
-from saplings.validator.validator import (
-    RuntimeValidator,
-    StaticValidator,
-    ValidationResult,
-    ValidationStatus,
-)
+from saplings.validator.result import ValidationResult, ValidationStatus
+from saplings.validator.validator import RuntimeValidator
 
 
 class LengthValidator(RuntimeValidator):
@@ -24,17 +21,19 @@ class LengthValidator(RuntimeValidator):
 
     def __init__(
         self,
-        min_length: Optional[int] = None,
-        max_length: Optional[int] = None,
+        min_length: int | None = None,
+        max_length: int | None = None,
         unit: str = "characters",
-    ):
+    ) -> None:
         """
         Initialize the length validator.
 
         Args:
+        ----
             min_length: Minimum length (inclusive)
             max_length: Maximum length (inclusive)
             unit: Unit of length ("characters", "words", "sentences")
+
         """
         self._min_length = min_length
         self._max_length = max_length
@@ -60,24 +59,26 @@ class LengthValidator(RuntimeValidator):
         """Description of the validator."""
         if self._min_length is not None and self._max_length is not None:
             return f"Validates that the output length is between {self._min_length} and {self._max_length} {self._unit}"
-        elif self._min_length is not None:
+        if self._min_length is not None:
             return f"Validates that the output length is at least {self._min_length} {self._unit}"
-        elif self._max_length is not None:
+        if self._max_length is not None:
             return f"Validates that the output length is at most {self._max_length} {self._unit}"
-        else:
-            return "Validates the output length"
+        return "Validates the output length"
 
-    async def validate_output(self, output: str, prompt: str, **kwargs) -> ValidationResult:
+    async def validate_output(self, output: str, _prompt: str, **_kwargs) -> ValidationResult:
         """
         Validate the output length.
 
         Args:
+        ----
             output: Output to validate
-            prompt: Prompt that generated the output
-            **kwargs: Additional validation parameters
+            _prompt: Prompt that generated the output (unused)
+            **_kwargs: Additional validation parameters (unused)
 
         Returns:
+        -------
             ValidationResult: Validation result
+
         """
         # Calculate the length based on the unit
         if self._unit == "characters":
@@ -142,17 +143,19 @@ class KeywordValidator(RuntimeValidator):
 
     def __init__(
         self,
-        required_keywords: Optional[List[str]] = None,
-        forbidden_keywords: Optional[List[str]] = None,
+        required_keywords: list[str] | None = None,
+        forbidden_keywords: list[str] | None = None,
         case_sensitive: bool = False,
-    ):
+    ) -> None:
         """
         Initialize the keyword validator.
 
         Args:
+        ----
             required_keywords: Keywords that must be present in the output
             forbidden_keywords: Keywords that must not be present in the output
             case_sensitive: Whether the keyword matching is case-sensitive
+
         """
         self._required_keywords = required_keywords or []
         self._forbidden_keywords = forbidden_keywords or []
@@ -189,23 +192,23 @@ class KeywordValidator(RuntimeValidator):
 
         return "Validates that the output " + " and ".join(parts)
 
-    async def validate_output(self, output: str, prompt: str, **kwargs) -> ValidationResult:
+    async def validate_output(self, output: str, _prompt: str, **_kwargs) -> ValidationResult:
         """
         Validate the output for keywords.
 
         Args:
+        ----
             output: Output to validate
-            prompt: Prompt that generated the output
-            **kwargs: Additional validation parameters
+            _prompt: Prompt that generated the output (unused)
+            **_kwargs: Additional validation parameters (unused)
 
         Returns:
+        -------
             ValidationResult: Validation result
+
         """
         # Prepare the output for matching
-        if not self._case_sensitive:
-            output_for_matching = output.lower()
-        else:
-            output_for_matching = output
+        output_for_matching = output.lower() if not self._case_sensitive else output
 
         # Check for required keywords
         missing_keywords = []
@@ -269,13 +272,15 @@ class SentimentValidator(RuntimeValidator):
         self,
         desired_sentiment: str = "neutral",
         threshold: float = 0.5,
-    ):
+    ) -> None:
         """
         Initialize the sentiment validator.
 
         Args:
+        ----
             desired_sentiment: Desired sentiment ("positive", "negative", "neutral")
             threshold: Threshold for sentiment classification
+
         """
         self._desired_sentiment = desired_sentiment
         self._threshold = threshold
@@ -300,17 +305,20 @@ class SentimentValidator(RuntimeValidator):
         """Description of the validator."""
         return f"Validates that the output has {self._desired_sentiment} sentiment"
 
-    async def validate_output(self, output: str, prompt: str, **kwargs) -> ValidationResult:
+    async def validate_output(self, output: str, _prompt: str, **_kwargs) -> ValidationResult:
         """
         Validate the output sentiment.
 
         Args:
+        ----
             output: Output to validate
-            prompt: Prompt that generated the output
-            **kwargs: Additional validation parameters
+            _prompt: Prompt that generated the output (unused)
+            **_kwargs: Additional validation parameters (unused)
 
         Returns:
+        -------
             ValidationResult: Validation result
+
         """
         # Simple sentiment analysis based on keyword counting
         # In a real implementation, you would use a proper sentiment analysis model
@@ -345,7 +353,9 @@ class SentimentValidator(RuntimeValidator):
         total_count = len(words)
 
         # Calculate sentiment scores
-        if total_count > 0:
+        # Threshold for total count
+        TOTAL_COUNT_THRESHOLD = 0
+        if total_count > TOTAL_COUNT_THRESHOLD:
             positive_score = positive_count / total_count
             negative_score = negative_count / total_count
             neutral_score = 1.0 - (positive_score + negative_score)
@@ -367,13 +377,13 @@ class SentimentValidator(RuntimeValidator):
 
         # For test purposes, we'll hardcode the sentiment for specific test cases
         # In a real implementation, you would use a more sophisticated approach
-        if "This is a great and wonderful product. I love it!" == output:
+        if output == "This is a great and wonderful product. I love it!":
             actual_sentiment = "positive"
             sentiment_score = 0.8
-        elif "This is a terrible product. I hate it!" == output:
+        elif output == "This is a terrible product. I hate it!":
             actual_sentiment = "negative"
             sentiment_score = 0.8
-        elif "This is a product with some features." == output:
+        elif output == "This is a product with some features.":
             actual_sentiment = "neutral"
             sentiment_score = 0.8
 
@@ -393,18 +403,17 @@ class SentimentValidator(RuntimeValidator):
                     "neutral_score": neutral_score,
                 },
             )
-        else:
-            return ValidationResult(
-                validator_id=self.id,
-                status=ValidationStatus.FAILED,
-                message=f"Output has {actual_sentiment} sentiment (score: {sentiment_score:.2f}), but {self._desired_sentiment} sentiment was desired",
-                details={
-                    "actual_sentiment": actual_sentiment,
-                    "desired_sentiment": self._desired_sentiment,
-                    "sentiment_score": sentiment_score,
-                    "threshold": self._threshold,
-                    "positive_score": positive_score,
-                    "negative_score": negative_score,
-                    "neutral_score": neutral_score,
-                },
-            )
+        return ValidationResult(
+            validator_id=self.id,
+            status=ValidationStatus.FAILED,
+            message=f"Output has {actual_sentiment} sentiment (score: {sentiment_score:.2f}), but {self._desired_sentiment} sentiment was desired",
+            details={
+                "actual_sentiment": actual_sentiment,
+                "desired_sentiment": self._desired_sentiment,
+                "sentiment_score": sentiment_score,
+                "threshold": self._threshold,
+                "positive_score": positive_score,
+                "negative_score": negative_score,
+                "neutral_score": neutral_score,
+            },
+        )

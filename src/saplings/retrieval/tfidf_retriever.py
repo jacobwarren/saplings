@@ -1,22 +1,27 @@
+from __future__ import annotations
+
 """
 TF-IDF retriever module for Saplings.
 
 This module provides the TF-IDF retriever for initial document filtering.
 """
 
+
 import json
 import logging
-import os
 import pickle
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+from scipy.sparse import csr_matrix, vstack
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from saplings.memory.document import Document
-from saplings.memory.memory_store import MemoryStore
 from saplings.retrieval.config import RetrievalConfig, TFIDFConfig
+
+if TYPE_CHECKING:
+    from saplings.memory.document import Document
+    from saplings.memory.memory_store import MemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -32,53 +37,68 @@ class TFIDFRetriever:
     def __init__(
         self,
         memory_store: MemoryStore,
-        config: Optional[Union[RetrievalConfig, TFIDFConfig]] = None,
-    ):
+        config: RetrievalConfig | TFIDFConfig | None = None,
+    ) -> None:
         """
         Initialize the TF-IDF retriever.
 
         Args:
+        ----
             memory_store: Memory store containing the documents
             config: Retrieval or TF-IDF configuration
+
         """
         self.memory_store = memory_store
 
         # Extract TF-IDF config from RetrievalConfig if needed
         if config is None:
-            self.config = TFIDFConfig()
+            # Use default values from the model
+            self.config = TFIDFConfig.model_construct()
         elif isinstance(config, RetrievalConfig):
             self.config = config.tfidf
         else:
             self.config = config
 
         # Initialize TF-IDF vectorizer
+        # Ensure norm is one of the allowed values ('l1', 'l2', None)
+        norm_value = self.config.norm
+        if norm_value not in ("l1", "l2", None):
+            norm_value = "l2"  # Default to l2 if invalid
+
+        # Ensure analyzer is one of the allowed values ('word', 'char', 'char_wb')
+        analyzer_value = self.config.analyzer
+        if analyzer_value not in ("word", "char", "char_wb"):
+            analyzer_value = "word"  # Default to word if invalid
+
         self.vectorizer = TfidfVectorizer(
             min_df=self.config.min_df,
             max_df=self.config.max_df,
             max_features=self.config.max_features,
             ngram_range=self.config.ngram_range,
             use_idf=self.config.use_idf,
-            norm=self.config.norm,
-            analyzer=self.config.analyzer,
+            norm=norm_value,
+            analyzer=analyzer_value,
             stop_words=self.config.stop_words,
         )
 
         # Initialize document mapping
-        self.doc_id_to_index: Dict[str, int] = {}
-        self.index_to_doc_id: Dict[int, str] = {}
+        self.doc_id_to_index: dict[str, int] = {}
+        self.index_to_doc_id: dict[int, str] = {}
 
         # Initialize TF-IDF matrix
-        self.tfidf_matrix = None
+        self.tfidf_matrix: csr_matrix | None = None
 
         # Flag to track if the index is built
         self.is_built = False
 
-    def build_index(self, documents: Optional[List[Document]] = None) -> None:
+    def build_index(self, documents: list[Document] | None = None) -> None:
         """
         Build the TF-IDF index.
 
         Args:
+        ----
             documents: Documents to index (if None, all documents in the memory store are used)
+
         """
         # Get documents if not provided
         if documents is None:
@@ -86,6 +106,12 @@ class TFIDFRetriever:
 
         if not documents:
             logger.warning("No documents to index")
+            # Set is_built to True even with no documents to prevent repeated build attempts
+            self.is_built = True
+            # Initialize an empty TF-IDF matrix
+            from scipy.sparse import csr_matrix
+
+            self.tfidf_matrix = csr_matrix((0, 0))
             return
 
         # Extract document contents and IDs
@@ -99,17 +125,19 @@ class TFIDFRetriever:
             self.index_to_doc_id[i] = doc.id
 
         # Build TF-IDF matrix
-        self.tfidf_matrix = self.vectorizer.fit_transform(contents)
+        self.tfidf_matrix = cast("csr_matrix", self.vectorizer.fit_transform(contents))
 
         logger.info(f"Built TF-IDF index with {len(documents)} documents")
         self.is_built = True
 
-    def update_index(self, documents: List[Document]) -> None:
+    def update_index(self, documents: list[Document]) -> None:
         """
         Update the TF-IDF index with new documents.
 
         Args:
+        ----
             documents: Documents to add to the index
+
         """
         if not self.is_built:
             self.build_index(documents)
@@ -130,25 +158,30 @@ class TFIDFRetriever:
         new_tfidf = self.vectorizer.transform(contents)
 
         # Update document mapping
-        offset = self.tfidf_matrix.shape[0]
+        offset = 0
+        if self.tfidf_matrix is not None:
+            offset = self.tfidf_matrix.shape[0]
+
         for i, doc_id in enumerate(doc_ids):
             self.doc_id_to_index[doc_id] = offset + i
             self.index_to_doc_id[offset + i] = doc_id
 
         # Concatenate with existing matrix
         if self.tfidf_matrix is not None:
-            self.tfidf_matrix = np.vstack([self.tfidf_matrix, new_tfidf])
+            self.tfidf_matrix = cast("csr_matrix", vstack([self.tfidf_matrix, new_tfidf]))
         else:
-            self.tfidf_matrix = new_tfidf
+            self.tfidf_matrix = cast("csr_matrix", new_tfidf)
 
         logger.info(f"Updated TF-IDF index with {len(documents)} new documents")
 
-    def remove_from_index(self, doc_ids: List[str]) -> None:
+    def remove_from_index(self, doc_ids: list[str]) -> None:
         """
         Remove documents from the TF-IDF index.
 
         Args:
+        ----
             doc_ids: IDs of documents to remove
+
         """
         if not self.is_built or self.tfidf_matrix is None:
             logger.warning("TF-IDF index not built yet")
@@ -172,7 +205,9 @@ class TFIDFRetriever:
             keep_mask[idx] = False
 
         # Filter the TF-IDF matrix
-        self.tfidf_matrix = self.tfidf_matrix[keep_mask]
+        if self.tfidf_matrix is not None:
+            # Use boolean indexing with csr_matrix
+            self.tfidf_matrix = cast("csr_matrix", self.tfidf_matrix[keep_mask])
 
         # Update document mapping
         new_doc_id_to_index = {}
@@ -191,18 +226,21 @@ class TFIDFRetriever:
         logger.info(f"Removed {len(indices_to_remove)} documents from TF-IDF index")
 
     def retrieve(
-        self, query: str, k: Optional[int] = None, filter_dict: Optional[Dict[str, Any]] = None
-    ) -> List[Tuple[Document, float]]:
+        self, query: str, k: int | None = None, filter_dict: dict[str, Any] | None = None
+    ) -> list[tuple[Document, float]]:
         """
         Retrieve documents similar to the query using TF-IDF.
 
         Args:
+        ----
             query: Query string
             k: Number of documents to retrieve (if None, uses config.initial_k)
             filter_dict: Optional filter criteria
 
         Returns:
+        -------
             List[Tuple[Document, float]]: List of (document, similarity_score) tuples
+
         """
         if not self.is_built or self.tfidf_matrix is None:
             logger.warning("TF-IDF index not built yet, building now...")
@@ -216,11 +254,25 @@ class TFIDFRetriever:
         if k is None:
             k = self.config.initial_k
 
+        # Check if the TF-IDF matrix is empty
+        if self.tfidf_matrix.shape[0] == 0:
+            logger.warning("TF-IDF matrix is empty, no documents to retrieve")
+            return []
+
         # Transform query to TF-IDF space
         query_vector = self.vectorizer.transform([query])
 
         # Calculate similarity scores
-        similarity_scores = (self.tfidf_matrix @ query_vector.T).toarray().flatten()
+        # Cast to csr_matrix to ensure proper matrix multiplication
+        tfidf_matrix = cast("csr_matrix", self.tfidf_matrix)
+        # Convert to numpy arrays for easier manipulation
+        query_vector_csr = cast("csr_matrix", query_vector)
+
+        # Use scipy's built-in matrix multiplication
+        from scipy import sparse
+
+        similarity_matrix = sparse.csr_matrix.dot(tfidf_matrix, query_vector_csr.transpose())
+        similarity_scores = np.asarray(similarity_matrix.todense()).flatten()
 
         # Get top-k indices
         if filter_dict:
@@ -235,10 +287,14 @@ class TFIDFRetriever:
                 return []
 
             # Sort filtered indices by score
-            filtered_indices = sorted(
-                filtered_indices, key=lambda idx: similarity_scores[idx], reverse=True
+            # Convert similarity scores to a regular Python list for sorting
+            scores_list = [float(similarity_scores[idx]) for idx in filtered_indices]
+            # Sort indices based on scores
+            sorted_pairs = sorted(
+                zip(filtered_indices, scores_list), key=lambda pair: pair[1], reverse=True
             )
-            top_indices = filtered_indices[:k]
+            # Extract just the indices
+            top_indices = [idx for idx, _ in sorted_pairs[:k]]
         else:
             # Get top-k indices without filtering
             top_indices = np.argsort(similarity_scores)[::-1][:k]
@@ -260,7 +316,9 @@ class TFIDFRetriever:
         Save the TF-IDF retriever to disk.
 
         Args:
+        ----
             directory: Directory to save to
+
         """
         directory_path = Path(directory)
         directory_path.mkdir(parents=True, exist_ok=True)
@@ -271,20 +329,22 @@ class TFIDFRetriever:
 
         # Save TF-IDF matrix
         if self.tfidf_matrix is not None:
+            # Ensure we're working with a CSR matrix
+            csr_matrix_to_save = cast("csr_matrix", self.tfidf_matrix)
             with open(directory_path / "tfidf_matrix.npz", "wb") as f:
                 np.savez_compressed(
                     f,
-                    data=self.tfidf_matrix.data,
-                    indices=self.tfidf_matrix.indices,
-                    indptr=self.tfidf_matrix.indptr,
-                    shape=self.tfidf_matrix.shape,
+                    data=csr_matrix_to_save.data,
+                    indices=csr_matrix_to_save.indices,
+                    indptr=csr_matrix_to_save.indptr,
+                    shape=csr_matrix_to_save.shape,
                 )
 
         # Save document mapping
         with open(directory_path / "doc_mapping.json", "w") as f:
             json.dump(
                 {
-                    "doc_id_to_index": {k: v for k, v in self.doc_id_to_index.items()},
+                    "doc_id_to_index": dict(self.doc_id_to_index.items()),
                     "index_to_doc_id": {str(k): v for k, v in self.index_to_doc_id.items()},
                 },
                 f,
@@ -301,7 +361,9 @@ class TFIDFRetriever:
         Load the TF-IDF retriever from disk.
 
         Args:
+        ----
             directory: Directory to load from
+
         """
         directory_path = Path(directory)
 
@@ -326,7 +388,7 @@ class TFIDFRetriever:
         # Load document mapping
         doc_mapping_path = directory_path / "doc_mapping.json"
         if doc_mapping_path.exists():
-            with open(doc_mapping_path, "r") as f:
+            with open(doc_mapping_path) as f:
                 mapping = json.load(f)
                 self.doc_id_to_index = {k: int(v) for k, v in mapping["doc_id_to_index"].items()}
                 self.index_to_doc_id = {int(k): v for k, v in mapping["index_to_doc_id"].items()}
@@ -334,23 +396,26 @@ class TFIDFRetriever:
         # Load config
         config_path = directory_path / "config.json"
         if config_path.exists():
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 config_data = json.load(f)
-                self.config = TFIDFConfig(**config_data)
+                self.config = TFIDFConfig.model_validate(config_data)
 
         self.is_built = self.tfidf_matrix is not None
         logger.info(f"Loaded TF-IDF retriever from {directory}")
 
-    def _matches_filter(self, document: Document, filter_dict: Dict[str, Any]) -> bool:
+    def _matches_filter(self, document: Document, filter_dict: dict[str, Any]) -> bool:
         """
         Check if a document matches a filter.
 
         Args:
+        ----
             document: Document to check
             filter_dict: Filter criteria
 
         Returns:
+        -------
             bool: True if the document matches the filter, False otherwise
+
         """
         for key, value in filter_dict.items():
             # Check document ID
@@ -382,10 +447,19 @@ class TFIDFRetriever:
                         return False
 
                 # Handle direct metadata fields
-                elif hasattr(document.metadata, field):
-                    field_value = getattr(document.metadata, field)
-                elif field in document.metadata.custom:
-                    field_value = document.metadata.custom[field]
+                elif document.metadata is not None:
+                    if hasattr(document.metadata, field):
+                        field_value = getattr(document.metadata, field)
+                    elif hasattr(document.metadata, "custom"):
+                        # Get the custom attribute safely
+                        custom_attr = document.metadata.custom
+                        # Check if it's a dictionary and contains the field
+                        if isinstance(custom_attr, dict) and field in custom_attr:
+                            field_value = custom_attr[field]
+                        else:
+                            return False
+                    else:
+                        return False
                 else:
                     return False
 

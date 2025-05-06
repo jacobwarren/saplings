@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Memory store module for Saplings.
 
@@ -5,21 +7,21 @@ This module defines the MemoryStore class, which combines vector storage and
 graph-based memory.
 """
 
+
 import hashlib
 import json
 import logging
-import os
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any
 
 import numpy as np
 
 from saplings.memory.config import MemoryConfig, PrivacyLevel
 from saplings.memory.document import Document, DocumentMetadata
-from saplings.memory.graph import DependencyGraph, DocumentNode, EntityNode
-from saplings.memory.indexer import Entity, Indexer, Relationship, get_indexer
-from saplings.memory.vector_store import VectorStore, get_vector_store
+from saplings.memory.graph import DependencyGraph, DocumentNode
+from saplings.memory.indexer import get_indexer
+from saplings.memory.vector_store import get_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +34,14 @@ class MemoryStore:
     efficient and context-aware retrieval of documents.
     """
 
-    def __init__(self, config: Optional[MemoryConfig] = None):
+    def __init__(self, config: MemoryConfig | None = None) -> None:
         """
         Initialize the memory store.
 
         Args:
+        ----
             config: Memory configuration
+
         """
         self.config = config or MemoryConfig.default()
         self.vector_store = get_vector_store(config=self.config)
@@ -48,21 +52,24 @@ class MemoryStore:
     def add_document(
         self,
         content: str,
-        metadata: Optional[Union[Dict[str, Any], DocumentMetadata]] = None,
-        document_id: Optional[str] = None,
-        embedding: Optional[List[float]] = None,
+        metadata: dict[str, Any] | DocumentMetadata | None = None,
+        document_id: str | None = None,
+        embedding: list[float] | None = None,
     ) -> Document:
         """
         Add a document to the memory store.
 
         Args:
+        ----
             content: Document content
             metadata: Document metadata
             document_id: Optional document ID (generated if not provided)
             embedding: Optional embedding vector
 
         Returns:
+        -------
             Document: Added document
+
         """
         # Create document ID if not provided
         if document_id is None:
@@ -70,7 +77,12 @@ class MemoryStore:
 
         # Create metadata if not provided
         if metadata is None:
-            metadata = DocumentMetadata(source=f"document:{document_id}")
+            metadata = DocumentMetadata(
+                source=f"document:{document_id}",
+                content_type="text",
+                language="en",
+                author="system",
+            )
         elif isinstance(metadata, dict):
             metadata = DocumentMetadata(**metadata)
 
@@ -95,7 +107,7 @@ class MemoryStore:
             self.vector_store.add_document(document)
 
         # Add document to graph
-        document_node = self.graph.add_document_node(document)
+        self.graph.add_document_node(document)
 
         # Index document if graph is enabled
         if self.config.graph.enable_graph:
@@ -103,16 +115,19 @@ class MemoryStore:
 
         return document
 
-    def add_documents(self, documents: List[Document], index: bool = True) -> List[Document]:
+    def add_documents(self, documents: list[Document], *, index: bool = True) -> list[Document]:
         """
         Add multiple documents to the memory store.
 
         Args:
+        ----
             documents: Documents to add
             index: Whether to index the documents
 
         Returns:
+        -------
             List[Document]: Added documents
+
         """
         # Apply security measures if enabled
         if self.secure_mode:
@@ -138,14 +153,16 @@ class MemoryStore:
         self,
         query_embedding: np.ndarray,
         limit: int = 10,
-        filter_dict: Optional[Dict[str, Any]] = None,
+        filter_dict: dict[str, Any] | None = None,
+        *,
         include_graph_results: bool = True,
         max_graph_hops: int = 1,
-    ) -> List[Tuple[Document, float]]:
+    ) -> list[tuple[Document, float]]:
         """
         Search for documents similar to the query embedding.
 
         Args:
+        ----
             query_embedding: Query embedding vector
             limit: Maximum number of results
             filter_dict: Optional filter criteria
@@ -153,7 +170,9 @@ class MemoryStore:
             max_graph_hops: Maximum number of hops for graph expansion
 
         Returns:
+        -------
             List[Tuple[Document, float]]: List of (document, similarity_score) tuples
+
         """
         # Search in vector store
         vector_results = self.vector_store.search(
@@ -180,7 +199,7 @@ class MemoryStore:
             )
 
             # Collect document nodes from the subgraph
-            for node_id, node in subgraph.nodes.items():
+            for node in subgraph.nodes.values():
                 if isinstance(node, DocumentNode) and node.id not in expanded_docs:
                     document = node.document
 
@@ -197,24 +216,29 @@ class MemoryStore:
 
         return combined_results[:limit]
 
-    def get_document(self, document_id: str) -> Optional[Document]:
+    def get_document(self, document_id: str) -> Document | None:
         """
         Get a document by ID.
 
         Args:
+        ----
             document_id: Document ID
 
         Returns:
+        -------
             Optional[Document]: Document if found, None otherwise
+
         """
         return self.vector_store.get(document_id)
 
-    async def get_all_documents(self) -> List[Document]:
+    async def get_all_documents(self) -> list[Document]:
         """
         Get all documents in the memory store.
 
-        Returns:
+        Returns
+        -------
             List[Document]: All documents in the memory store
+
         """
         return self.vector_store.list()
 
@@ -223,10 +247,13 @@ class MemoryStore:
         Delete a document from the memory store.
 
         Args:
+        ----
             document_id: Document ID
 
         Returns:
+        -------
             bool: True if the document was deleted, False otherwise
+
         """
         # Delete from vector store
         deleted_from_vector = self.vector_store.delete(document_id)
@@ -236,7 +263,7 @@ class MemoryStore:
         if node:
             # Remove all edges connected to this node
             neighbors = self.graph.get_neighbors(document_id, direction="both")
-            for neighbor in neighbors:
+            for _neighbor in neighbors:
                 # This is a simplified approach; a more efficient implementation
                 # would directly remove edges from the graph
                 pass
@@ -249,21 +276,24 @@ class MemoryStore:
     def update_document(
         self,
         document_id: str,
-        content: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        embedding: Optional[List[float]] = None,
-    ) -> Optional[Document]:
+        content: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        embedding: list[float] | None = None,
+    ) -> Document | None:
         """
         Update a document in the memory store.
 
         Args:
+        ----
             document_id: Document ID
             content: New content (if None, the content is not updated)
             metadata: New metadata (if None, the metadata is not updated)
             embedding: New embedding (if None, the embedding is not updated)
 
         Returns:
+        -------
             Optional[Document]: Updated document if found, None otherwise
+
         """
         # Get the document
         document = self.vector_store.get(document_id)
@@ -277,7 +307,17 @@ class MemoryStore:
         # Update metadata
         if metadata is not None:
             if isinstance(metadata, dict):
-                document.metadata.update(**metadata)
+                # Create a new DocumentMetadata with updated values
+                if isinstance(document.metadata, DocumentMetadata):
+                    # Create a dictionary from the existing metadata
+                    metadata_dict = document.metadata.model_dump()
+                    # Update with new values
+                    metadata_dict.update(metadata)
+                    # Create a new DocumentMetadata
+                    document.metadata = DocumentMetadata(**metadata_dict)
+                else:
+                    # If metadata is not a DocumentMetadata, create a new one
+                    document.metadata = DocumentMetadata(**metadata)
             else:
                 document.metadata = metadata
 
@@ -312,7 +352,9 @@ class MemoryStore:
         Save the memory store to disk.
 
         Args:
+        ----
             directory: Directory to save to
+
         """
         directory_path = Path(directory)
         directory_path.mkdir(parents=True, exist_ok=True)
@@ -326,24 +368,26 @@ class MemoryStore:
         self.graph.save(str(graph_dir))
 
         # Save configuration
-        with open(directory_path / "config.json", "w") as f:
+        with Path(directory_path / "config.json").open("w") as f:
             json.dump(self.config.model_dump(), f)
 
-        logger.info(f"Saved memory store to {directory}")
+        logger.info("Saved memory store to %s", directory)
 
     def load(self, directory: str) -> None:
         """
         Load the memory store from disk.
 
         Args:
+        ----
             directory: Directory to load from
+
         """
         directory_path = Path(directory)
 
         # Load configuration
         config_path = directory_path / "config.json"
         if config_path.exists():
-            with open(config_path, "r") as f:
+            with Path(config_path).open() as f:
                 config_data = json.load(f)
                 self.config = MemoryConfig(**config_data)
 
@@ -362,14 +406,16 @@ class MemoryStore:
         # Update secure mode
         self.secure_mode = self.config.secure_store.privacy_level != PrivacyLevel.NONE
 
-        logger.info(f"Loaded memory store from {directory}")
+        logger.info("Loaded memory store from %s", directory)
 
     def _index_document(self, document: Document) -> None:
         """
         Index a document to extract entities and relationships.
 
         Args:
+        ----
             document: Document to index
+
         """
         if not self.config.graph.enable_graph:
             return
@@ -379,21 +425,23 @@ class MemoryStore:
 
         # Add entities to graph
         for entity in indexing_result.entities:
-            entity_node = self.graph.add_entity_node(entity)
+            self.graph.add_entity_node(entity)
 
         # Add relationships to graph
         for relationship in indexing_result.relationships:
             try:
                 self.graph.add_relationship(relationship)
             except ValueError as e:
-                logger.warning(f"Failed to add relationship: {e}")
+                logger.warning("Failed to add relationship: %s", e)
 
     def _remove_document_relationships(self, document_id: str) -> None:
         """
         Remove all relationships involving a document.
 
         Args:
+        ----
             document_id: Document ID
+
         """
         # This is a simplified implementation
         # A more efficient approach would directly remove edges from the graph
@@ -402,21 +450,23 @@ class MemoryStore:
             return
 
         # Get all neighbors
-        neighbors = self.graph.get_neighbors(document_id, direction="both")
+        self.graph.get_neighbors(document_id, direction="both")
 
         # Remove relationships
         # This is not implemented yet, as it requires modifying the graph structure
-        pass
 
     def _secure_document(self, document: Document) -> Document:
         """
         Apply security measures to a document.
 
         Args:
+        ----
             document: Document to secure
 
         Returns:
+        -------
             Document: Secured document
+
         """
         privacy_level = self.config.secure_store.privacy_level
 
@@ -437,11 +487,18 @@ class MemoryStore:
             secured_doc.id = self._hash_value(document.id, salt)
 
             # Hash metadata fields that might contain sensitive information
-            if hasattr(secured_doc.metadata, "source"):
-                secured_doc.metadata.source = self._hash_value(secured_doc.metadata.source, salt)
+            if isinstance(secured_doc.metadata, DocumentMetadata):
+                if hasattr(secured_doc.metadata, "source") and secured_doc.metadata.source:
+                    # Create a new metadata object with hashed values
+                    metadata_dict = secured_doc.metadata.model_dump()
+                    metadata_dict["source"] = self._hash_value(secured_doc.metadata.source, salt)
 
-            if hasattr(secured_doc.metadata, "author") and secured_doc.metadata.author:
-                secured_doc.metadata.author = self._hash_value(secured_doc.metadata.author, salt)
+                    if hasattr(secured_doc.metadata, "author") and secured_doc.metadata.author:
+                        metadata_dict["author"] = self._hash_value(
+                            secured_doc.metadata.author, salt
+                        )
+
+                    secured_doc.metadata = DocumentMetadata(**metadata_dict)
 
         # Apply differential privacy noise to embedding if needed
         if privacy_level == PrivacyLevel.HASH_AND_DP and secured_doc.embedding is not None:
@@ -454,11 +511,14 @@ class MemoryStore:
         Hash a value using SHA-256.
 
         Args:
+        ----
             value: Value to hash
             salt: Salt to add to the hash
 
         Returns:
+        -------
             str: Hashed value
+
         """
         return hashlib.sha256(f"{value}{salt}".encode()).hexdigest()
 
@@ -467,10 +527,13 @@ class MemoryStore:
         Add differential privacy noise to an embedding.
 
         Args:
+        ----
             embedding: Embedding vector
 
         Returns:
+        -------
             np.ndarray: Noisy embedding
+
         """
         epsilon = self.config.secure_store.dp_epsilon
         delta = self.config.secure_store.dp_delta
@@ -481,14 +544,18 @@ class MemoryStore:
         noise_scale = sensitivity * np.sqrt(2 * np.log(1.25 / delta)) / epsilon
 
         # Generate Gaussian noise
-        noise = np.random.normal(0, noise_scale, embedding.shape)
+        noise = np.random.default_rng().normal(0, noise_scale, embedding.shape)
 
         # Add noise to embedding
         noisy_embedding = embedding + noise
 
         # Normalize the embedding to maintain similarity properties
         norm = np.linalg.norm(noisy_embedding)
-        if norm > 0:
+
+        # Threshold for norm
+        norm_threshold = 0
+
+        if norm > norm_threshold:
             noisy_embedding = noisy_embedding / norm
 
         return noisy_embedding

@@ -1,20 +1,25 @@
+from __future__ import annotations
+
 """
 Graph module for Saplings memory.
 
 This module defines the DependencyGraph class and related components.
 """
 
+
 import json
 import logging
 from abc import ABC
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 import networkx as nx
 
 from saplings.memory.config import MemoryConfig
-from saplings.memory.document import Document
 from saplings.memory.indexer import Entity, Relationship
+
+if TYPE_CHECKING:
+    from saplings.memory.document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +32,15 @@ class Node(ABC):
     or an extracted entity.
     """
 
-    def __init__(self, id: str, metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, id: str, metadata: dict[str, Any] | None = None) -> None:
         """
         Initialize a node.
 
         Args:
+        ----
             id: Unique identifier for the node
             metadata: Additional metadata for the node
+
         """
         self.id = id
         self.metadata = metadata or {}
@@ -43,30 +50,37 @@ class Node(ABC):
         Check if two nodes are equal.
 
         Args:
+        ----
             other: Other node
 
         Returns:
+        -------
             bool: True if the nodes are equal, False otherwise
+
         """
         if not isinstance(other, Node):
             return False
         return self.id == other.id
 
-    def __hash__(self) -> int:
+    def __hash__(self):
         """
         Get the hash of the node.
 
-        Returns:
+        Returns
+        -------
             int: Hash value
+
         """
         return hash(self.id)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the node to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation
+
         """
         return {
             "id": self.id,
@@ -82,23 +96,27 @@ class DocumentNode(Node):
     A document node contains a reference to the document and additional metadata.
     """
 
-    def __init__(self, document: Document, metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, document: Document, metadata: dict[str, Any] | None = None) -> None:
         """
         Initialize a document node.
 
         Args:
+        ----
             document: Document
             metadata: Additional metadata
+
         """
         super().__init__(id=document.id, metadata=metadata or {})
         self.document = document
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the document node to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation
+
         """
         data = super().to_dict()
         data["document_id"] = self.document.id
@@ -112,13 +130,15 @@ class EntityNode(Node):
     An entity node contains information about an entity extracted from documents.
     """
 
-    def __init__(self, entity: Entity, metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, entity: Entity, metadata: dict[str, Any] | None = None) -> None:
         """
         Initialize an entity node.
 
         Args:
+        ----
             entity: Entity
             metadata: Additional metadata
+
         """
         super().__init__(
             id=f"entity:{entity.entity_type}:{entity.name}",
@@ -126,12 +146,14 @@ class EntityNode(Node):
         )
         self.entity = entity
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the entity node to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation
+
         """
         data = super().to_dict()
         data["entity"] = self.entity.to_dict()
@@ -151,17 +173,19 @@ class Edge:
         target_id: str,
         relationship_type: str,
         weight: float = 1.0,
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
         """
         Initialize an edge.
 
         Args:
+        ----
             source_id: ID of the source node
             target_id: ID of the target node
             relationship_type: Type of the relationship
             weight: Weight of the edge
             metadata: Additional metadata
+
         """
         self.source_id = source_id
         self.target_id = target_id
@@ -174,10 +198,13 @@ class Edge:
         Check if two edges are equal.
 
         Args:
+        ----
             other: Other edge
 
         Returns:
+        -------
             bool: True if the edges are equal, False otherwise
+
         """
         if not isinstance(other, Edge):
             return False
@@ -187,21 +214,25 @@ class Edge:
             and self.relationship_type == other.relationship_type
         )
 
-    def __hash__(self) -> int:
+    def __hash__(self):
         """
         Get the hash of the edge.
 
-        Returns:
+        Returns
+        -------
             int: Hash value
+
         """
         return hash((self.source_id, self.target_id, self.relationship_type))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the edge to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation
+
         """
         return {
             "source_id": self.source_id,
@@ -220,24 +251,28 @@ class DependencyGraph:
     and edges represent relationships between them.
     """
 
-    def __init__(self, config: Optional[MemoryConfig] = None):
+    def __init__(self, config: MemoryConfig | None = None) -> None:
         """
         Initialize the dependency graph.
 
         Args:
+        ----
             config: Memory configuration
+
         """
         self.config = config or MemoryConfig.default()
         self.graph = nx.DiGraph()
-        self.nodes: Dict[str, Node] = {}
-        self.edges: Dict[Tuple[str, str, str], Edge] = {}
+        self.nodes: dict[str, Node] = {}
+        self.edges: dict[tuple[str, str, str], Edge] = {}
 
     def add_node(self, node: Node) -> None:
         """
         Add a node to the graph.
 
         Args:
+        ----
             node: Node to add
+
         """
         if node.id not in self.nodes:
             self.nodes[node.id] = node
@@ -249,10 +284,13 @@ class DependencyGraph:
         Add a document node to the graph.
 
         Args:
+        ----
             document: Document to add
 
         Returns:
+        -------
             DocumentNode: Document node
+
         """
         node = DocumentNode(document=document)
         self.add_node(node)
@@ -263,10 +301,13 @@ class DependencyGraph:
         Add an entity node to the graph.
 
         Args:
+        ----
             entity: Entity to add
 
         Returns:
+        -------
             EntityNode: Entity node
+
         """
         node = EntityNode(entity=entity)
         self.add_node(node)
@@ -278,12 +319,13 @@ class DependencyGraph:
         target_id: str,
         relationship_type: str,
         weight: float = 1.0,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Edge:
         """
         Add an edge to the graph.
 
         Args:
+        ----
             source_id: ID of the source node
             target_id: ID of the target node
             relationship_type: Type of the relationship
@@ -291,16 +333,21 @@ class DependencyGraph:
             metadata: Additional metadata
 
         Returns:
+        -------
             Edge: Edge
 
         Raises:
+        ------
             ValueError: If the source or target node does not exist
+
         """
         if source_id not in self.nodes:
-            raise ValueError(f"Source node not found: {source_id}")
+            msg = f"Source node not found: {source_id}"
+            raise ValueError(msg)
 
         if target_id not in self.nodes:
-            raise ValueError(f"Target node not found: {target_id}")
+            msg = f"Target node not found: {target_id}"
+            raise ValueError(msg)
 
         edge_key = (source_id, target_id, relationship_type)
 
@@ -333,50 +380,90 @@ class DependencyGraph:
         logger.debug(f"Added edge: {source_id} --[{relationship_type}]--> {target_id}")
         return edge
 
-    def add_relationship(self, relationship: Relationship) -> Edge:
+    def add_relationship(
+        self,
+        source_id_or_relationship: Relationship | str,
+        target_id: str | None = None,
+        relationship_type: str | None = None,
+        weight: float = 1.0,
+        metadata: dict[str, Any] | None = None,
+    ) -> Edge:
         """
         Add a relationship to the graph.
 
+        This method can be called in two ways:
+        1. With a Relationship object: add_relationship(relationship)
+        2. With source_id, target_id, and relationship_type: add_relationship(source_id, target_id, relationship_type, weight=1.0, metadata=None)
+
         Args:
-            relationship: Relationship to add
+        ----
+            source_id_or_relationship: Either a Relationship object or the source node ID
+            target_id: Target node ID (if source_id_or_relationship is a string)
+            relationship_type: Type of the relationship (if source_id_or_relationship is a string)
+            weight: Weight of the edge (if source_id_or_relationship is a string)
+            metadata: Additional metadata (if source_id_or_relationship is a string)
 
         Returns:
+        -------
             Edge: Edge
 
         Raises:
-            ValueError: If the source or target node does not exist
+        ------
+            ValueError: If the source or target node does not exist or if required parameters are missing
+
         """
+        if isinstance(source_id_or_relationship, Relationship):
+            # Called with a Relationship object
+            relationship = source_id_or_relationship
+            return self.add_edge(
+                source_id=relationship.source_id,
+                target_id=relationship.target_id,
+                relationship_type=relationship.relationship_type,
+                weight=relationship.metadata.get("confidence", 1.0),
+                metadata=relationship.metadata,
+            )
+        # Called with source_id, target_id, and relationship_type
+        if target_id is None or relationship_type is None:
+            msg = "When calling add_relationship with a source_id, both target_id and relationship_type must be provided"
+            raise ValueError(msg)
+
         return self.add_edge(
-            source_id=relationship.source_id,
-            target_id=relationship.target_id,
-            relationship_type=relationship.relationship_type,
-            weight=relationship.metadata.get("confidence", 1.0),
-            metadata=relationship.metadata,
+            source_id=source_id_or_relationship,
+            target_id=target_id,
+            relationship_type=relationship_type,
+            weight=weight,
+            metadata=metadata,
         )
 
-    def get_node(self, node_id: str) -> Optional[Node]:
+    def get_node(self, node_id: str) -> Node | None:
         """
         Get a node by ID.
 
         Args:
+        ----
             node_id: ID of the node
 
         Returns:
+        -------
             Optional[Node]: Node if found, None otherwise
+
         """
         return self.nodes.get(node_id)
 
-    def get_edge(self, source_id: str, target_id: str, relationship_type: str) -> Optional[Edge]:
+    def get_edge(self, source_id: str, target_id: str, relationship_type: str) -> Edge | None:
         """
         Get an edge by source, target, and relationship type.
 
         Args:
+        ----
             source_id: ID of the source node
             target_id: ID of the target node
             relationship_type: Type of the relationship
 
         Returns:
+        -------
             Optional[Edge]: Edge if found, None otherwise
+
         """
         edge_key = (source_id, target_id, relationship_type)
         return self.edges.get(edge_key)
@@ -384,39 +471,45 @@ class DependencyGraph:
     def get_neighbors(
         self,
         node_id: str,
-        relationship_types: Optional[List[str]] = None,
+        relationship_types: list[str] | None = None,
         direction: str = "outgoing",
-    ) -> List[Node]:
+    ) -> list[Node]:
         """
         Get neighbors of a node.
 
         Args:
+        ----
             node_id: ID of the node
             relationship_types: Types of relationships to consider
             direction: Direction of the edges ("outgoing", "incoming", or "both")
 
         Returns:
+        -------
             List[Node]: Neighbor nodes
 
         Raises:
+        ------
             ValueError: If the node does not exist or the direction is invalid
+
         """
         if node_id not in self.nodes:
-            raise ValueError(f"Node not found: {node_id}")
+            msg = f"Node not found: {node_id}"
+            raise ValueError(msg)
 
         if direction not in ["outgoing", "incoming", "both"]:
-            raise ValueError(f"Invalid direction: {direction}")
+            msg = f"Invalid direction: {direction}"
+            raise ValueError(msg)
 
         neighbors = []
 
-        if direction == "outgoing" or direction == "both":
+        if direction in {"outgoing", "both"}:
             for _, target_id, data in self.graph.out_edges(node_id, data=True):
                 if relationship_types is None or data["relationship_type"] in relationship_types:
                     neighbor = self.nodes.get(target_id)
                     if neighbor:
                         neighbors.append(neighbor)
 
-        if direction == "incoming" or direction == "both":
+        if direction in {"incoming", "both"}:
             for source_id, _, data in self.graph.in_edges(node_id, data=True):
                 if relationship_types is None or data["relationship_type"] in relationship_types:
                     neighbor = self.nodes.get(source_id)
@@ -427,27 +520,32 @@ class DependencyGraph:
 
     def get_subgraph(
         self,
-        node_ids: List[str],
+        node_ids: list[str],
         max_hops: int = 1,
-        relationship_types: Optional[List[str]] = None,
+        relationship_types: list[str] | None = None,
     ) -> "DependencyGraph":
         """
         Get a subgraph centered on the specified nodes.
 
         Args:
+        ----
             node_ids: IDs of the central nodes
             max_hops: Maximum number of hops from the central nodes
             relationship_types: Types of relationships to consider
 
         Returns:
+        -------
             DependencyGraph: Subgraph
 
         Raises:
+        ------
             ValueError: If any of the nodes does not exist
+
         """
         for node_id in node_ids:
             if node_id not in self.nodes:
-                raise ValueError(f"Node not found: {node_id}")
+                msg = f"Node not found: {node_id}"
+                raise ValueError(msg)
 
         # Create a new graph with the same configuration
         subgraph = DependencyGraph(config=self.config)
@@ -525,29 +623,35 @@ class DependencyGraph:
         source_id: str,
         target_id: str,
         max_hops: int = 3,
-        relationship_types: Optional[List[str]] = None,
-    ) -> List[List[Tuple[str, str, str]]]:
+        relationship_types: list[str] | None = None,
+    ) -> list[list[tuple[str, str, str]]]:
         """
         Find paths between two nodes.
 
         Args:
+        ----
             source_id: ID of the source node
             target_id: ID of the target node
             max_hops: Maximum number of hops
             relationship_types: Types of relationships to consider
 
         Returns:
+        -------
             List[List[Tuple[str, str, str]]]: List of paths, where each path is a list of
                 (source_id, relationship_type, target_id) tuples
 
         Raises:
+        ------
             ValueError: If the source or target node does not exist
+
         """
         if source_id not in self.nodes:
-            raise ValueError(f"Source node not found: {source_id}")
+            msg = f"Source node not found: {source_id}"
+            raise ValueError(msg)
 
         if target_id not in self.nodes:
-            raise ValueError(f"Target node not found: {target_id}")
+            msg = f"Target node not found: {target_id}"
+            raise ValueError(msg)
 
         # Create a filtered graph if relationship_types is specified
         if relationship_types:
@@ -580,16 +684,19 @@ class DependencyGraph:
         return paths
 
     def get_connected_components(
-        self, relationship_types: Optional[List[str]] = None
-    ) -> List[Set[str]]:
+        self, relationship_types: list[str] | None = None
+    ) -> list[set[str]]:
         """
         Get connected components of the graph.
 
         Args:
+        ----
             relationship_types: Types of relationships to consider
 
         Returns:
+        -------
             List[Set[str]]: List of connected components, where each component is a set of node IDs
+
         """
         # Create an undirected graph for connected components
         undirected = nx.Graph()
@@ -601,23 +708,28 @@ class DependencyGraph:
         return [set(component) for component in nx.connected_components(undirected)]
 
     def get_centrality(
-        self, centrality_type: str = "degree", relationship_types: Optional[List[str]] = None
-    ) -> Dict[str, float]:
+        self, centrality_type: str = "degree", relationship_types: list[str] | None = None
+    ) -> dict[str, float]:
         """
         Calculate centrality measures for nodes.
 
         Args:
+        ----
             centrality_type: Type of centrality ("degree", "betweenness", "closeness", or "eigenvector")
             relationship_types: Types of relationships to consider
 
         Returns:
+        -------
             Dict[str, float]: Dictionary mapping node IDs to centrality values
 
         Raises:
+        ------
             ValueError: If the centrality type is invalid
+
         """
         if centrality_type not in ["degree", "betweenness", "closeness", "eigenvector"]:
-            raise ValueError(f"Invalid centrality type: {centrality_type}")
+            msg = f"Invalid centrality type: {centrality_type}"
+            raise ValueError(msg)
 
         # Create a filtered graph if relationship_types is specified
         if relationship_types:
@@ -633,20 +745,34 @@ class DependencyGraph:
 
         # Calculate centrality
         if centrality_type == "degree":
-            return dict(graph.degree())
-        elif centrality_type == "betweenness":
-            return nx.betweenness_centrality(graph)
-        elif centrality_type == "closeness":
-            return nx.closeness_centrality(graph)
-        elif centrality_type == "eigenvector":
-            return nx.eigenvector_centrality(graph, max_iter=1000)
+            # Use degree centrality which returns a dictionary
+            # Convert to dict[str, float] to satisfy type checking
+            return {str(node): float(value) for node, value in nx.degree_centrality(graph).items()}
+        if centrality_type == "betweenness":
+            return {
+                str(node): float(value) for node, value in nx.betweenness_centrality(graph).items()
+            }
+        if centrality_type == "closeness":
+            return {
+                str(node): float(value) for node, value in nx.closeness_centrality(graph).items()
+            }
+        if centrality_type == "eigenvector":
+            return {
+                str(node): float(value)
+                for node, value in nx.eigenvector_centrality(graph, max_iter=1000).items()
+            }
+
+        # This should never happen due to the validation at the beginning
+        return {}
 
     def save(self, directory: str) -> None:
         """
         Save the graph to disk.
 
         Args:
+        ----
             directory: Directory to save to
+
         """
         directory_path = Path(directory)
         directory_path.mkdir(parents=True, exist_ok=True)
@@ -677,10 +803,13 @@ class DependencyGraph:
         Load the graph from disk.
 
         Args:
+        ----
             directory: Directory to load from
 
         Raises:
+        ------
             FileNotFoundError: If the graph files are not found
+
         """
         directory_path = Path(directory)
 
@@ -690,7 +819,8 @@ class DependencyGraph:
         graph_path = directory_path / "graph.gpickle"
 
         if not nodes_path.exists() or not edges_path.exists() or not graph_path.exists():
-            raise FileNotFoundError(f"Graph files not found in {directory}")
+            msg = f"Graph files not found in {directory}"
+            raise FileNotFoundError(msg)
 
         # Clear existing data
         self.nodes.clear()
@@ -704,7 +834,7 @@ class DependencyGraph:
             self.graph = pickle.load(f)
 
         # Load nodes
-        with open(nodes_path, "r") as f:
+        with open(nodes_path) as f:
             nodes_data = json.load(f)
 
         for node_id, node_data in nodes_data.items():
@@ -712,7 +842,7 @@ class DependencyGraph:
 
             if node_type == "DocumentNode":
                 # We need to load the document separately
-                document_id = node_data["document_id"]
+                node_data["document_id"]
                 # For now, create a placeholder node
                 node = Node(id=node_id, metadata=node_data["metadata"])
                 self.nodes[node_id] = node
@@ -734,7 +864,7 @@ class DependencyGraph:
                 self.nodes[node_id] = node
 
         # Load edges
-        with open(edges_path, "r") as f:
+        with open(edges_path) as f:
             edges_data = json.load(f)
 
         for edge_key, edge_data in edges_data.items():
@@ -750,12 +880,14 @@ class DependencyGraph:
 
         logger.info(f"Loaded graph from {directory}")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the graph to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation
+
         """
         return {
             "nodes": {node_id: node.to_dict() for node_id, node in self.nodes.items()},
@@ -765,12 +897,14 @@ class DependencyGraph:
             },
         }
 
-    def __len__(self) -> int:
+    def __len__(self):
         """
         Get the number of nodes in the graph.
 
-        Returns:
+        Returns
+        -------
             int: Number of nodes
+
         """
         return len(self.nodes)
 
@@ -779,9 +913,12 @@ class DependencyGraph:
         Check if a node is in the graph.
 
         Args:
+        ----
             node_id: ID of the node
 
         Returns:
+        -------
             bool: True if the node is in the graph, False otherwise
+
         """
         return node_id in self.nodes

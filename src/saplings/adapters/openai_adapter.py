@@ -1,29 +1,34 @@
+from __future__ import annotations
+
+"""OpenAI adapter for Saplings.
+
+This module provides an implementation of the LLM interface for OpenAI's models.
 """
-OpenAI adapter for Saplings.
 
-This module provides an OpenAI-based implementation of the LLM interface.
-"""
+# Standard library imports
+import asyncio  # noqa: E402
+import json  # noqa: E402
+import logging  # noqa: E402
+from typing import TYPE_CHECKING, Any  # noqa: E402
 
-import asyncio
-import json
-import logging
-import os
-from typing import Any, AsyncGenerator, Dict, List, Optional, Union
-
-from saplings.core.model_adapter import (
+# Local imports
+from saplings.core.config_service import config_service  # noqa: E402
+from saplings.core.model_adapter import (  # noqa: E402
     LLM,
     LLMResponse,
     ModelCapability,
     ModelMetadata,
     ModelRole,
-    ModelURI,
 )
-from saplings.core.plugin import ModelAdapterPlugin, PluginType
+from saplings.core.plugin import ModelAdapterPlugin, PluginType  # noqa: E402
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
 try:
-    import openai
+    # We only need to import OpenAI client, but we check if the package is available
     from openai import OpenAI
 
     OPENAI_AVAILABLE = True
@@ -39,41 +44,38 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
     This adapter provides access to OpenAI's models.
     """
 
-    def __init__(self, model_uri: Union[str, ModelURI], **kwargs):
+    def __init__(self, provider: str, model_name: str, **kwargs: Any) -> None:
         """
         Initialize the OpenAI adapter.
 
         Args:
-            model_uri: URI of the model to use
+        ----
+            provider: The model provider (e.g., 'openai')
+            model_name: The model name (e.g., 'gpt-4o')
             **kwargs: Additional arguments for the adapter
+
         """
         if not OPENAI_AVAILABLE:
-            raise ImportError("OpenAI not installed. Please install it with: pip install openai")
+            msg = "OpenAI not installed. Please install it with: pip install openai"
+            raise ImportError(msg)
 
-        # Parse the model URI
-        if isinstance(model_uri, str):
-            self.model_uri = ModelURI.parse(model_uri)
-        else:
-            self.model_uri = model_uri
+        # Store provider and model name
+        self.provider = provider
+        self.model_name = model_name
 
-        # Extract parameters from URI
-        self.model_name = self.model_uri.model_name
-        self.temperature = float(self.model_uri.parameters.get("temperature", 0.7))
-        self.max_tokens = int(self.model_uri.parameters.get("max_tokens", 1024))
+        # Extract parameters from kwargs
+        self.temperature = float(kwargs.get("temperature", 0.7))
+        self.max_tokens = int(kwargs.get("max_tokens", 1024))
 
-        # Get API key from kwargs, URI parameters, or environment variable
+        # Get API key from kwargs or config service
         api_key = kwargs.get("api_key")
         if api_key is None:
-            api_key = self.model_uri.parameters.get("api_key")
-        if api_key is None:
-            api_key = os.environ.get("OPENAI_API_KEY")
+            api_key = config_service.get_value("OPENAI_API_KEY")
 
-        # Get API base from kwargs, URI parameters, or default
+        # Get API base from kwargs or config service
         api_base = kwargs.get("api_base")
         if api_base is None:
-            api_base = self.model_uri.parameters.get("api_base")
-        if api_base is None:
-            api_base = os.environ.get("OPENAI_API_BASE")
+            api_base = config_service.get_value("OPENAI_API_BASE")
 
         # Create the OpenAI client
         client_kwargs = {}
@@ -85,9 +87,7 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         # Add organization if provided
         organization = kwargs.get("organization")
         if organization is None:
-            organization = self.model_uri.parameters.get("organization")
-        if organization is None:
-            organization = os.environ.get("OPENAI_ORGANIZATION")
+            organization = config_service.get_value("OPENAI_ORGANIZATION")
         if organization:
             client_kwargs["organization"] = organization
 
@@ -97,22 +97,24 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         # Cache for model metadata
         self._metadata = None
 
-        logger.info(f"Initialized OpenAI adapter for model: {self.model_name}")
+        logger.info("Initialized OpenAI adapter for model: %s", self.model_name)
 
     async def generate(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        prompt: str | list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
+        *,
         json_mode: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> LLMResponse:
         """
         Generate text from the model.
 
         Args:
+        ----
             prompt: The prompt to generate from (string or list of message dictionaries)
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -123,11 +125,21 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
             **kwargs: Additional arguments for generation
 
         Returns:
+        -------
             LLMResponse: The generated response
+
         """
         # Set parameters
         max_tokens = max_tokens or self.max_tokens
         temperature = temperature or self.temperature
+
+        # Extract parameters that shouldn't be passed to OpenAI API
+        # These parameters are used by the LLM interface but not by the OpenAI API
+        # We need to remove them to avoid "unexpected keyword argument" errors
+        _ = kwargs.pop("trace_id", None)  # Used for tracing but not by OpenAI
+        _ = kwargs.pop("use_cache", False)  # Used for caching but not by OpenAI
+        _ = kwargs.pop("cache_namespace", "default")  # Used for caching but not by OpenAI
+        _ = kwargs.pop("cache_ttl", 3600)  # Used for caching but not by OpenAI
 
         # Process the prompt
         messages = self._process_prompt(prompt)
@@ -143,9 +155,25 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
 
         # Add functions if provided
         if functions:
-            completion_args["tools"] = [
-                {"type": "function", "function": func} for func in functions
-            ]
+            # Check if functions are already in the OpenAI format
+            if all(
+                isinstance(func, dict) and "type" in func and func["type"] == "function"
+                for func in functions
+            ):
+                completion_args["tools"] = functions
+            else:
+                # Convert functions to OpenAI format if they have to_openai_function method
+                completion_args["tools"] = []
+                for func in functions:
+                    if hasattr(func, "to_openai_function"):
+                        completion_args["tools"].append(func.to_openai_function())  # type: ignore
+                    elif isinstance(func, dict) and "function" in func:
+                        completion_args["tools"].append(func)
+                    else:
+                        logger.warning(
+                            "Skipping function %s - not in OpenAI format and no to_openai_function method",
+                            func,
+                        )
 
             if function_call:
                 if function_call == "auto":
@@ -162,13 +190,49 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         if json_mode:
             completion_args["response_format"] = {"type": "json_object"}
 
+        # Log the prompt for debugging
+        logger.debug("OpenAI Prompt: %s", json.dumps(messages, indent=2))
+
         # Create the completion
         response = await asyncio.to_thread(self.client.chat.completions.create, **completion_args)
 
+        # Log the response for debugging
+        if hasattr(response.choices[0].message, "content") and response.choices[0].message.content:
+            logger.debug("OpenAI Response: %s...", response.choices[0].message.content[:500])
+        elif (
+            hasattr(response.choices[0].message, "tool_calls")
+            and response.choices[0].message.tool_calls
+        ):
+            tool_calls_data = []
+            for tc in response.choices[0].message.tool_calls:
+                # Define a constant for the maximum display length
+                max_args_display_length = 100
+                tc_args = tc.function.arguments
+                tc_args_display = (
+                    tc_args[:max_args_display_length] + "..."
+                    if len(tc_args) > max_args_display_length
+                    else tc_args
+                )
+                tool_calls_data.append(
+                    {
+                        "type": tc.type,
+                        "function": {"name": tc.function.name, "arguments": tc_args_display},
+                    }
+                )
+            logger.debug("OpenAI Tool Calls: %s", json.dumps(tool_calls_data, indent=2))
+
         # Get token usage
-        prompt_tokens = response.usage.prompt_tokens
-        completion_tokens = response.usage.completion_tokens
-        total_tokens = response.usage.total_tokens
+        prompt_tokens = response.usage.prompt_tokens if hasattr(response, "usage") else 0  # type: ignore
+        completion_tokens = response.usage.completion_tokens if hasattr(response, "usage") else 0  # type: ignore
+        total_tokens = response.usage.total_tokens if hasattr(response, "usage") else 0  # type: ignore
+
+        # Log token usage
+        logger.debug(
+            "OpenAI Token Usage: prompt=%d, completion=%d, total=%d",
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+        )
 
         # Process the response
         function_call_result = None
@@ -212,7 +276,8 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         # Create response
         return LLMResponse(
             text=generated_text,
-            model_uri=str(self.model_uri),
+            provider=self.provider,
+            model_name=self.model_name,
             usage={
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
@@ -220,21 +285,24 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
             },
             metadata={
                 "model": self.model_name,
-                "provider": "openai",
+                "provider": self.provider,
             },
             function_call=function_call_result,
             tool_calls=tool_calls_result,
         )
 
-    def _process_prompt(self, prompt: Union[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    def _process_prompt(self, prompt: str | list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Process the prompt into a list of messages.
 
         Args:
+        ----
             prompt: The prompt to process
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of message dictionaries
+
         """
         if isinstance(prompt, str):
             # Convert string prompt to a message
@@ -245,19 +313,21 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
 
     async def generate_streaming(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        chunk_size: Optional[int] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        prompt: str | list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        chunk_size: int | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
+        *,
         json_mode: bool = False,
-        **kwargs,
-    ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
+        **kwargs: Any,
+    ) -> AsyncGenerator[str | dict[str, Any], None]:
         """
         Generate text from the model with streaming output.
 
         Args:
+        ----
             prompt: The prompt to generate from (string or list of message dictionaries)
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -269,11 +339,24 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
             **kwargs: Additional arguments for generation
 
         Yields:
+        ------
             Union[str, Dict[str, Any]]: Text chunks or function call chunks as they are generated
+
         """
         # Set parameters
         max_tokens = max_tokens or self.max_tokens
         temperature = temperature or self.temperature
+
+        # chunk_size is not used by OpenAI API but is part of the LLM interface
+        _ = chunk_size  # Acknowledge the parameter to avoid unused parameter warning
+
+        # Extract parameters that shouldn't be passed to OpenAI API
+        # These parameters are used by the LLM interface but not by the OpenAI API
+        # We need to remove them to avoid "unexpected keyword argument" errors
+        _ = kwargs.pop("trace_id", None)  # Used for tracing but not by OpenAI
+        _ = kwargs.pop("use_cache", False)  # Used for caching but not by OpenAI
+        _ = kwargs.pop("cache_namespace", "default")  # Used for caching but not by OpenAI
+        _ = kwargs.pop("cache_ttl", 3600)  # Used for caching but not by OpenAI
 
         # Process the prompt
         messages = self._process_prompt(prompt)
@@ -290,9 +373,25 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
 
         # Add functions if provided
         if functions:
-            completion_args["tools"] = [
-                {"type": "function", "function": func} for func in functions
-            ]
+            # Check if functions are already in the OpenAI format
+            if all(
+                isinstance(func, dict) and "type" in func and func["type"] == "function"
+                for func in functions
+            ):
+                completion_args["tools"] = functions
+            else:
+                # Convert functions to OpenAI format if they have to_openai_function method
+                completion_args["tools"] = []
+                for func in functions:
+                    if hasattr(func, "to_openai_function"):
+                        completion_args["tools"].append(func.to_openai_function())  # type: ignore
+                    elif isinstance(func, dict) and "function" in func:
+                        completion_args["tools"].append(func)
+                    else:
+                        logger.warning(
+                            "Skipping function %s - not in OpenAI format and no to_openai_function method",
+                            func,
+                        )
 
             if function_call:
                 if function_call == "auto":
@@ -309,83 +408,108 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         if json_mode:
             completion_args["response_format"] = {"type": "json_object"}
 
+        # Log the prompt for debugging
+        logger.debug("OpenAI Streaming Prompt: %s", json.dumps(messages, indent=2))
+
         # Create the completion with streaming
         response = await asyncio.to_thread(self.client.chat.completions.create, **completion_args)
 
         # For tracking function calls
         current_tool_calls = {}
 
-        # Stream the response
-        async for chunk in response:
-            # Check for tool calls
-            if hasattr(chunk.choices[0].delta, "tool_calls") and chunk.choices[0].delta.tool_calls:
-                for tool_call in chunk.choices[0].delta.tool_calls:
-                    tool_id = tool_call.index
+        # Convert the Stream object to an async generator
+        async def stream_generator():
+            for chunk in response:  # type: ignore
+                # Check for tool calls
+                if (
+                    hasattr(chunk, "choices")
+                    and chunk.choices  # type: ignore
+                    and hasattr(chunk.choices[0].delta, "tool_calls")  # type: ignore
+                    and chunk.choices[0].delta.tool_calls  # type: ignore
+                ):
+                    for tool_call in chunk.choices[0].delta.tool_calls:  # type: ignore
+                        tool_id = tool_call.index
 
-                    # Initialize the tool call if it's new
-                    if tool_id not in current_tool_calls:
-                        current_tool_calls[tool_id] = {
-                            "id": tool_call.id
-                            if hasattr(tool_call, "id") and tool_call.id
-                            else f"call_{tool_id}",
-                            "type": "function",
-                            "function": {"name": "", "arguments": ""},
-                        }
+                        # Initialize the tool call if it's new
+                        if tool_id not in current_tool_calls:
+                            current_tool_calls[tool_id] = {
+                                "id": tool_call.id
+                                if hasattr(tool_call, "id") and tool_call.id
+                                else f"call_{tool_id}",
+                                "type": "function",
+                                "function": {"name": "", "arguments": ""},
+                            }
 
-                    # Update the tool call with new data
-                    if hasattr(tool_call, "function"):
-                        if hasattr(tool_call.function, "name") and tool_call.function.name:
-                            current_tool_calls[tool_id]["function"][
-                                "name"
-                            ] += tool_call.function.name
+                        # Update the tool call with new data
+                        if hasattr(tool_call, "function"):
+                            if hasattr(tool_call.function, "name") and tool_call.function.name:
+                                current_tool_calls[tool_id]["function"]["name"] += (
+                                    tool_call.function.name
+                                )
 
-                        if (
-                            hasattr(tool_call.function, "arguments")
-                            and tool_call.function.arguments
-                        ):
-                            current_tool_calls[tool_id]["function"][
-                                "arguments"
-                            ] += tool_call.function.arguments
+                            if (
+                                hasattr(tool_call.function, "arguments")
+                                and tool_call.function.arguments
+                            ):
+                                current_tool_calls[tool_id]["function"]["arguments"] += (
+                                    tool_call.function.arguments
+                                )
 
-                    # Yield the updated tool call
-                    yield {"tool_call": current_tool_calls[tool_id]}
+                        # Yield the updated tool call
+                        yield {"tool_call": current_tool_calls[tool_id]}
 
-            # Check for function calls (legacy format)
-            elif (
-                hasattr(chunk.choices[0].delta, "function_call")
-                and chunk.choices[0].delta.function_call
-            ):
-                function_call_delta = chunk.choices[0].delta.function_call
+                # Check for function calls (legacy format)
+                elif (
+                    hasattr(chunk, "choices")
+                    and chunk.choices  # type: ignore
+                    and hasattr(chunk.choices[0].delta, "function_call")  # type: ignore
+                    and chunk.choices[0].delta.function_call  # type: ignore
+                ):
+                    function_call_delta = chunk.choices[0].delta.function_call  # type: ignore
 
-                # Initialize the function call if it's new
-                if "function_call" not in current_tool_calls:
-                    current_tool_calls["function_call"] = {"name": "", "arguments": ""}
+                    # Initialize the function call if it's new
+                    if "function_call" not in current_tool_calls:
+                        current_tool_calls["function_call"] = {"name": "", "arguments": ""}
 
-                # Update the function call with new data
-                if hasattr(function_call_delta, "name") and function_call_delta.name:
-                    current_tool_calls["function_call"]["name"] += function_call_delta.name
+                    # Update the function call with new data
+                    if hasattr(function_call_delta, "name") and function_call_delta.name:
+                        current_tool_calls["function_call"]["name"] += function_call_delta.name
 
-                if hasattr(function_call_delta, "arguments") and function_call_delta.arguments:
-                    current_tool_calls["function_call"][
-                        "arguments"
-                    ] += function_call_delta.arguments
+                    if hasattr(function_call_delta, "arguments") and function_call_delta.arguments:
+                        current_tool_calls["function_call"]["arguments"] += (
+                            function_call_delta.arguments
+                        )
 
-                # Yield the updated function call
-                yield {"function_call": current_tool_calls["function_call"]}
+                    # Yield the updated function call
+                    yield {"function_call": current_tool_calls["function_call"]}
 
-            # Regular text content
-            elif hasattr(chunk.choices[0].delta, "content") and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+                # Regular text content
+                elif (
+                    hasattr(chunk, "choices")
+                    and chunk.choices  # type: ignore
+                    and hasattr(chunk.choices[0].delta, "content")  # type: ignore
+                    and chunk.choices[0].delta.content  # type: ignore
+                ):
+                    yield chunk.choices[0].delta.content  # type: ignore
 
-    async def _stream_response(self, response):
+        # Create and return the async generator
+        # We need to use the generator directly
+        generator = stream_generator()
+        async for chunk in generator:
+            yield chunk
+
+    async def _stream_response(self, response: Any) -> AsyncGenerator[str, None]:
         """
         Stream the response from OpenAI.
 
         Args:
+        ----
             response: The streaming response from OpenAI
 
         Yields:
+        ------
             str: Text chunks as they are generated
+
         """
         for chunk in response:
             if chunk.choices and chunk.choices[0].delta.content:
@@ -395,8 +519,10 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         """
         Get metadata about the model.
 
-        Returns:
+        Returns
+        -------
             ModelMetadata: Metadata about the model
+
         """
         if self._metadata is None:
             # Get model information
@@ -404,8 +530,8 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
 
             self._metadata = ModelMetadata(
                 name=self.model_name,
-                provider="openai",
-                version=self.model_uri.version,
+                provider=self.provider,
+                version="latest",
                 description=f"OpenAI {self.model_name}",
                 capabilities=[
                     ModelCapability.TEXT_GENERATION,
@@ -419,12 +545,14 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
             )
         return self._metadata
 
-    def _get_model_info(self) -> Dict[str, Any]:
+    def _get_model_info(self) -> dict[str, Any]:
         """
         Get information about the model.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Model information
+
         """
         # Model information for common OpenAI models
         model_info = {
@@ -470,25 +598,31 @@ class OpenAIAdapter(LLM, ModelAdapterPlugin):
         Estimate the number of tokens in a text.
 
         Args:
+        ----
             text: The text to estimate tokens for
 
         Returns:
+        -------
             int: Estimated number of tokens
+
         """
         # Simple estimation based on words
         # In practice, this varies by model and tokenizer
-        return len(text.split()) * 1.3
+        return int(len(text.split()) * 1.3)
 
     def estimate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
         """
         Estimate the cost of a request.
 
         Args:
+        ----
             prompt_tokens: Number of tokens in the prompt
             completion_tokens: Number of tokens in the completion
 
         Returns:
+        -------
             float: Estimated cost in USD
+
         """
         model_info = self._get_model_info()
         cost_input = model_info.get("cost_input", 0.0)

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 """Indexer plugins for Saplings."""
+
 
 from saplings.core.plugin import register_plugin
 from saplings.plugins.indexers.code_indexer import CodeIndexer

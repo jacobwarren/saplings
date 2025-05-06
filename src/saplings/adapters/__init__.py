@@ -1,33 +1,29 @@
+from __future__ import annotations
+
+"""Model adapters for Saplings.
+
+This package provides adapter implementations for various LLM providers.
 """
-Model adapters for Saplings.
 
-This package provides implementations of the LLM interface for various providers.
-"""
+# Standard library imports
+import contextlib  # noqa: E402
 
-# Import adapters if available
-try:
-    from saplings.adapters.vllm_adapter import VLLMAdapter
-except ImportError:
-    pass
-
-try:
-    from saplings.adapters.openai_adapter import OpenAIAdapter
-except ImportError:
-    pass
-
-try:
+# Local imports
+with contextlib.suppress(ImportError):
     from saplings.adapters.anthropic_adapter import AnthropicAdapter
-except ImportError:
-    pass
 
-try:
+with contextlib.suppress(ImportError):
     from saplings.adapters.huggingface_adapter import HuggingFaceAdapter
-except ImportError:
-    pass
+
+with contextlib.suppress(ImportError):
+    from saplings.adapters.openai_adapter import OpenAIAdapter
+
+with contextlib.suppress(ImportError):
+    from saplings.adapters.vllm_adapter import VLLMAdapter
 
 __all__ = [
-    "VLLMAdapter",
-    "OpenAIAdapter",
     "AnthropicAdapter",
     "HuggingFaceAdapter",
+    "OpenAIAdapter",
+    "VLLMAdapter",
 ]

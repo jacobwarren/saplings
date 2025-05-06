@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Parallel function calling module for Saplings.
 
@@ -7,7 +9,7 @@ This module provides utilities for calling functions in parallel.
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from saplings.core.function_registry import function_registry
 
@@ -17,36 +19,44 @@ logger = logging.getLogger(__name__)
 class ParallelFunctionCaller:
     """Utility for calling functions in parallel."""
 
-    def __init__(self, max_workers: Optional[int] = None):
+    def __init__(self, max_workers: int | None = None) -> None:
         """
         Initialize the parallel function caller.
 
         Args:
+        ----
             max_workers: Maximum number of worker threads
+
         """
         self.max_workers = max_workers
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
 
     async def call_functions(
-        self, function_calls: List[Dict[str, Any]], timeout: Optional[float] = None
-    ) -> List[Tuple[str, Any]]:
+        self, function_calls: list[dict[str, Any]], timeout: float | None = None
+    ) -> list[tuple[str, Any]]:
         """
         Call multiple functions in parallel.
 
         Args:
+        ----
             function_calls: List of function calls, each with "name" and "arguments" keys
             timeout: Timeout in seconds for all function calls
 
         Returns:
+        -------
             List[Tuple[str, Any]]: List of (function_name, result) tuples
 
         Raises:
+        ------
             asyncio.TimeoutError: If the timeout is reached
+
         """
         # Create tasks for each function call
         tasks = []
         for call in function_calls:
             name = call.get("name")
+            if not isinstance(name, str):
+                name = str(name) if name is not None else "unknown"
             arguments = call.get("arguments", {})
 
             if isinstance(arguments, str):
@@ -55,7 +65,7 @@ class ParallelFunctionCaller:
 
                     arguments = json.loads(arguments)
                 except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse arguments for function {name}: {arguments}")
+                    logger.warning("Failed to parse arguments for function %s: %s", name, arguments)
                     arguments = {}
 
             task = self._call_function_async(name, arguments)
@@ -65,45 +75,59 @@ class ParallelFunctionCaller:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Combine results with function names
-        return [(call.get("name"), result) for call, result in zip(function_calls, results)]
+        output: list[tuple[str, Any]] = []
+        for call, result in zip(function_calls, results):
+            name = call.get("name")
+            if not isinstance(name, str):
+                name = str(name) if name is not None else "unknown"
+            output.append((name, result))
+        return output
 
     async def call_function(
-        self, name: str, arguments: Dict[str, Any], timeout: Optional[float] = None
+        self, name: str, arguments: dict[str, Any], timeout: float | None = None
     ) -> Any:
         """
         Call a single function asynchronously.
 
         Args:
+        ----
             name: Name of the function to call
             arguments: Arguments to pass to the function
             timeout: Timeout in seconds
 
         Returns:
+        -------
             Any: The result of the function call
 
         Raises:
+        ------
             asyncio.TimeoutError: If the timeout is reached
             ValueError: If the function is not registered
+
         """
         return await self._call_function_async(name, arguments, timeout)
 
     async def _call_function_async(
-        self, name: str, arguments: Dict[str, Any], timeout: Optional[float] = None
+        self, name: str, arguments: dict[str, Any], timeout: float | None = None
     ) -> Any:
         """
         Call a function asynchronously.
 
         Args:
+        ----
             name: Name of the function to call
             arguments: Arguments to pass to the function
             timeout: Timeout in seconds
 
         Returns:
+        -------
             Any: The result of the function call
 
         Raises:
+        ------
             asyncio.TimeoutError: If the timeout is reached
             ValueError: If the function is not registered
+
         """
         # Get the function
         func_info = function_registry.get_function(name)
@@ -133,25 +157,29 @@ parallel_function_caller = ParallelFunctionCaller()
 
 
 async def call_functions_parallel(
-    function_calls: List[Dict[str, Any]],
-    timeout: Optional[float] = None,
-    max_workers: Optional[int] = None,
-) -> List[Tuple[str, Any]]:
+    function_calls: list[dict[str, Any]],
+    timeout: float | None = None,
+    max_workers: int | None = None,
+) -> list[tuple[str, Any]]:
     """
     Call multiple functions in parallel.
 
     This is a convenience function that creates a ParallelFunctionCaller.
 
     Args:
+    ----
         function_calls: List of function calls, each with "name" and "arguments" keys
         timeout: Timeout in seconds for all function calls
         max_workers: Maximum number of worker threads
 
     Returns:
+    -------
         List[Tuple[str, Any]]: List of (function_name, result) tuples
 
     Raises:
+    ------
         asyncio.TimeoutError: If the timeout is reached
+
     """
     if max_workers is not None:
         caller = ParallelFunctionCaller(max_workers=max_workers)

@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 """
 Configuration module for the Executor.
 
 This module defines the configuration classes for the Executor module.
 """
 
+
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -33,16 +36,26 @@ class RefinementStrategy(str, Enum):
 class ExecutorConfig(BaseModel):
     """Configuration for the Executor module."""
 
+    # Model settings
+    execution_model_provider: str | None = Field(
+        None, description="Provider for the execution model"
+    )
+    execution_model_name: str | None = Field(None, description="Name of the execution model")
+
+    # Model settings
+    max_tokens: int | None = Field(None, description="Maximum number of tokens to generate")
+    temperature: float = Field(0.7, description="Temperature for generation")
+
     # Speculative execution settings
     enable_speculative_execution: bool = Field(
         True, description="Whether to enable speculative execution"
     )
     draft_temperature: float = Field(0.2, description="Temperature for draft generation")
     final_temperature: float = Field(0.7, description="Temperature for final generation")
-    max_draft_tokens: Optional[int] = Field(
+    max_draft_tokens: int | None = Field(
         None, description="Maximum number of tokens for draft generation"
     )
-    max_final_tokens: Optional[int] = Field(
+    max_final_tokens: int | None = Field(
         None, description="Maximum number of tokens for final generation"
     )
 
@@ -54,7 +67,7 @@ class ExecutorConfig(BaseModel):
 
     # GASA settings
     enable_gasa: bool = Field(True, description="Whether to enable GASA")
-    gasa_config: Optional[Dict[str, Any]] = Field(None, description="GASA configuration")
+    gasa_config: dict[str, Any] | None = Field(None, description="GASA configuration")
 
     # Verification settings
     verification_strategy: VerificationStrategy = Field(
@@ -72,30 +85,35 @@ class ExecutorConfig(BaseModel):
 
     # Performance settings
     cache_results: bool = Field(True, description="Whether to cache results")
-    cache_dir: Optional[str] = Field(None, description="Directory to cache results")
+    cache_dir: str | None = Field(None, description="Directory to cache results")
 
     # Logging settings
     log_level: str = Field("INFO", description="Logging level")
 
     @classmethod
-    def default(cls) -> "ExecutorConfig":
+    def default(cls):
         """
         Create a default configuration.
 
-        Returns:
+        Returns
+        -------
             ExecutorConfig: Default configuration
+
         """
-        return cls()
+        return cls.construct()
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any]) -> "ExecutorConfig":
+    def from_dict(cls, config_dict: dict[str, Any]) -> "ExecutorConfig":
         """
         Create a configuration from a dictionary.
 
         Args:
+        ----
             config_dict: Configuration dictionary
 
         Returns:
+        -------
             ExecutorConfig: Configuration
+
         """
         return cls(**config_dict)

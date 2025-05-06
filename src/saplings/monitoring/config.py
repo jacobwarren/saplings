@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 """
 Configuration module for Saplings monitoring.
 
 This module provides configuration options for the monitoring system.
 """
 
-from enum import Enum, auto
-from typing import Dict, List, Optional, Union
+
+from enum import Enum
 
 from pydantic import BaseModel, Field
 
@@ -41,17 +43,17 @@ class MonitoringConfig(BaseModel):
         description="Tracing backend to use",
     )
 
-    otel_endpoint: Optional[str] = Field(
+    otel_endpoint: str | None = Field(
         default=None,
         description="OpenTelemetry endpoint URL",
     )
 
-    langsmith_api_key: Optional[str] = Field(
+    langsmith_api_key: str | None = Field(
         default=None,
         description="LangSmith API key",
     )
 
-    langsmith_project: Optional[str] = Field(
+    langsmith_project: str | None = Field(
         default=None,
         description="LangSmith project name",
     )
@@ -89,7 +91,7 @@ class MonitoringConfig(BaseModel):
         gt=0,
     )
 
-    metadata: Dict[str, str] = Field(
+    metadata: dict[str, str] = Field(
         default_factory=dict,
         description="Additional metadata for traces",
     )

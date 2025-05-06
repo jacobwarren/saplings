@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Rubric module for Saplings.
 
@@ -5,15 +7,14 @@ This module provides the Rubric class for defining evaluation criteria and weigh
 for different task types.
 """
 
+
 import json
 import logging
-import os
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import ValidationError
 
 from saplings.judge.config import Rubric, RubricItem, ScoringDimension
 
@@ -35,86 +36,101 @@ class RubricLoader:
     """Loader for rubrics from files and templates."""
 
     @staticmethod
-    def load_from_file(file_path: Union[str, Path]) -> Rubric:
+    def load_from_file(file_path: str | Path) -> Rubric:
         """
         Load a rubric from a file.
 
         Args:
+        ----
             file_path: Path to the rubric file (YAML or JSON)
 
         Returns:
+        -------
             Rubric: Loaded rubric
 
         Raises:
+        ------
             FileNotFoundError: If the file does not exist
             ValueError: If the file format is not supported or the file is invalid
+
         """
         file_path = Path(file_path)
 
         if not file_path.exists():
-            raise FileNotFoundError(f"Rubric file not found: {file_path}")
+            msg = f"Rubric file not found: {file_path}"
+            raise FileNotFoundError(msg)
 
         # Load the file based on its extension
         try:
             if file_path.suffix.lower() == ".yaml" or file_path.suffix.lower() == ".yml":
-                with open(file_path, "r") as f:
+                with open(file_path) as f:
                     data = yaml.safe_load(f)
             elif file_path.suffix.lower() == ".json":
-                with open(file_path, "r") as f:
+                with open(file_path) as f:
                     data = json.load(f)
             else:
-                raise ValueError(f"Unsupported file format: {file_path.suffix}")
+                msg = f"Unsupported file format: {file_path.suffix}"
+                raise ValueError(msg)
 
             # Create the rubric
             return Rubric(**data)
         except (yaml.YAMLError, json.JSONDecodeError) as e:
-            raise ValueError(f"Invalid rubric file: {e}")
+            msg = f"Invalid rubric file: {e}"
+            raise ValueError(msg)
         except ValidationError as e:
-            raise ValueError(f"Invalid rubric definition: {e}")
+            msg = f"Invalid rubric definition: {e}"
+            raise ValueError(msg)
 
     @staticmethod
-    def load_from_template(template: Union[str, RubricTemplate]) -> Rubric:
+    def load_from_template(template: str | RubricTemplate) -> Rubric:
         """
         Load a predefined rubric template.
 
         Args:
+        ----
             template: Template name or RubricTemplate enum
 
         Returns:
+        -------
             Rubric: Loaded rubric
 
         Raises:
+        ------
             ValueError: If the template is not found
+
         """
         if isinstance(template, str):
             try:
                 template = RubricTemplate(template.lower())
             except ValueError:
-                raise ValueError(f"Unknown rubric template: {template}")
+                msg = f"Unknown rubric template: {template}"
+                raise ValueError(msg)
 
         # Load the appropriate template
         if template == RubricTemplate.GENERAL:
             return RubricLoader._create_general_template()
-        elif template == RubricTemplate.CODE:
+        if template == RubricTemplate.CODE:
             return RubricLoader._create_code_template()
-        elif template == RubricTemplate.CREATIVE:
+        if template == RubricTemplate.CREATIVE:
             return RubricLoader._create_creative_template()
-        elif template == RubricTemplate.EDUCATIONAL:
+        if template == RubricTemplate.EDUCATIONAL:
             return RubricLoader._create_educational_template()
-        elif template == RubricTemplate.FACTUAL:
+        if template == RubricTemplate.FACTUAL:
             return RubricLoader._create_factual_template()
-        elif template == RubricTemplate.SAFETY:
+        if template == RubricTemplate.SAFETY:
             return RubricLoader._create_safety_template()
-        else:
-            raise ValueError(f"Unknown rubric template: {template}")
+        msg = f"Unknown rubric template: {template}"
+        raise ValueError(msg)
 
     @staticmethod
-    def _create_general_template() -> Rubric:
+    def _create_general_template():
         """
         Create a general-purpose rubric template.
 
-        Returns:
+        Returns
+        -------
             Rubric: General-purpose rubric
+
         """
         return Rubric(
             name="General Evaluation Rubric",
@@ -172,12 +188,14 @@ class RubricLoader:
         )
 
     @staticmethod
-    def _create_code_template() -> Rubric:
+    def _create_code_template():
         """
         Create a code evaluation rubric template.
 
-        Returns:
+        Returns
+        -------
             Rubric: Code evaluation rubric
+
         """
         return Rubric(
             name="Code Evaluation Rubric",
@@ -235,12 +253,14 @@ class RubricLoader:
         )
 
     @staticmethod
-    def _create_creative_template() -> Rubric:
+    def _create_creative_template():
         """
         Create a creative writing evaluation rubric template.
 
-        Returns:
+        Returns
+        -------
             Rubric: Creative writing evaluation rubric
+
         """
         return Rubric(
             name="Creative Writing Rubric",
@@ -298,12 +318,14 @@ class RubricLoader:
         )
 
     @staticmethod
-    def _create_educational_template() -> Rubric:
+    def _create_educational_template():
         """
         Create an educational content evaluation rubric template.
 
-        Returns:
+        Returns
+        -------
             Rubric: Educational content evaluation rubric
+
         """
         return Rubric(
             name="Educational Content Rubric",
@@ -361,12 +383,14 @@ class RubricLoader:
         )
 
     @staticmethod
-    def _create_factual_template() -> Rubric:
+    def _create_factual_template():
         """
         Create a factual content evaluation rubric template.
 
-        Returns:
+        Returns
+        -------
             Rubric: Factual content evaluation rubric
+
         """
         return Rubric(
             name="Factual Content Rubric",
@@ -424,12 +448,14 @@ class RubricLoader:
         )
 
     @staticmethod
-    def _create_safety_template() -> Rubric:
+    def _create_safety_template():
         """
         Create a safety evaluation rubric template.
 
-        Returns:
+        Returns
+        -------
             Rubric: Safety evaluation rubric
+
         """
         return Rubric(
             name="Safety Evaluation Rubric",
@@ -479,15 +505,18 @@ class RubricValidator:
     """Validator for rubrics."""
 
     @staticmethod
-    def validate(rubric: Rubric) -> List[str]:
+    def validate(rubric: Rubric) -> list[str]:
         """
         Validate a rubric.
 
         Args:
+        ----
             rubric: Rubric to validate
 
         Returns:
+        -------
             List[str]: List of validation errors, empty if valid
+
         """
         errors = []
 
@@ -503,25 +532,27 @@ class RubricValidator:
         for i, item in enumerate(rubric.items):
             # Check if the item has a dimension
             if not item.dimension:
-                errors.append(f"Item {i+1} must have a dimension")
+                errors.append(f"Item {i + 1} must have a dimension")
 
             # Check if the item has a weight
             if item.weight <= 0:
-                errors.append(f"Item {i+1} must have a positive weight")
+                errors.append(f"Item {i + 1} must have a positive weight")
 
             # Check if the item has criteria
             if not item.criteria:
-                errors.append(f"Item {i+1} must have at least one criterion")
+                errors.append(f"Item {i + 1} must have at least one criterion")
 
             # Check criteria
-            for score_str, description in item.criteria.items():
+            for score_str in item.criteria:
                 try:
                     score = float(score_str)
                     if not (0.0 <= score <= 1.0):
                         errors.append(
-                            f"Item {i+1} has a criterion with an invalid score: {score_str}"
+                            f"Item {i + 1} has a criterion with an invalid score: {score_str}"
                         )
                 except ValueError:
-                    errors.append(f"Item {i+1} has a criterion with an invalid score: {score_str}")
+                    errors.append(
+                        f"Item {i + 1} has a criterion with an invalid score: {score_str}"
+                    )
 
         return errors

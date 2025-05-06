@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 """
 Model caching module for Saplings.
 
 This module provides utilities for caching model responses to improve performance,
 reduce costs, and enhance reliability of the agent framework.
 """
+
 
 import asyncio
 import functools
@@ -16,11 +19,12 @@ import time
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
-from saplings.core.model_adapter import LLMResponse
+if TYPE_CHECKING:
+    from saplings.core.model_adapter import LLMResponse
 
 logger = logging.getLogger(__name__)
 
@@ -44,16 +48,16 @@ class CacheStats(BaseModel):
     created_at: datetime = Field(
         default_factory=datetime.now, description="When the cache was created"
     )
-    last_hit_at: Optional[datetime] = Field(None, description="When the cache was last hit")
-    last_miss_at: Optional[datetime] = Field(None, description="When the cache was last missed")
+    last_hit_at: datetime | None = Field(None, description="When the cache was last hit")
+    last_miss_at: datetime | None = Field(None, description="When the cache was last missed")
 
     @property
-    def hit_rate(self) -> float:
+    def hit_rate(self):
         """Calculate the hit rate."""
         total = self.hits + self.misses
         return self.hits / total if total > 0 else 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to a dictionary."""
         result = self.model_dump()
         result["hit_rate"] = self.hit_rate
@@ -71,22 +75,24 @@ class ModelCache:
     def __init__(
         self,
         max_size: int = 1000,
-        ttl: Optional[int] = 3600,
+        ttl: int | None = 3600,
         namespace: str = "default",
         strategy: CacheStrategy = CacheStrategy.LRU,
         persist: bool = False,
-        persist_path: Optional[str] = None,
-    ):
+        persist_path: str | None = None,
+    ) -> None:
         """
         Initialize the model cache.
 
         Args:
+        ----
             max_size: Maximum number of items in the cache
             ttl: Time to live in seconds (None for no expiration)
             namespace: Namespace for the cache
             strategy: Cache eviction strategy
             persist: Whether to persist the cache to disk
             persist_path: Path to persist the cache (default: ~/.saplings/cache)
+
         """
         self.max_size = max_size
         self.ttl = ttl
@@ -116,16 +122,24 @@ class ModelCache:
             self._init_cache()
 
         # Initialize stats
-        self.stats = CacheStats(max_size=max_size)
+        self.stats = CacheStats(
+            hits=0,
+            misses=0,
+            evictions=0,
+            size=0,
+            max_size=max_size,
+            last_hit_at=None,
+            last_miss_at=None,
+        )
 
-    def _init_cache(self) -> None:
+    def _init_cache(self):
         """Initialize the cache data structures."""
-        self._cache: Dict[str, Tuple[LLMResponse, float]] = {}
-        self._access_times: Dict[str, float] = {}  # For LRU
-        self._access_counts: Dict[str, int] = {}  # For LFU
-        self._insertion_order: List[str] = []  # For FIFO
+        self._cache: dict[str, tuple[LLMResponse, float]] = {}
+        self._access_times: dict[str, float] = {}  # For LRU
+        self._access_counts: dict[str, int] = {}  # For LFU
+        self._insertion_order: list[str] = []  # For FIFO
 
-    def _load_from_disk(self) -> None:
+    def _load_from_disk(self):
         """Load the cache from disk."""
         try:
             with open(self.cache_file, "rb") as f:
@@ -144,7 +158,7 @@ class ModelCache:
             logger.warning(f"Failed to load cache from disk: {e}")
             self._init_cache()
 
-    def _save_to_disk(self) -> None:
+    def _save_to_disk(self):
         """Save the cache to disk."""
         if not self.persist:
             return
@@ -161,10 +175,10 @@ class ModelCache:
                 pickle.dump(data, f)
 
             logger.debug(f"Saved {len(self._cache)} items to cache: {self.namespace}")
-        except (IOError, pickle.PickleError) as e:
+        except (OSError, pickle.PickleError) as e:
             logger.warning(f"Failed to save cache to disk: {e}")
 
-    def _clean_expired(self) -> None:
+    def _clean_expired(self):
         """Clean up expired items."""
         if self.ttl is None:
             return
@@ -175,18 +189,26 @@ class ModelCache:
         for key in expired_keys:
             self.delete(key)
 
-    def get(self, key: str) -> Optional[LLMResponse]:
+    def get(self, key: str) -> LLMResponse | None:
         """
         Get a response from the cache.
 
         Args:
+        ----
             key: Cache key
 
         Returns:
+        -------
             Optional[LLMResponse]: Cached response or None if not found or expired
+
         """
         # Clean expired items periodically
-        if self.ttl is not None and time.time() % 10 < 0.1:  # ~10% chance to clean
+        # Modulus for periodic cleaning
+        CLEAN_INTERVAL = 10
+        # Threshold for cleaning (percentage as decimal)
+        CLEAN_THRESHOLD = 0.1  # 10% chance to clean
+
+        if self.ttl is not None and time.time() % CLEAN_INTERVAL < CLEAN_THRESHOLD:
             self._clean_expired()
 
         if key not in self._cache:
@@ -229,8 +251,10 @@ class ModelCache:
         Set a response in the cache.
 
         Args:
+        ----
             key: Cache key
             response: Response to cache
+
         """
         # Check if cache is full
         if len(self._cache) >= self.max_size and key not in self._cache:
@@ -259,7 +283,7 @@ class ModelCache:
 
         logger.debug(f"Cache set for key: {key}")
 
-    def _evict_item(self) -> None:
+    def _evict_item(self):
         """Evict an item based on the cache strategy."""
         if not self._cache:
             return
@@ -269,12 +293,14 @@ class ModelCache:
         if self.strategy == CacheStrategy.LRU:
             # Find the least recently used key
             if self._access_times:
-                key_to_evict = min(self._access_times, key=self._access_times.get)
+                # Find key with minimum access time
+                key_to_evict = min(self._access_times.keys(), key=lambda k: self._access_times[k])
 
         elif self.strategy == CacheStrategy.LFU:
             # Find the least frequently used key
             if self._access_counts:
-                key_to_evict = min(self._access_counts, key=self._access_counts.get)
+                # Find key with minimum access count
+                key_to_evict = min(self._access_counts.keys(), key=lambda k: self._access_counts[k])
 
         elif self.strategy == CacheStrategy.FIFO:
             # Get the oldest key
@@ -293,10 +319,13 @@ class ModelCache:
         Delete a response from the cache.
 
         Args:
+        ----
             key: Cache key
 
         Returns:
+        -------
             bool: True if the key was deleted, False otherwise
+
         """
         if key in self._cache:
             del self._cache[key]
@@ -322,7 +351,7 @@ class ModelCache:
             return True
         return False
 
-    def clear(self) -> None:
+    def clear(self):
         """Clear the cache."""
         self._cache.clear()
         self._access_times.clear()
@@ -330,7 +359,15 @@ class ModelCache:
         self._insertion_order.clear()
 
         # Reset stats
-        self.stats = CacheStats(max_size=self.max_size)
+        self.stats = CacheStats(
+            hits=0,
+            misses=0,
+            evictions=0,
+            size=0,
+            max_size=self.max_size,
+            last_hit_at=None,
+            last_miss_at=None,
+        )
 
         # Save to disk if persistence is enabled
         if self.persist:
@@ -338,12 +375,14 @@ class ModelCache:
 
         logger.debug(f"Cache cleared for namespace: {self.namespace}")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self):
         """
         Get cache statistics.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Cache statistics
+
         """
         self.stats.size = len(self._cache)
         return self.stats.to_dict()
@@ -357,23 +396,24 @@ class ModelCacheManager:
     and provides global operations like clearing all caches.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the model cache manager."""
-        self._caches: Dict[str, ModelCache] = {}
+        self._caches: dict[str, ModelCache] = {}
 
     def get_cache(
         self,
         namespace: str = "default",
         max_size: int = 1000,
-        ttl: Optional[int] = 3600,
+        ttl: int | None = 3600,
         strategy: CacheStrategy = CacheStrategy.LRU,
         persist: bool = False,
-        persist_path: Optional[str] = None,
+        persist_path: str | None = None,
     ) -> ModelCache:
         """
         Get a cache by namespace.
 
         Args:
+        ----
             namespace: Namespace for the cache
             max_size: Maximum number of items in the cache
             ttl: Time to live in seconds (None for no expiration)
@@ -382,7 +422,9 @@ class ModelCacheManager:
             persist_path: Path to persist the cache
 
         Returns:
+        -------
             ModelCache: The cache
+
         """
         if namespace not in self._caches:
             self._caches[namespace] = ModelCache(
@@ -400,22 +442,26 @@ class ModelCacheManager:
         Clear a cache by namespace.
 
         Args:
+        ----
             namespace: Namespace for the cache
+
         """
         if namespace in self._caches:
             self._caches[namespace].clear()
 
-    def clear_all_caches(self) -> None:
+    def clear_all_caches(self):
         """Clear all caches."""
         for cache in self._caches.values():
             cache.clear()
 
-    def get_all_stats(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_stats(self):
         """
         Get statistics for all caches.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Dict[str, Any]]: Statistics for all caches
+
         """
         return {namespace: cache.get_stats() for namespace, cache in self._caches.items()}
 
@@ -425,24 +471,27 @@ cache_manager = ModelCacheManager()
 
 
 def generate_cache_key(
-    model_uri: str,
-    prompt: Union[str, List[Dict[str, Any]]],
-    max_tokens: Optional[int] = None,
-    temperature: Optional[float] = None,
+    cache_key: str,
+    prompt: str | list[dict[str, Any]],
+    max_tokens: int | None = None,
+    temperature: float | None = None,
     **kwargs,
 ) -> str:
     """
     Generate a cache key for a model request.
 
     Args:
-        model_uri: URI of the model
+    ----
+        cache_key: Key identifying the model (provider:model_name)
         prompt: Prompt for the model
         max_tokens: Maximum number of tokens to generate
         temperature: Temperature for sampling
         **kwargs: Additional arguments for generation
 
     Returns:
+    -------
         str: Cache key
+
     """
     # Convert prompt to a string if it's a list of messages
     if isinstance(prompt, list):
@@ -456,7 +505,7 @@ def generate_cache_key(
 
     # Create a dictionary of all parameters
     params = {
-        "model_uri": model_uri,
+        "cache_key": cache_key,
         "prompt": prompt_str,
         "max_tokens": max_tokens,
         "temperature": temperature,
@@ -477,13 +526,12 @@ def generate_cache_key(
                 params[key] = value.get("name", str(value))
             else:
                 params[key] = str(value)
+        # For other parameters, use the value directly if it's a simple type
+        elif isinstance(value, (str, int, float, bool, type(None))):
+            params[key] = value
         else:
-            # For other parameters, use the value directly if it's a simple type
-            if isinstance(value, (str, int, float, bool, type(None))):
-                params[key] = value
-            else:
-                # For complex types, use their string representation
-                params[key] = str(value)
+            # For complex types, use their string representation
+            params[key] = str(value)
 
     # Serialize the parameters to a string
     params_str = json.dumps(params, sort_keys=True)
@@ -495,15 +543,16 @@ def generate_cache_key(
 def get_model_cache(
     namespace: str = "default",
     max_size: int = 1000,
-    ttl: Optional[int] = 3600,
+    ttl: int | None = 3600,
     strategy: CacheStrategy = CacheStrategy.LRU,
     persist: bool = False,
-    persist_path: Optional[str] = None,
+    persist_path: str | None = None,
 ) -> ModelCache:
     """
     Get a model cache by namespace.
 
     Args:
+    ----
         namespace: Namespace for the cache
         max_size: Maximum number of items in the cache
         ttl: Time to live in seconds (None for no expiration)
@@ -512,7 +561,9 @@ def get_model_cache(
         persist_path: Path to persist the cache
 
     Returns:
+    -------
         ModelCache: The cache
+
     """
     return cache_manager.get_cache(
         namespace=namespace,
@@ -529,39 +580,43 @@ def clear_model_cache(namespace: str = "default") -> None:
     Clear a model cache by namespace.
 
     Args:
+    ----
         namespace: Namespace for the cache
+
     """
     cache_manager.clear_cache(namespace)
 
 
-def clear_all_model_caches() -> None:
+def clear_all_model_caches():
     """Clear all model caches."""
     cache_manager.clear_all_caches()
 
 
-def get_cache_stats(namespace: Optional[str] = None) -> Dict[str, Any]:
+def get_cache_stats(namespace: str | None = None) -> dict[str, Any]:
     """
     Get cache statistics.
 
     Args:
+    ----
         namespace: Namespace for the cache (None for all caches)
 
     Returns:
+    -------
         Dict[str, Any]: Cache statistics
+
     """
     if namespace:
         cache = get_model_cache(namespace)
         return cache.get_stats()
-    else:
-        return cache_manager.get_all_stats()
+    return cache_manager.get_all_stats()
 
 
 def cached_model_response(
     namespace: str = "default",
-    ttl: Optional[int] = 3600,
+    ttl: int | None = 3600,
     strategy: CacheStrategy = CacheStrategy.LRU,
     persist: bool = False,
-    persist_path: Optional[str] = None,
+    persist_path: str | None = None,
 ):
     """
     Decorator for caching model responses.
@@ -570,6 +625,7 @@ def cached_model_response(
     such as the `generate` method of model adapters.
 
     Args:
+    ----
         namespace: Namespace for the cache
         ttl: Time to live in seconds (None for no expiration)
         strategy: Cache eviction strategy
@@ -577,7 +633,9 @@ def cached_model_response(
         persist_path: Path to persist the cache
 
     Returns:
+    -------
         Callable: Decorated function
+
     """
 
     def decorator(func):
@@ -593,7 +651,9 @@ def cached_model_response(
             )
 
             # Generate a cache key
-            model_uri = getattr(self, "model_uri", "unknown")
+            provider = getattr(self, "provider", "unknown")
+            model_name = getattr(self, "model_name", "unknown")
+            model_cache_key = f"{provider}:{model_name}"
             prompt = args[0] if args else kwargs.get("prompt", "")
 
             # Extract other parameters
@@ -608,12 +668,12 @@ def cached_model_response(
                 if k not in ["prompt", "max_tokens", "temperature"]:
                     params[k] = v
 
-            cache_key = generate_cache_key(model_uri=model_uri, prompt=prompt, **params)
+            cache_key = generate_cache_key(cache_key=model_cache_key, prompt=prompt, **params)
 
             # Check if the response is in the cache
             cached_response = cache.get(cache_key)
             if cached_response is not None:
-                logger.debug(f"Cache hit for {model_uri}")
+                logger.debug(f"Cache hit for {model_cache_key}")
                 return cached_response
 
             # Generate the response
@@ -636,7 +696,9 @@ def cached_model_response(
             )
 
             # Generate a cache key
-            model_uri = getattr(self, "model_uri", "unknown")
+            provider = getattr(self, "provider", "unknown")
+            model_name = getattr(self, "model_name", "unknown")
+            model_cache_key = f"{provider}:{model_name}"
             prompt = args[0] if args else kwargs.get("prompt", "")
 
             # Extract other parameters
@@ -651,12 +713,12 @@ def cached_model_response(
                 if k not in ["prompt", "max_tokens", "temperature"]:
                     params[k] = v
 
-            cache_key = generate_cache_key(model_uri=model_uri, prompt=prompt, **params)
+            cache_key = generate_cache_key(cache_key=model_cache_key, prompt=prompt, **params)
 
             # Check if the response is in the cache
             cached_response = cache.get(cache_key)
             if cached_response is not None:
-                logger.debug(f"Cache hit for {model_uri}")
+                logger.debug(f"Cache hit for {model_cache_key}")
                 return cached_response
 
             # Generate the response
@@ -670,7 +732,6 @@ def cached_model_response(
         # Return the appropriate wrapper based on whether the function is async
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
-        else:
-            return sync_wrapper
+        return sync_wrapper
 
     return decorator

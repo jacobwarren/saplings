@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Executor module for Saplings.
 
@@ -10,12 +12,13 @@ This module provides the executor functionality for Saplings, including:
 - Performance optimizations for latency reduction
 """
 
+
 from saplings.executor.config import ExecutorConfig, RefinementStrategy, VerificationStrategy
 from saplings.executor.executor import ExecutionResult, Executor
 
 __all__ = [
-    "Executor",
     "ExecutionResult",
+    "Executor",
     "ExecutorConfig",
     "RefinementStrategy",
     "VerificationStrategy",

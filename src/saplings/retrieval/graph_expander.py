@@ -1,18 +1,23 @@
+from __future__ import annotations
+
 """
 Graph expander module for Saplings.
 
 This module provides the graph-based expansion for retrieval results.
 """
 
+
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING
 
-from saplings.memory.document import Document
 from saplings.memory.graph import DependencyGraph, DocumentNode
-from saplings.memory.memory_store import MemoryStore
 from saplings.retrieval.config import GraphConfig, RetrievalConfig
+
+if TYPE_CHECKING:
+    from saplings.memory.document import Document
+    from saplings.memory.memory_store import MemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -28,21 +33,24 @@ class GraphExpander:
     def __init__(
         self,
         memory_store: MemoryStore,
-        config: Optional[Union[RetrievalConfig, GraphConfig]] = None,
-    ):
+        config: RetrievalConfig | GraphConfig | None = None,
+    ) -> None:
         """
         Initialize the graph expander.
 
         Args:
+        ----
             memory_store: Memory store containing the documents and graph
             config: Retrieval or graph configuration
+
         """
         self.memory_store = memory_store
         self.graph = memory_store.graph
 
         # Extract graph config from RetrievalConfig if needed
         if config is None:
-            self.config = GraphConfig()
+            # Use default values from the model
+            self.config = GraphConfig.model_construct()
         elif isinstance(config, RetrievalConfig):
             self.config = config.graph
         else:
@@ -50,18 +58,21 @@ class GraphExpander:
 
     def expand(
         self,
-        documents: List[Document],
-        scores: Optional[List[float]] = None,
-    ) -> List[Tuple[Document, float]]:
+        documents: list[Document],
+        scores: list[float] | None = None,
+    ) -> list[tuple[Document, float]]:
         """
         Expand retrieval results using the dependency graph.
 
         Args:
+        ----
             documents: Documents to expand
             scores: Optional scores for the documents
 
         Returns:
+        -------
             List[Tuple[Document, float]]: Expanded list of (document, score) tuples
+
         """
         if not documents:
             return []
@@ -97,8 +108,9 @@ class GraphExpander:
 
                 # Calculate a score based on graph distance and edge weights
                 score = self._calculate_score(node_id, doc_ids, doc_scores, subgraph)
-
-                if score > 0:
+                # Threshold for score
+                SCORE_THRESHOLD = 0
+                if score > SCORE_THRESHOLD:
                     expanded_results.append((document, score))
                     expanded_docs.add(node.id)
 
@@ -110,21 +122,24 @@ class GraphExpander:
     def _calculate_score(
         self,
         node_id: str,
-        seed_doc_ids: List[str],
-        doc_scores: Dict[str, float],
+        seed_doc_ids: list[str],
+        doc_scores: dict[str, float],
         subgraph: DependencyGraph,
     ) -> float:
         """
         Calculate a score for a node based on its connections to seed documents.
 
         Args:
+        ----
             node_id: ID of the node to score
             seed_doc_ids: IDs of the seed documents
             doc_scores: Dictionary mapping document IDs to scores
             subgraph: Subgraph containing the nodes
 
         Returns:
+        -------
             float: Score for the node
+
         """
         # Find shortest paths to seed documents
         max_score = 0.0
@@ -157,7 +172,7 @@ class GraphExpander:
 
                     # Consider edge weights if available
                     for edge in path:
-                        source_id, rel_type, target_id = edge
+                        source_id, _, target_id = edge  # Unpack but ignore rel_type
                         edge_data = subgraph.graph.get_edge_data(source_id, target_id)
                         if edge_data and "weight" in edge_data:
                             weight = edge_data["weight"]
@@ -179,7 +194,9 @@ class GraphExpander:
         Save the graph expander configuration to disk.
 
         Args:
+        ----
             directory: Directory to save to
+
         """
         directory_path = Path(directory)
         directory_path.mkdir(parents=True, exist_ok=True)
@@ -195,15 +212,17 @@ class GraphExpander:
         Load the graph expander configuration from disk.
 
         Args:
+        ----
             directory: Directory to load from
+
         """
         directory_path = Path(directory)
 
         # Load config
         config_path = directory_path / "config.json"
         if config_path.exists():
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 config_data = json.load(f)
-                self.config = GraphConfig(**config_data)
+                self.config = GraphConfig.model_validate(config_data)
 
         logger.info(f"Loaded graph expander configuration from {directory}")

@@ -1,14 +1,17 @@
+from __future__ import annotations
+
 """
 Event system for Saplings.
 
 This module provides an event system for cross-component communication.
 """
 
+
 import asyncio
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Union
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +46,7 @@ class Event:
     source: str
     """Source of the event."""
 
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
     """Data associated with the event."""
 
     timestamp: float = field(default_factory=lambda: asyncio.get_event_loop().time())
@@ -62,43 +65,32 @@ class EventSystem:
     through events.
     """
 
-    _instance = None
-
-    def __new__(cls):
-        """Create a singleton instance."""
-        if cls._instance is None:
-            cls._instance = super(EventSystem, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the event system."""
-        if self._initialized:
-            return
-
-        self._listeners: Dict[EventType, List[EventListener]] = {}
-        self._async_listeners: Dict[EventType, List[AsyncEventListener]] = {}
-        self._all_listeners: List[EventListener] = []
-        self._all_async_listeners: List[AsyncEventListener] = []
+        self._listeners: dict[EventType, list[EventListener]] = {}
+        self._async_listeners: dict[EventType, list[AsyncEventListener]] = {}
+        self._all_listeners: list[EventListener] = []
+        self._all_async_listeners: list[AsyncEventListener] = []
         self._event_queue: asyncio.Queue = asyncio.Queue()
-        self._processing_task: Optional[asyncio.Task] = None
-        self._initialized = True
+        self._processing_task: asyncio.Task | None = None
 
         logger.info("Initialized EventSystem")
 
     def add_listener(
         self,
-        event_type: Union[EventType, List[EventType]],
-        listener: Union[EventListener, AsyncEventListener],
+        event_type: EventType | list[EventType],
+        listener: EventListener | AsyncEventListener,
         is_async: bool = False,
     ) -> None:
         """
         Add a listener for an event type.
 
         Args:
+        ----
             event_type: Type of event to listen for, or list of event types
             listener: Function to call when the event occurs
             is_async: Whether the listener is asynchronous
+
         """
         if isinstance(event_type, list):
             for et in event_type:
@@ -126,17 +118,19 @@ class EventSystem:
 
     def remove_listener(
         self,
-        event_type: Union[EventType, List[EventType]],
-        listener: Union[EventListener, AsyncEventListener],
+        event_type: EventType | list[EventType],
+        listener: EventListener | AsyncEventListener,
         is_async: bool = False,
     ) -> None:
         """
         Remove a listener for an event type.
 
         Args:
+        ----
             event_type: Type of event to stop listening for, or list of event types
             listener: Function to remove
             is_async: Whether the listener is asynchronous
+
         """
         if isinstance(event_type, list):
             for et in event_type:
@@ -147,9 +141,8 @@ class EventSystem:
             if is_async:
                 if listener in self._all_async_listeners:
                     self._all_async_listeners.remove(listener)
-            else:
-                if listener in self._all_listeners:
-                    self._all_listeners.remove(listener)
+            elif listener in self._all_listeners:
+                self._all_listeners.remove(listener)
             logger.debug(f"Removed listener for all events: {listener.__name__}")
             return
 
@@ -160,17 +153,18 @@ class EventSystem:
             ):
                 self._async_listeners[event_type].remove(listener)
                 logger.debug(f"Removed async listener for {event_type}: {listener.__name__}")
-        else:
-            if event_type in self._listeners and listener in self._listeners[event_type]:
-                self._listeners[event_type].remove(listener)
-                logger.debug(f"Removed listener for {event_type}: {listener.__name__}")
+        elif event_type in self._listeners and listener in self._listeners[event_type]:
+            self._listeners[event_type].remove(listener)
+            logger.debug(f"Removed listener for {event_type}: {listener.__name__}")
 
     def emit(self, event: Event) -> None:
         """
         Emit an event.
 
         Args:
+        ----
             event: Event to emit
+
         """
         # Add the event to the queue
         self._event_queue.put_nowait(event)
@@ -181,7 +175,7 @@ class EventSystem:
 
         logger.debug(f"Emitted event: {event.type} from {event.source}")
 
-    async def _process_events(self) -> None:
+    async def _process_events(self):
         """Process events from the queue."""
         while not self._event_queue.empty():
             try:
@@ -207,7 +201,9 @@ class EventSystem:
         Call synchronous listeners for an event.
 
         Args:
+        ----
             event: Event to process
+
         """
         # Call listeners for this event type
         for listener in self._listeners.get(event.type, []):
@@ -228,7 +224,9 @@ class EventSystem:
         Call asynchronous listeners for an event.
 
         Args:
+        ----
             event: Event to process
+
         """
         # Call async listeners for this event type
         for listener in self._async_listeners.get(event.type, []):
@@ -246,7 +244,7 @@ class EventSystem:
             except Exception as e:
                 logger.exception(f"Error in all-events async listener {listener.__name__}: {e}")
 
-    def clear_listeners(self) -> None:
+    def clear_listeners(self):
         """Clear all listeners."""
         self._listeners.clear()
         self._async_listeners.clear()
@@ -254,15 +252,18 @@ class EventSystem:
         self._all_async_listeners.clear()
         logger.info("Cleared all event listeners")
 
-    def get_listener_count(self, event_type: Optional[EventType] = None) -> int:
+    def get_listener_count(self, event_type: EventType | None = None) -> int:
         """
         Get the number of listeners for an event type.
 
         Args:
+        ----
             event_type: Type of event to count listeners for, or None for all
 
         Returns:
+        -------
             int: Number of listeners
+
         """
         if event_type is None:
             # Count all listeners
@@ -280,3 +281,20 @@ class EventSystem:
         if event_type in self._async_listeners:
             count += len(self._async_listeners[event_type])
         return count
+
+
+def get_event_system():
+    """
+    Get the event system.
+
+    This function is maintained for backward compatibility.
+    New code should use constructor injection via the DI container.
+
+    Returns
+    -------
+        EventSystem: The event system from the DI container
+
+    """
+    from saplings.di import container
+
+    return container.resolve(EventSystem)

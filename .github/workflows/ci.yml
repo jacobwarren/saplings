@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
@@ -14,54 +14,47 @@ jobs:
         python-version: ["3.9", "3.11"]
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    - name: Install Poetry
-      uses: snok/install-poetry@v1
-      with:
-        version: 2.1.2
-        virtualenvs-create: true
-        virtualenvs-in-project: true
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 2.1.2
+          virtualenvs-create: true
+          virtualenvs-in-project: true
 
-    - name: Install dependencies
-      run: |
-        poetry install --with dev
+      - name: Install dependencies
+        run: |
+          poetry install --with dev
 
-    - name: Lint with flake8
-      run: |
-        # Use configuration from .flake8 file
-        poetry run flake8 src tests
+      - name: Run pre-commit checks
+        run: |
+          # Install pre-commit and run all hooks
+          poetry run pre-commit install
+          poetry run pre-commit run --all-files
 
-    - name: Check formatting with black
-      run: |
-        poetry run black --check src tests
+      - name: Type check with mypy
+        run: |
+          # Temporarily skip mypy check to allow the build to pass
+          # poetry run mypy src
+          echo "Skipping mypy check temporarily"
 
-    - name: Check imports with isort
-      run: |
-        poetry run isort --check-only src tests
+      - name: Test with pytest
+        run: |
+          # Benchmark tests are automatically skipped unless --run-benchmarks is specified
+          # Continue on error to allow the build to pass even with failing tests
+          poetry run pytest --cov=saplings --cov-report=xml || echo "Tests failed but continuing build"
 
-    - name: Type check with mypy
-      run: |
-        # Temporarily skip mypy check to allow the build to pass
-        # poetry run mypy src
-        echo "Skipping mypy check temporarily"
-
-    - name: Test with pytest
-      run: |
-        # Benchmark tests are automatically skipped unless --run-benchmarks is specified
-        # Continue on error to allow the build to pass even with failing tests
-        poetry run pytest --cov=saplings --cov-report=xml || echo "Tests failed but continuing build"
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: false
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
 
   build:
     runs-on: ubuntu-latest
@@ -69,26 +62,26 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
 
-    - name: Install Poetry
-      uses: snok/install-poetry@v1
-      with:
-        version: 2.1.2
-        virtualenvs-create: true
-        virtualenvs-in-project: true
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 2.1.2
+          virtualenvs-create: true
+          virtualenvs-in-project: true
 
-    - name: Build package
-      run: |
-        poetry build
+      - name: Build package
+        run: |
+          poetry build
 
-    - name: Store build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist
-        path: dist/
+      - name: Store build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

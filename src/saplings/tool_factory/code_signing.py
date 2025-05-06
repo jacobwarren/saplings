@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Code signing module for Saplings tool factory.
 
@@ -5,12 +7,11 @@ This module provides code signing and verification capabilities for
 dynamically generated tools.
 """
 
+
 import base64
 import hashlib
-import hmac
 import logging
 import os
-from typing import Dict, Optional, Tuple
 
 from saplings.tool_factory.config import SigningLevel, ToolFactoryConfig
 
@@ -25,12 +26,14 @@ class CodeSigner:
     and authenticity.
     """
 
-    def __init__(self, config: Optional[ToolFactoryConfig] = None):
+    def __init__(self, config: ToolFactoryConfig | None = None) -> None:
         """
         Initialize the code signer.
 
         Args:
+        ----
             config: Configuration for the code signer
+
         """
         self.config = config or ToolFactoryConfig()
         self._private_key = None
@@ -38,33 +41,35 @@ class CodeSigner:
         # Load the private key if advanced signing is enabled
         if self.config.signing_level == SigningLevel.ADVANCED:
             if not self.config.signing_key_path:
-                raise ValueError("Signing key path is required for advanced signing")
+                msg = "Signing key path is required for advanced signing"
+                raise ValueError(msg)
 
             try:
                 self._load_private_key()
             except Exception as e:
-                raise ValueError(f"Failed to load signing key: {e}")
+                msg = f"Failed to load signing key: {e}"
+                raise ValueError(msg)
 
-    def _load_private_key(self) -> None:
+    def _load_private_key(self):
         """
         Load the private key for advanced signing.
 
-        Raises:
+        Raises
+        ------
             ValueError: If the key file doesn't exist or is invalid
+
         """
         try:
             # Check if cryptography is available
-            import cryptography.hazmat.primitives.asymmetric.rsa as rsa
             from cryptography.hazmat.primitives import serialization
         except ImportError:
-            raise ImportError(
-                "Cryptography package is not installed. "
-                "Install it with: pip install cryptography"
-            )
+            msg = "Cryptography package is not installed. Install it with: pip install cryptography"
+            raise ImportError(msg)
 
         # Check if the key file exists
-        if not os.path.exists(self.config.signing_key_path):
-            raise ValueError(f"Signing key file not found: {self.config.signing_key_path}")
+        if not self.config.signing_key_path or not os.path.exists(self.config.signing_key_path):
+            msg = f"Signing key file not found: {self.config.signing_key_path}"
+            raise ValueError(msg)
 
         # Load the private key
         try:
@@ -74,17 +79,21 @@ class CodeSigner:
                     password=None,
                 )
         except Exception as e:
-            raise ValueError(f"Invalid signing key: {e}")
+            msg = f"Invalid signing key: {e}"
+            raise ValueError(msg)
 
-    def sign(self, code: str) -> Dict[str, str]:
+    def sign(self, code: str) -> dict[str, str]:
         """
         Sign code.
 
         Args:
+        ----
             code: Code to sign
 
         Returns:
+        -------
             Dict[str, str]: Signature information
+
         """
         # If signing is disabled, return an empty signature
         if self.config.signing_level == SigningLevel.NONE:
@@ -102,26 +111,44 @@ class CodeSigner:
             }
 
         # Advanced signing (cryptographic signature)
-        elif self.config.signing_level == SigningLevel.ADVANCED:
+        if self.config.signing_level == SigningLevel.ADVANCED:
             try:
                 # Check if cryptography is available
                 from cryptography.hazmat.primitives import hashes
                 from cryptography.hazmat.primitives.asymmetric import padding
             except ImportError:
-                raise ImportError(
+                msg = (
                     "Cryptography package is not installed. "
                     "Install it with: pip install cryptography"
                 )
+                raise ImportError(msg)
 
             # Sign the code hash
-            signature = self._private_key.sign(
-                code_hash.encode(),
-                padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.MAX_LENGTH,
-                ),
-                hashes.SHA256(),
-            )
+            # Check if the private key is an RSA key
+            from cryptography.hazmat.primitives.asymmetric import ec, rsa
+
+            if self._private_key is None:
+                msg = "Private key is not loaded"
+                raise ValueError(msg)
+
+            if isinstance(self._private_key, rsa.RSAPrivateKey):
+                signature = self._private_key.sign(
+                    code_hash.encode(),
+                    padding.PSS(
+                        mgf=padding.MGF1(hashes.SHA256()),
+                        salt_length=padding.PSS.MAX_LENGTH,
+                    ),
+                    hashes.SHA256(),
+                )
+            elif isinstance(self._private_key, ec.EllipticCurvePrivateKey):
+                # For EC keys
+                signature = self._private_key.sign(
+                    code_hash.encode(),
+                    ec.ECDSA(hashes.SHA256()),
+                )
+            else:
+                msg = f"Unsupported key type: {type(self._private_key)}"
+                raise ValueError(msg)
 
             # Encode the signature as base64
             signature_b64 = base64.b64encode(signature).decode()
@@ -133,8 +160,8 @@ class CodeSigner:
                 "signature": signature_b64,
             }
 
-        else:
-            raise ValueError(f"Unsupported signing level: {self.config.signing_level}")
+        msg = f"Unsupported signing level: {self.config.signing_level}"
+        raise ValueError(msg)
 
 
 class SignatureVerifier:
@@ -145,12 +172,14 @@ class SignatureVerifier:
     code integrity and authenticity.
     """
 
-    def __init__(self, config: Optional[ToolFactoryConfig] = None):
+    def __init__(self, config: ToolFactoryConfig | None = None) -> None:
         """
         Initialize the signature verifier.
 
         Args:
+        ----
             config: Configuration for the signature verifier
+
         """
         self.config = config or ToolFactoryConfig()
         self._public_key = None
@@ -158,33 +187,35 @@ class SignatureVerifier:
         # Load the public key if advanced signing is enabled
         if self.config.signing_level == SigningLevel.ADVANCED:
             if not self.config.signing_key_path:
-                raise ValueError("Signing key path is required for advanced signing")
+                msg = "Signing key path is required for advanced signing"
+                raise ValueError(msg)
 
             try:
                 self._load_public_key()
             except Exception as e:
-                raise ValueError(f"Failed to load public key: {e}")
+                msg = f"Failed to load public key: {e}"
+                raise ValueError(msg)
 
-    def _load_public_key(self) -> None:
+    def _load_public_key(self):
         """
         Load the public key for advanced signature verification.
 
-        Raises:
+        Raises
+        ------
             ValueError: If the key file doesn't exist or is invalid
+
         """
         try:
             # Check if cryptography is available
-            import cryptography.hazmat.primitives.asymmetric.rsa as rsa
             from cryptography.hazmat.primitives import serialization
         except ImportError:
-            raise ImportError(
-                "Cryptography package is not installed. "
-                "Install it with: pip install cryptography"
-            )
+            msg = "Cryptography package is not installed. Install it with: pip install cryptography"
+            raise ImportError(msg)
 
         # Check if the key file exists
-        if not os.path.exists(self.config.signing_key_path):
-            raise ValueError(f"Signing key file not found: {self.config.signing_key_path}")
+        if not self.config.signing_key_path or not os.path.exists(self.config.signing_key_path):
+            msg = f"Signing key file not found: {self.config.signing_key_path}"
+            raise ValueError(msg)
 
         # Load the public key
         try:
@@ -195,18 +226,22 @@ class SignatureVerifier:
                 )
                 self._public_key = private_key.public_key()
         except Exception as e:
-            raise ValueError(f"Invalid signing key: {e}")
+            msg = f"Invalid signing key: {e}"
+            raise ValueError(msg)
 
-    def verify(self, code: str, signature_info: Dict[str, str]) -> bool:
+    def verify(self, code: str, signature_info: dict[str, str]) -> bool:
         """
         Verify a code signature.
 
         Args:
+        ----
             code: Code to verify
             signature_info: Signature information
 
         Returns:
+        -------
             bool: True if the signature is valid, False otherwise
+
         """
         # If no signature is provided, return False
         if not signature_info:
@@ -221,7 +256,7 @@ class SignatureVerifier:
             return self.config.signing_level == SigningLevel.NONE
 
         # Basic signature (hash verification)
-        elif signature_type == "basic":
+        if signature_type == "basic":
             # Calculate the code hash
             code_hash = hashlib.sha256(code.encode()).hexdigest()
 
@@ -229,17 +264,18 @@ class SignatureVerifier:
             return code_hash == signature_info.get("code_hash", "")
 
         # Advanced signature (cryptographic verification)
-        elif signature_type == "advanced":
+        if signature_type == "advanced":
             try:
                 # Check if cryptography is available
                 from cryptography.exceptions import InvalidSignature
                 from cryptography.hazmat.primitives import hashes
                 from cryptography.hazmat.primitives.asymmetric import padding
             except ImportError:
-                raise ImportError(
+                msg = (
                     "Cryptography package is not installed. "
                     "Install it with: pip install cryptography"
                 )
+                raise ImportError(msg)
 
             # Get the code hash and signature
             code_hash = signature_info.get("code_hash", "")
@@ -253,21 +289,36 @@ class SignatureVerifier:
                 signature = base64.b64decode(signature_b64)
 
                 # Verify the signature
-                self._public_key.verify(
-                    signature,
-                    code_hash.encode(),
-                    padding.PSS(
-                        mgf=padding.MGF1(hashes.SHA256()),
-                        salt_length=padding.PSS.MAX_LENGTH,
-                    ),
-                    hashes.SHA256(),
-                )
+                from cryptography.hazmat.primitives.asymmetric import ec, rsa
+
+                if self._public_key is None:
+                    return False
+
+                if isinstance(self._public_key, rsa.RSAPublicKey):
+                    self._public_key.verify(
+                        signature,
+                        code_hash.encode(),
+                        padding.PSS(
+                            mgf=padding.MGF1(hashes.SHA256()),
+                            salt_length=padding.PSS.MAX_LENGTH,
+                        ),
+                        hashes.SHA256(),
+                    )
+                elif isinstance(self._public_key, ec.EllipticCurvePublicKey):
+                    self._public_key.verify(
+                        signature,
+                        code_hash.encode(),
+                        ec.ECDSA(hashes.SHA256()),
+                    )
+                else:
+                    logger.warning(f"Unsupported key type: {type(self._public_key)}")
+                    return False
 
                 return True
             except InvalidSignature:
                 return False
             except Exception as e:
-                logger.error(f"Error verifying signature: {e}")
+                logger.exception(f"Error verifying signature: {e}")
                 return False
 
         else:
@@ -275,25 +326,27 @@ class SignatureVerifier:
             return False
 
 
-def generate_key_pair(output_dir: str, key_name: str = "signing_key") -> Tuple[str, str]:
+def generate_key_pair(output_dir: str, key_name: str = "signing_key") -> tuple[str, str]:
     """
     Generate a key pair for code signing.
 
     Args:
+    ----
         output_dir: Directory to save the keys
         key_name: Base name for the key files
 
     Returns:
+    -------
         Tuple[str, str]: Paths to the private and public key files
+
     """
     try:
         # Check if cryptography is available
-        import cryptography.hazmat.primitives.asymmetric.rsa as rsa
         from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
     except ImportError:
-        raise ImportError(
-            "Cryptography package is not installed. " "Install it with: pip install cryptography"
-        )
+        msg = "Cryptography package is not installed. Install it with: pip install cryptography"
+        raise ImportError(msg)
 
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)

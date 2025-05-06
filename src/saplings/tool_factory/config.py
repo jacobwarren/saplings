@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 """
 Configuration module for the tool factory system.
 
 This module defines the configuration classes for the tool factory system.
 """
 
+
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -41,17 +44,18 @@ class ToolTemplate(BaseModel):
     name: str = Field(..., description="Human-readable name for the template")
     description: str = Field(..., description="Description of the template's purpose")
     template_code: str = Field(..., description="Template code with placeholders")
-    required_parameters: List[str] = Field(
+    required_parameters: list[str] = Field(
         ..., description="List of required parameters for the template"
     )
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     @field_validator("id")
     @classmethod
     def validate_id(cls, v: str) -> str:
         """Validate the template ID."""
         if not v:
-            raise ValueError("Template ID cannot be empty")
+            msg = "Template ID cannot be empty"
+            raise ValueError(msg)
         return v
 
 
@@ -62,15 +66,16 @@ class ToolSpecification(BaseModel):
     name: str = Field(..., description="Human-readable name for the tool")
     description: str = Field(..., description="Description of the tool's purpose")
     template_id: str = Field(..., description="ID of the template to use")
-    parameters: Dict[str, Any] = Field(..., description="Parameters for the template")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    parameters: dict[str, Any] = Field(..., description="Parameters for the template")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     @field_validator("id", "template_id")
     @classmethod
     def validate_ids(cls, v: str) -> str:
         """Validate the IDs."""
         if not v:
-            raise ValueError("ID cannot be empty")
+            msg = "ID cannot be empty"
+            raise ValueError(msg)
         return v
 
 
@@ -93,7 +98,7 @@ class ToolFactoryConfig(BaseModel):
         default=SigningLevel.NONE,
         description="Level of code signing for tools",
     )
-    signing_key_path: Optional[str] = Field(
+    signing_key_path: str | None = Field(
         default=None,
         description="Path to the signing key file (required for ADVANCED signing)",
     )
@@ -101,11 +106,11 @@ class ToolFactoryConfig(BaseModel):
         default=SandboxType.NONE,
         description="Type of sandbox to use for tool execution",
     )
-    docker_image: Optional[str] = Field(
+    docker_image: str | None = Field(
         default="python:3.9-slim",
         description="Docker image to use for sandboxed execution (only for DOCKER sandbox)",
     )
-    e2b_api_key: Optional[str] = Field(
+    e2b_api_key: str | None = Field(
         default=None,
         description="E2B API key for cloud sandbox (only for E2B sandbox)",
     )
@@ -113,7 +118,7 @@ class ToolFactoryConfig(BaseModel):
         default=30,
         description="Timeout in seconds for sandboxed execution",
     )
-    metadata: Dict[str, Any] = Field(
+    metadata: dict[str, Any] = Field(
         default_factory=dict,
         description="Additional metadata",
     )
@@ -123,5 +128,6 @@ class ToolFactoryConfig(BaseModel):
     def validate_output_dir(cls, v: str) -> str:
         """Validate the output directory."""
         if not v:
-            raise ValueError("Output directory cannot be empty")
+            msg = "Output directory cannot be empty"
+            raise ValueError(msg)
         return v

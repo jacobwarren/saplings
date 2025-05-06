@@ -1,18 +1,18 @@
+from __future__ import annotations
+
 """
 Function caching module for Saplings.
 
 This module provides utilities for caching function calls.
 """
 
+
 import asyncio
 import functools
 import hashlib
-import inspect
-import json
 import logging
 import time
-from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -20,30 +20,37 @@ logger = logging.getLogger(__name__)
 class FunctionCache:
     """Cache for function calls."""
 
-    def __init__(self, max_size: int = 1000, ttl: Optional[int] = 3600, namespace: str = "default"):
+    def __init__(
+        self, max_size: int = 1000, ttl: int | None = 3600, namespace: str = "default"
+    ) -> None:
         """
         Initialize the function cache.
 
         Args:
+        ----
             max_size: Maximum number of items in the cache
             ttl: Time to live in seconds (None for no expiration)
             namespace: Namespace for the cache
+
         """
         self.max_size = max_size
         self.ttl = ttl
         self.namespace = namespace
-        self._cache: Dict[str, Tuple[Any, float]] = {}
-        self._access_times: Dict[str, float] = {}
+        self._cache: dict[str, tuple[Any, float]] = {}
+        self._access_times: dict[str, float] = {}
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """
         Get a value from the cache.
 
         Args:
+        ----
             key: Cache key
 
         Returns:
+        -------
             Optional[Any]: Cached value or None if not found or expired
+
         """
         if key not in self._cache:
             return None
@@ -68,8 +75,10 @@ class FunctionCache:
         Set a value in the cache.
 
         Args:
+        ----
             key: Cache key
             value: Value to cache
+
         """
         # Check if cache is full
         if len(self._cache) >= self.max_size and key not in self._cache:
@@ -88,10 +97,13 @@ class FunctionCache:
         Delete a value from the cache.
 
         Args:
+        ----
             key: Cache key
 
         Returns:
+        -------
             bool: True if the key was deleted, False otherwise
+
         """
         if key in self._cache:
             del self._cache[key]
@@ -100,18 +112,18 @@ class FunctionCache:
             return True
         return False
 
-    def clear(self) -> None:
+    def clear(self):
         """Clear the cache."""
         self._cache.clear()
         self._access_times.clear()
 
-    def _remove_lru(self) -> None:
+    def _remove_lru(self):
         """Remove the least recently used item from the cache."""
         if not self._access_times:
             return
 
         # Find the least recently used key
-        lru_key = min(self._access_times, key=self._access_times.get)
+        lru_key = min(self._access_times, key=lambda k: self._access_times.get(k, float("inf")))
 
         # Remove it
         del self._cache[lru_key]
@@ -121,23 +133,26 @@ class FunctionCache:
 class FunctionCacheManager:
     """Manager for function caches."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the function cache manager."""
-        self._caches: Dict[str, FunctionCache] = {}
+        self._caches: dict[str, FunctionCache] = {}
 
     def get_cache(
-        self, namespace: str = "default", max_size: int = 1000, ttl: Optional[int] = 3600
+        self, namespace: str = "default", max_size: int = 1000, ttl: int | None = 3600
     ) -> FunctionCache:
         """
         Get a cache by namespace.
 
         Args:
+        ----
             namespace: Namespace for the cache
             max_size: Maximum number of items in the cache
             ttl: Time to live in seconds (None for no expiration)
 
         Returns:
+        -------
             FunctionCache: The cache
+
         """
         if namespace not in self._caches:
             self._caches[namespace] = FunctionCache(max_size, ttl, namespace)
@@ -148,12 +163,14 @@ class FunctionCacheManager:
         Clear a cache by namespace.
 
         Args:
+        ----
             namespace: Namespace for the cache
+
         """
         if namespace in self._caches:
             self._caches[namespace].clear()
 
-    def clear_all_caches(self) -> None:
+    def clear_all_caches(self):
         """Clear all caches."""
         for cache in self._caches.values():
             cache.clear()
@@ -164,22 +181,25 @@ cache_manager = FunctionCacheManager()
 
 
 def cached(
-    ttl: Optional[int] = 3600,
+    ttl: int | None = 3600,
     max_size: int = 1000,
-    namespace: Optional[str] = None,
-    key_generator: Optional[Callable[..., str]] = None,
+    namespace: str | None = None,
+    key_generator: Callable[..., str] | None = None,
 ):
     """
     Decorator for caching function calls.
 
     Args:
+    ----
         ttl: Time to live in seconds (None for no expiration)
         max_size: Maximum number of items in the cache
         namespace: Namespace for the cache (defaults to function name)
         key_generator: Function to generate cache keys
 
     Returns:
+    -------
         Callable: Decorated function
+
     """
 
     def decorator(func):
@@ -234,29 +254,28 @@ def cached(
                 return result
 
             return async_wrapper
-        else:
 
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                # Generate cache key
-                cache_key = key_gen(*args, **kwargs)
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # Generate cache key
+            cache_key = key_gen(*args, **kwargs)
 
-                # Check cache
-                cached_value = cache.get(cache_key)
-                if cached_value is not None:
-                    logger.debug(f"Cache hit for {func_name} with key {cache_key}")
-                    return cached_value
+            # Check cache
+            cached_value = cache.get(cache_key)
+            if cached_value is not None:
+                logger.debug(f"Cache hit for {func_name} with key {cache_key}")
+                return cached_value
 
-                # Call function
-                logger.debug(f"Cache miss for {func_name} with key {cache_key}")
-                result = func(*args, **kwargs)
+            # Call function
+            logger.debug(f"Cache miss for {func_name} with key {cache_key}")
+            result = func(*args, **kwargs)
 
-                # Cache result
-                cache.set(cache_key, result)
+            # Cache result
+            cache.set(cache_key, result)
 
-                return result
+            return result
 
-            return wrapper
+        return wrapper
 
     return decorator
 
@@ -266,11 +285,13 @@ def clear_cache(namespace: str = "default") -> None:
     Clear a cache by namespace.
 
     Args:
+    ----
         namespace: Namespace for the cache
+
     """
     cache_manager.clear_cache(namespace)
 
 
-def clear_all_caches() -> None:
+def clear_all_caches():
     """Clear all caches."""
     cache_manager.clear_all_caches()

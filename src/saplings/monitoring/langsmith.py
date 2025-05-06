@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 LangSmith integration module for Saplings monitoring.
 
@@ -7,29 +9,55 @@ LangSmith integration enables comprehensive tracing of agent execution,
 including LLM calls, tool usage, and performance metrics.
 """
 
-import json
-import logging
-import os
-import time
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-from saplings.monitoring.config import MonitoringConfig, TracingBackend
-from saplings.monitoring.trace import Span, Trace, TraceManager
+import logging
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
+
+from saplings.core.config_service import config_service
+from saplings.monitoring.config import MonitoringConfig
+from saplings.version import __version__
+
+if TYPE_CHECKING:
+    import langsmith  # type: ignore[import-not-found]
+    from langsmith import Client  # type: ignore[import-not-found]
+
+    from saplings.monitoring.trace import Trace, TraceManager
 
 logger = logging.getLogger(__name__)
 
+# Runtime import
 try:
-    import langsmith
-    from langsmith import Client
+    import langsmith  # type: ignore[import]
+    from langsmith import Client  # type: ignore[import]
 
     LANGSMITH_AVAILABLE = True
 except ImportError:
+    langsmith = None
+    Client = None
     LANGSMITH_AVAILABLE = False
     logger.warning(
         "LangSmith not installed. LangSmith export will not be available. "
-        "Install LangSmith with: pip install langsmith"
+        "Install LangSmith with: pip install saplings[langsmith]"
     )
+
+
+def _require_langsmith() -> Any:
+    """
+    Ensure LangSmith is available and return the module.
+
+    Raises
+    ------
+        ImportError: If LangSmith is not installed
+
+    Returns
+    -------
+        The LangSmith module
+
+    """
+    if langsmith is None:
+        raise ImportError("LangSmith is optional – install with `pip install saplings[langsmith]`.")
+    return langsmith
 
 
 class LangSmithExporter:
@@ -52,23 +80,25 @@ class LangSmithExporter:
 
     def __init__(
         self,
-        trace_manager: Optional[TraceManager] = None,
-        config: Optional[MonitoringConfig] = None,
-        api_key: Optional[str] = None,
-        project_name: Optional[str] = None,
+        trace_manager: TraceManager | None = None,
+        config: MonitoringConfig | None = None,
+        api_key: str | None = None,
+        project_name: str | None = None,
         auto_export: bool = False,
         export_interval: int = 60,
-    ):
+    ) -> None:
         """
         Initialize the LangSmith exporter.
 
         Args:
+        ----
             trace_manager: Trace manager to use
             config: Monitoring configuration
             api_key: LangSmith API key (overrides config)
             project_name: LangSmith project name (overrides config)
             auto_export: Whether to automatically export traces when completed
             export_interval: Interval in seconds for automatic export (if auto_export is True)
+
         """
         self.trace_manager = trace_manager
         self.config = config or MonitoringConfig()
@@ -76,10 +106,14 @@ class LangSmithExporter:
         # Initialize LangSmith client
         self.client = None
         self.api_key = (
-            api_key or self.config.langsmith_api_key or os.environ.get("LANGCHAIN_API_KEY")
+            api_key
+            or self.config.langsmith_api_key
+            or config_service.get_value("LANGCHAIN_API_KEY")
         )
         self.project_name = (
-            project_name or self.config.langsmith_project or os.environ.get("LANGCHAIN_PROJECT")
+            project_name
+            or self.config.langsmith_project
+            or config_service.get_value("LANGCHAIN_PROJECT")
         )
 
         # Auto-export settings
@@ -88,23 +122,33 @@ class LangSmithExporter:
         self.last_export_time = datetime.now()
         self.exported_trace_ids = set()
 
-        if LANGSMITH_AVAILABLE and self.api_key:
+        if self.api_key:
             try:
-                self.client = Client(api_key=self.api_key)
-                logger.info("LangSmith client initialized successfully")
+                # Ensure LangSmith is available
+                if LANGSMITH_AVAILABLE:
+                    # Get the Client class from the langsmith module
+                    client_class = Client
+                    if client_class is not None:
+                        self.client = client_class(api_key=self.api_key)
+                        logger.info("LangSmith client initialized successfully")
 
-                # Create project if it doesn't exist
-                if self.project_name and self.client:
-                    try:
-                        projects = self.client.list_projects()
-                        project_names = [p.name for p in projects]
-                        if self.project_name not in project_names:
-                            self.client.create_project(self.project_name)
-                            logger.info(f"Created LangSmith project: {self.project_name}")
-                    except Exception as e:
-                        logger.warning(f"Failed to create LangSmith project: {e}")
+                        # Create project if it doesn't exist
+                        if self.project_name and self.client:
+                            try:
+                                projects = self.client.list_projects()
+                                project_names = [p.name for p in projects]
+                                if self.project_name not in project_names:
+                                    self.client.create_project(self.project_name)
+                                    logger.info(f"Created LangSmith project: {self.project_name}")
+                            except Exception as e:
+                                logger.warning(f"Failed to create LangSmith project: {e}")
+                else:
+                    logger.warning(
+                        "LangSmith not installed. LangSmith export will not be available. "
+                        "Install LangSmith with: pip install saplings[langsmith]"
+                    )
             except Exception as e:
-                logger.error(f"Failed to initialize LangSmith client: {e}")
+                logger.exception(f"Failed to initialize LangSmith client: {e}")
 
         # Register with trace manager for auto-export if requested
         if self.auto_export and self.trace_manager:
@@ -112,25 +156,31 @@ class LangSmithExporter:
 
     def export_trace(
         self,
-        trace: Union[str, Trace],
-        project_name: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[str]:
+        trace: str | Trace,
+        project_name: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> str | None:
         """
         Export a trace to LangSmith.
 
         Args:
+        ----
             trace: Trace or trace ID to export
             project_name: LangSmith project name (overrides instance setting)
             tags: Tags to apply to the LangSmith run
             metadata: Additional metadata to include with the run
 
         Returns:
+        -------
             Optional[str]: LangSmith run ID if successful
+
         """
-        if not LANGSMITH_AVAILABLE:
-            logger.error("LangSmith not installed. Cannot export trace.")
+        try:
+            # Ensure LangSmith is available
+            _require_langsmith()
+        except ImportError as e:
+            logger.error(f"Cannot export trace: {e}")
             return None
 
         if not self.client:
@@ -157,7 +207,8 @@ class LangSmithExporter:
             return None
 
         # Add trace ID to exported traces set
-        self.exported_trace_ids.add(trace_obj.trace_id)
+        if trace_obj is not None:
+            self.exported_trace_ids.add(trace_obj.trace_id)
 
         try:
             # Convert trace to LangSmith format
@@ -201,15 +252,17 @@ class LangSmithExporter:
                 outputs["result"] = trace_obj.attributes["result"]
 
             # Prepare error information
-            error = None
+            error_info = None
             if trace_obj.status == "ERROR":
-                error = trace_obj.attributes.get("error", "Error occurred")
-                if isinstance(error, dict) and "message" in error:
-                    error = error["message"]
+                error_info = trace_obj.attributes.get("error", "Error occurred")
+                if isinstance(error_info, dict) and "message" in error_info:
+                    error_info = error_info["message"]
+                # Ensure error is a string
+                error_info = str(error_info) if error_info is not None else None
 
             # Combine provided metadata with trace attributes
             combined_metadata = {
-                "saplings_version": "0.1.0",  # TODO: Get actual version
+                "saplings_version": __version__,  # Use actual version from package
                 "trace_duration_ms": trace_obj.duration_ms(),
                 "span_count": len(trace_obj.spans),
                 **trace_obj.attributes,
@@ -227,7 +280,7 @@ class LangSmithExporter:
                 run_type=run_type,
                 inputs=inputs,
                 outputs=outputs,
-                error=error,
+                error=error_info,
                 start_time=trace_obj.start_time,
                 end_time=trace_obj.end_time or datetime.now(),
                 extra=combined_metadata,
@@ -239,23 +292,24 @@ class LangSmithExporter:
             logger.info(f"Exported trace {trace_obj.trace_id} to LangSmith run {run_id}")
             return run_id
         except Exception as e:
-            logger.error(f"Failed to export trace to LangSmith: {e}")
+            logger.exception(f"Failed to export trace to LangSmith: {e}")
             return None
 
     def export_traces(
         self,
-        trace_ids: Optional[List[str]] = None,
-        project_name: Optional[str] = None,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        trace_ids: list[str] | None = None,
+        project_name: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
         skip_exported: bool = True,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Export multiple traces to LangSmith.
 
         Args:
+        ----
             trace_ids: IDs of traces to export (all if not provided)
             project_name: LangSmith project name (overrides instance setting)
             start_time: Start time for filtering traces
@@ -265,7 +319,9 @@ class LangSmithExporter:
             skip_exported: Whether to skip traces that have already been exported
 
         Returns:
+        -------
             List[str]: List of LangSmith run IDs
+
         """
         if not self.trace_manager:
             logger.error("Trace manager not provided, cannot get traces")
@@ -283,7 +339,9 @@ class LangSmithExporter:
 
         # Filter out already exported traces if requested
         if skip_exported:
-            traces = [t for t in traces if t.trace_id not in self.exported_trace_ids]
+            traces = [
+                t for t in traces if t is not None and t.trace_id not in self.exported_trace_ids
+            ]
 
         if not traces:
             logger.info("No new traces to export")
@@ -292,11 +350,12 @@ class LangSmithExporter:
         # Export each trace
         run_ids = []
         for trace in traces:
-            run_id = self.export_trace(
-                trace, project_name=project_name, tags=tags, metadata=metadata
-            )
-            if run_id:
-                run_ids.append(run_id)
+            if trace is not None:
+                run_id = self.export_trace(
+                    trace, project_name=project_name, tags=tags, metadata=metadata
+                )
+                if run_id:
+                    run_ids.append(run_id)
 
         logger.info(f"Exported {len(run_ids)} traces to LangSmith")
         return run_ids
@@ -306,8 +365,10 @@ class LangSmithExporter:
         Callback for automatic trace export.
 
         Args:
+        ----
             trace_id: ID of the trace
             event: Event type (e.g., "created", "completed", "error")
+
         """
         if not self.auto_export:
             return
@@ -328,16 +389,24 @@ class LangSmithExporter:
         try:
             self.export_trace(trace_id)
         except Exception as e:
-            logger.error(f"Auto-export failed for trace {trace_id}: {e}")
+            logger.exception(f"Auto-export failed for trace {trace_id}: {e}")
 
-    def check_connection(self) -> bool:
+    def check_connection(self):
         """
         Check if the LangSmith connection is working.
 
-        Returns:
+        Returns
+        -------
             bool: True if connection is working, False otherwise
+
         """
-        if not LANGSMITH_AVAILABLE or not self.client:
+        try:
+            # Ensure LangSmith is available
+            _require_langsmith()
+        except ImportError:
+            return False
+
+        if not self.client:
             return False
 
         try:
@@ -345,10 +414,10 @@ class LangSmithExporter:
             self.client.list_projects()
             return True
         except Exception as e:
-            logger.error(f"LangSmith connection check failed: {e}")
+            logger.exception(f"LangSmith connection check failed: {e}")
             return False
 
-    def _convert_trace_to_langsmith(self, trace: Trace) -> List[Dict[str, Any]]:
+    def _convert_trace_to_langsmith(self, trace: Trace) -> list[dict[str, Any]]:
         """
         Convert a trace to LangSmith format.
 
@@ -357,10 +426,13 @@ class LangSmithExporter:
         determines the run type based on the span's component and attributes.
 
         Args:
+        ----
             trace: Trace to convert
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of LangSmith run dictionaries
+
         """
         runs = []
 
@@ -481,11 +553,13 @@ class LangSmithExporter:
             outputs["duration_ms"] = span.duration_ms()
 
             # Extract error information
-            error = None
+            error_info = None
             if span.status == "ERROR":
-                error = span.attributes.get("error", "Error occurred")
-                if isinstance(error, dict) and "message" in error:
-                    error = error["message"]
+                error_info = span.attributes.get("error", "Error occurred")
+                if isinstance(error_info, dict) and "message" in error_info:
+                    error_info = error_info["message"]
+                # Ensure error is a string
+                error_info = str(error_info) if error_info is not None else None
 
             # Create run dictionary
             run = {
@@ -494,7 +568,7 @@ class LangSmithExporter:
                 "run_type": run_type,
                 "inputs": inputs,
                 "outputs": outputs,
-                "error": error,
+                "error": error_info,
                 "start_time": span.start_time,
                 "end_time": span.end_time or datetime.now(),
                 "parent_run_id": span.parent_id,

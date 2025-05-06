@@ -1,14 +1,16 @@
+from __future__ import annotations
+
 """
 Message module for Saplings.
 
 This module defines the message classes used for communication with LLMs.
 """
 
+
 import base64
 import json
-import uuid
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -37,17 +39,19 @@ class FunctionDefinition(BaseModel):
 
     name: str = Field(..., description="Name of the function")
     description: str = Field(..., description="Description of the function")
-    parameters: Dict[str, Any] = Field(..., description="Parameters of the function")
-    required_parameters: List[str] = Field(
+    parameters: dict[str, Any] = Field(..., description="Parameters of the function")
+    required_parameters: list[str] = Field(
         default_factory=list, description="List of required parameter names"
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the function definition to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation of the function
+
         """
         return {
             "name": self.name,
@@ -60,15 +64,18 @@ class FunctionDefinition(BaseModel):
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "FunctionDefinition":
+    def from_dict(cls, data: dict[str, Any]) -> "FunctionDefinition":
         """
         Create a function definition from a dictionary.
 
         Args:
+        ----
             data: Dictionary representation of the function
 
         Returns:
+        -------
             FunctionDefinition: The function definition
+
         """
         parameters = data.get("parameters", {}).get("properties", {})
         required = data.get("parameters", {}).get("required", [])
@@ -85,15 +92,17 @@ class FunctionCall(BaseModel):
     """A function call made by a model."""
 
     name: str = Field(..., description="Name of the function to call")
-    arguments: Dict[str, Any] = Field(..., description="Arguments to pass to the function")
-    id: Optional[str] = Field(None, description="Unique identifier for the function call")
+    arguments: dict[str, Any] = Field(..., description="Arguments to pass to the function")
+    id: str | None = Field(None, description="Unique identifier for the function call")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the function call to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation of the function call
+
         """
         result = {
             "name": self.name,
@@ -104,15 +113,18 @@ class FunctionCall(BaseModel):
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "FunctionCall":
+    def from_dict(cls, data: dict[str, Any]) -> "FunctionCall":
         """
         Create a function call from a dictionary.
 
         Args:
+        ----
             data: Dictionary representation of the function call
 
         Returns:
+        -------
             FunctionCall: The function call
+
         """
         # Handle arguments that might be a JSON string
         arguments = data.get("arguments", {})
@@ -120,8 +132,9 @@ class FunctionCall(BaseModel):
             try:
                 arguments = json.loads(arguments)
             except json.JSONDecodeError:
-                # Keep as string if not valid JSON
-                pass
+                arguments = {}  # fallback to empty dict if not valid JSON
+        if not isinstance(arguments, dict):
+            arguments = {}
 
         return cls(
             name=data.get("name", ""),
@@ -134,33 +147,35 @@ class MessageContent(BaseModel):
     """Content of a message."""
 
     type: ContentType = Field(..., description="Type of content")
-    text: Optional[str] = Field(None, description="Text content (for TEXT type)")
-    image_url: Optional[str] = Field(None, description="URL of an image (for IMAGE type)")
-    image_data: Optional[bytes] = Field(None, description="Raw image data (for IMAGE type)")
-    audio_url: Optional[str] = Field(None, description="URL of an audio file (for AUDIO type)")
-    audio_data: Optional[bytes] = Field(None, description="Raw audio data (for AUDIO type)")
-    video_url: Optional[str] = Field(None, description="URL of a video file (for VIDEO type)")
-    video_data: Optional[bytes] = Field(None, description="Raw video data (for VIDEO type)")
+    text: str | None = Field(None, description="Text content (for TEXT type)")
+    image_url: str | None = Field(None, description="URL of an image (for IMAGE type)")
+    image_data: bytes | None = Field(None, description="Raw image data (for IMAGE type)")
+    audio_url: str | None = Field(None, description="URL of an audio file (for AUDIO type)")
+    audio_data: bytes | None = Field(None, description="Raw audio data (for AUDIO type)")
+    video_url: str | None = Field(None, description="URL of a video file (for VIDEO type)")
+    video_data: bytes | None = Field(None, description="Raw video data (for VIDEO type)")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the message content to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation of the content
+
         """
         if self.type == ContentType.TEXT:
             return {
                 "type": "text",
                 "text": self.text,
             }
-        elif self.type == ContentType.IMAGE:
+        if self.type == ContentType.IMAGE:
             if self.image_url:
                 return {
                     "type": "image_url",
                     "image_url": {"url": self.image_url},
                 }
-            elif self.image_data:
+            if self.image_data:
                 # Base64 encode the image data
                 b64_data = base64.b64encode(self.image_data).decode("utf-8")
                 return {
@@ -173,7 +188,7 @@ class MessageContent(BaseModel):
                     "type": "audio_url",
                     "audio_url": {"url": self.audio_url},
                 }
-            elif self.audio_data:
+            if self.audio_data:
                 # Base64 encode the audio data
                 b64_data = base64.b64encode(self.audio_data).decode("utf-8")
                 return {
@@ -186,7 +201,7 @@ class MessageContent(BaseModel):
                     "type": "video_url",
                     "video_url": {"url": self.video_url},
                 }
-            elif self.video_data:
+            if self.video_data:
                 # Base64 encode the video data
                 b64_data = base64.b64encode(self.video_data).decode("utf-8")
                 return {
@@ -197,15 +212,18 @@ class MessageContent(BaseModel):
         return {"type": self.type.value}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MessageContent":
+    def from_dict(cls, data: dict[str, Any]) -> "MessageContent":
         """
         Create message content from a dictionary.
 
         Args:
+        ----
             data: Dictionary representation of the content
 
         Returns:
+        -------
             MessageContent: The message content
+
         """
         content_type = data.get("type", "text")
 
@@ -213,48 +231,96 @@ class MessageContent(BaseModel):
             return cls(
                 type=ContentType.TEXT,
                 text=data.get("text", ""),
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
             )
-        elif content_type == "image_url":
+        if content_type == "image_url":
             image_url = data.get("image_url", {}).get("url", "")
             return cls(
                 type=ContentType.IMAGE,
+                text=None,
                 image_url=image_url,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
             )
-        elif content_type == "image":
+        if content_type == "image":
             # This is for backward compatibility
             return cls(
                 type=ContentType.IMAGE,
+                text=None,
                 image_url=data.get("url", ""),
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
             )
-        elif content_type == "audio_url":
+        if content_type == "audio_url":
             audio_url = data.get("audio_url", {}).get("url", "")
             return cls(
                 type=ContentType.AUDIO,
+                text=None,
+                image_url=None,
+                image_data=None,
                 audio_url=audio_url,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
             )
-        elif content_type == "audio":
+        if content_type == "audio":
             # This is for backward compatibility
             return cls(
                 type=ContentType.AUDIO,
+                text=None,
+                image_url=None,
+                image_data=None,
                 audio_url=data.get("url", ""),
+                audio_data=None,
+                video_url=None,
+                video_data=None,
             )
-        elif content_type == "video_url":
+        if content_type == "video_url":
             video_url = data.get("video_url", {}).get("url", "")
             return cls(
                 type=ContentType.VIDEO,
+                text=None,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
                 video_url=video_url,
+                video_data=None,
             )
-        elif content_type == "video":
+        if content_type == "video":
             # This is for backward compatibility
             return cls(
                 type=ContentType.VIDEO,
+                text=None,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
                 video_url=data.get("url", ""),
+                video_data=None,
             )
 
         # Default to text if unknown type
         return cls(
             type=ContentType.TEXT,
             text=str(data),
+            image_url=None,
+            image_data=None,
+            audio_url=None,
+            audio_data=None,
+            video_url=None,
+            video_data=None,
         )
 
 
@@ -262,36 +328,36 @@ class Message(BaseModel):
     """A message in a conversation."""
 
     role: MessageRole = Field(..., description="Role of the message sender")
-    content: Union[str, List[MessageContent], None] = Field(
-        None, description="Content of the message"
-    )
-    name: Optional[str] = Field(None, description="Name of the function (for FUNCTION role)")
-    function_call: Optional[FunctionCall] = Field(
+    content: str | list[MessageContent] | None = Field(None, description="Content of the message")
+    name: str | None = Field(None, description="Name of the function (for FUNCTION role)")
+    function_call: FunctionCall | None = Field(
         None, description="Function call (for ASSISTANT role)"
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the message to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation of the message
+
         """
         result = {"role": self.role.value}
 
         # Handle content
         if isinstance(self.content, str):
-            result["content"] = self.content
+            result["content"] = self.content or ""
         elif (
             isinstance(self.content, list)
             and len(self.content) == 1
             and self.content[0].type == ContentType.TEXT
         ):
             # Simple text content
-            result["content"] = self.content[0].text
+            result["content"] = self.content[0].text or ""
         elif isinstance(self.content, list) and self.content:
             # Complex content
-            result["content"] = [c.to_dict() for c in self.content]
+            result["content"] = json.dumps([c.to_dict() for c in self.content])
 
         # Add name for function messages
         if self.name:
@@ -299,20 +365,23 @@ class Message(BaseModel):
 
         # Add function call for assistant messages
         if self.function_call:
-            result["function_call"] = self.function_call.to_dict()
+            result["function_call"] = json.dumps(self.function_call.to_dict())
 
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Message":
+    def from_dict(cls, data: dict[str, Any]) -> "Message":
         """
         Create a message from a dictionary.
 
         Args:
+        ----
             data: Dictionary representation of the message
 
         Returns:
+        -------
             Message: The message
+
         """
         role = data.get("role", "user")
         content = data.get("content")
@@ -345,41 +414,52 @@ class Message(BaseModel):
         Create a system message.
 
         Args:
+        ----
             content: Content of the message
 
         Returns:
+        -------
             Message: The system message
+
         """
-        return cls(role=MessageRole.SYSTEM, content=content)
+        return cls(role=MessageRole.SYSTEM, content=content, name=None, function_call=None)
 
     @classmethod
-    def user(cls, content: Union[str, List[MessageContent]]) -> "Message":
+    def user(cls, content: str | list[MessageContent]) -> "Message":
         """
         Create a user message.
 
         Args:
+        ----
             content: Content of the message
 
         Returns:
+        -------
             Message: The user message
+
         """
-        return cls(role=MessageRole.USER, content=content)
+        return cls(role=MessageRole.USER, content=content, name=None, function_call=None)
 
     @classmethod
     def assistant(
-        cls, content: Optional[str] = None, function_call: Optional[FunctionCall] = None
+        cls, content: str | None = None, function_call: FunctionCall | None = None
     ) -> "Message":
         """
         Create an assistant message.
 
         Args:
+        ----
             content: Content of the message
             function_call: Function call
 
         Returns:
+        -------
             Message: The assistant message
+
         """
-        return cls(role=MessageRole.ASSISTANT, content=content, function_call=function_call)
+        return cls(
+            role=MessageRole.ASSISTANT, content=content, name=None, function_call=function_call
+        )
 
     @classmethod
     def function(cls, name: str, content: str) -> "Message":
@@ -387,13 +467,16 @@ class Message(BaseModel):
         Create a function message.
 
         Args:
+        ----
             name: Name of the function
             content: Content of the message (function result)
 
         Returns:
+        -------
             Message: The function message
+
         """
-        return cls(role=MessageRole.FUNCTION, content=content, name=name)
+        return cls(role=MessageRole.FUNCTION, content=content, name=name, function_call=None)
 
     @classmethod
     def tool(cls, name: str, content: str) -> "Message":
@@ -401,13 +484,16 @@ class Message(BaseModel):
         Create a tool message.
 
         Args:
+        ----
             name: Name of the tool
             content: Content of the message (tool result)
 
         Returns:
+        -------
             Message: The tool message
+
         """
-        return cls(role=MessageRole.TOOL, content=content, name=name)
+        return cls(role=MessageRole.TOOL, content=content, name=name, function_call=None)
 
     @classmethod
     def with_image(cls, text: str, image_url: str) -> "Message":
@@ -415,17 +501,38 @@ class Message(BaseModel):
         Create a user message with text and an image.
 
         Args:
+        ----
             text: Text content
             image_url: URL of the image
 
         Returns:
+        -------
             Message: The user message with text and image
+
         """
         content = [
-            MessageContent(type=ContentType.TEXT, text=text),
-            MessageContent(type=ContentType.IMAGE, image_url=image_url),
+            MessageContent(
+                type=ContentType.TEXT,
+                text=text,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
+            ),
+            MessageContent(
+                type=ContentType.IMAGE,
+                text=None,
+                image_url=image_url,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
+            ),
         ]
-        return cls(role=MessageRole.USER, content=content)
+        return cls(role=MessageRole.USER, content=content, name=None, function_call=None)
 
     @classmethod
     def with_image_data(cls, text: str, image_data: bytes) -> "Message":
@@ -433,17 +540,38 @@ class Message(BaseModel):
         Create a user message with text and image data.
 
         Args:
+        ----
             text: Text content
             image_data: Raw image data
 
         Returns:
+        -------
             Message: The user message with text and image
+
         """
         content = [
-            MessageContent(type=ContentType.TEXT, text=text),
-            MessageContent(type=ContentType.IMAGE, image_data=image_data),
+            MessageContent(
+                type=ContentType.TEXT,
+                text=text,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
+            ),
+            MessageContent(
+                type=ContentType.IMAGE,
+                text=None,
+                image_url=None,
+                image_data=image_data,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
+            ),
         ]
-        return cls(role=MessageRole.USER, content=content)
+        return cls(role=MessageRole.USER, content=content, name=None, function_call=None)
 
     @classmethod
     def with_audio(cls, text: str, audio_url: str) -> "Message":
@@ -451,17 +579,38 @@ class Message(BaseModel):
         Create a user message with text and an audio file.
 
         Args:
+        ----
             text: Text content
             audio_url: URL of the audio file
 
         Returns:
+        -------
             Message: The user message with text and audio
+
         """
         content = [
-            MessageContent(type=ContentType.TEXT, text=text),
-            MessageContent(type=ContentType.AUDIO, audio_url=audio_url),
+            MessageContent(
+                type=ContentType.TEXT,
+                text=text,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
+            ),
+            MessageContent(
+                type=ContentType.AUDIO,
+                text=None,
+                image_url=None,
+                image_data=None,
+                audio_url=audio_url,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
+            ),
         ]
-        return cls(role=MessageRole.USER, content=content)
+        return cls(role=MessageRole.USER, content=content, name=None, function_call=None)
 
     @classmethod
     def with_audio_data(cls, text: str, audio_data: bytes) -> "Message":
@@ -469,17 +618,38 @@ class Message(BaseModel):
         Create a user message with text and audio data.
 
         Args:
+        ----
             text: Text content
             audio_data: Raw audio data
 
         Returns:
+        -------
             Message: The user message with text and audio
+
         """
         content = [
-            MessageContent(type=ContentType.TEXT, text=text),
-            MessageContent(type=ContentType.AUDIO, audio_data=audio_data),
+            MessageContent(
+                type=ContentType.TEXT,
+                text=text,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
+            ),
+            MessageContent(
+                type=ContentType.AUDIO,
+                text=None,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=audio_data,
+                video_url=None,
+                video_data=None,
+            ),
         ]
-        return cls(role=MessageRole.USER, content=content)
+        return cls(role=MessageRole.USER, content=content, name=None, function_call=None)
 
     @classmethod
     def with_video(cls, text: str, video_url: str) -> "Message":
@@ -487,17 +657,38 @@ class Message(BaseModel):
         Create a user message with text and a video file.
 
         Args:
+        ----
             text: Text content
             video_url: URL of the video file
 
         Returns:
+        -------
             Message: The user message with text and video
+
         """
         content = [
-            MessageContent(type=ContentType.TEXT, text=text),
-            MessageContent(type=ContentType.VIDEO, video_url=video_url),
+            MessageContent(
+                type=ContentType.TEXT,
+                text=text,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
+            ),
+            MessageContent(
+                type=ContentType.VIDEO,
+                text=None,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=video_url,
+                video_data=None,
+            ),
         ]
-        return cls(role=MessageRole.USER, content=content)
+        return cls(role=MessageRole.USER, content=content, name=None, function_call=None)
 
     @classmethod
     def with_video_data(cls, text: str, video_data: bytes) -> "Message":
@@ -505,14 +696,35 @@ class Message(BaseModel):
         Create a user message with text and video data.
 
         Args:
+        ----
             text: Text content
             video_data: Raw video data
 
         Returns:
+        -------
             Message: The user message with text and video
+
         """
         content = [
-            MessageContent(type=ContentType.TEXT, text=text),
-            MessageContent(type=ContentType.VIDEO, video_data=video_data),
+            MessageContent(
+                type=ContentType.TEXT,
+                text=text,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=None,
+            ),
+            MessageContent(
+                type=ContentType.VIDEO,
+                text=None,
+                image_url=None,
+                image_data=None,
+                audio_url=None,
+                audio_data=None,
+                video_url=None,
+                video_data=video_data,
+            ),
         ]
-        return cls(role=MessageRole.USER, content=content)
+        return cls(role=MessageRole.USER, content=content, name=None, function_call=None)

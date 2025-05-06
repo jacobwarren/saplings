@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 """
 Adapter manager module for Saplings.
 
 This module provides the AdapterManager class for managing LoRA adapters.
 """
+
 
 import json
 import logging
@@ -11,7 +14,7 @@ import shutil
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from saplings.self_heal.lora_tuning import LoRaTrainer
 
@@ -37,8 +40,8 @@ class AdapterMetadata:
     created_at: str
     success_rate: float
     priority: AdapterPriority
-    error_types: List[str]
-    tags: List[str]
+    error_types: list[str]
+    tags: list[str]
 
     def __post_init__(self):
         """Initialize default values and convert types."""
@@ -56,13 +59,15 @@ class Adapter:
         self,
         path: str,
         metadata: AdapterMetadata,
-    ):
+    ) -> None:
         """
         Initialize the adapter.
 
         Args:
+        ----
             path: Path to the adapter
             metadata: Metadata for the adapter
+
         """
         self.path = path
         self.metadata = metadata
@@ -73,10 +78,13 @@ class Adapter:
         Load the adapter.
 
         Args:
+        ----
             model_name: Name of the base model
 
         Returns:
+        -------
             Any: Loaded model with the adapter
+
         """
         try:
             # Create a LoRaTrainer to load the model
@@ -92,10 +100,10 @@ class Adapter:
 
             return self.model
         except Exception as e:
-            logger.error(f"Error loading adapter {self.metadata.adapter_id}: {e}")
+            logger.exception(f"Error loading adapter {self.metadata.adapter_id}: {e}")
             return None
 
-    def unload(self) -> None:
+    def unload(self):
         """Unload the adapter."""
         self.model = None
 
@@ -111,28 +119,43 @@ class AdapterManager:
 
     def __init__(
         self,
-        model_name: str,
-        adapters_dir: str,
-    ):
+        model=None,
+        model_name: str | None = None,
+        adapter_dir: str | None = None,
+        adapters_dir: str | None = None,
+    ) -> None:
         """
         Initialize the adapter manager.
 
         Args:
-            model_name: Name of the base model
-            adapters_dir: Directory to store adapters
+        ----
+            model: The model instance (optional)
+            model_name: Name of the base model (optional)
+            adapter_dir: Directory to store adapters (new parameter name)
+            adapters_dir: Directory to store adapters (legacy parameter name)
+
         """
-        self.model_name = model_name
-        self.adapters_dir = adapters_dir
-        self.adapters: Dict[str, Adapter] = {}
-        self.active_adapter: Optional[str] = None
+        # Handle model parameter
+        if model is not None:
+            # Extract model_name from model if provided
+            self.model_name = getattr(model, "name", None) or getattr(
+                model, "model_name", "unknown_model"
+            )
+        else:
+            self.model_name = model_name or "unknown_model"
+
+        # Handle directory parameter
+        self.adapters_dir = adapter_dir or adapters_dir or "adapters"
+        self.adapters: dict[str, Adapter] = {}
+        self.active_adapter: str | None = None
 
         # Create the adapters directory if it doesn't exist
-        os.makedirs(adapters_dir, exist_ok=True)
+        os.makedirs(self.adapters_dir, exist_ok=True)
 
         # Load existing adapters
         self.load_adapters()
 
-    def load_adapters(self) -> None:
+    def load_adapters(self):
         """Load adapters from the adapters directory."""
         # Get all subdirectories in the adapters directory
         for adapter_id in os.listdir(self.adapters_dir):
@@ -150,7 +173,7 @@ class AdapterManager:
 
             # Load metadata
             try:
-                with open(metadata_path, "r") as f:
+                with open(metadata_path) as f:
                     metadata_dict = json.load(f)
 
                 # Create metadata object
@@ -167,15 +190,17 @@ class AdapterManager:
 
                 logger.info(f"Loaded adapter {adapter_id} from {adapter_path}")
             except Exception as e:
-                logger.error(f"Error loading adapter {adapter_id}: {e}")
+                logger.exception(f"Error loading adapter {adapter_id}: {e}")
 
     def register_adapter(self, path: str, metadata: AdapterMetadata) -> None:
         """
         Register an adapter.
 
         Args:
+        ----
             path: Path to the adapter
             metadata: Metadata for the adapter
+
         """
         # Create adapter
         adapter = Adapter(
@@ -193,15 +218,18 @@ class AdapterManager:
 
         logger.info(f"Registered adapter {metadata.adapter_id} at {path}")
 
-    def get_adapter(self, adapter_id: str) -> Optional[Adapter]:
+    def get_adapter(self, adapter_id: str) -> Adapter | None:
         """
         Get an adapter by ID.
 
         Args:
+        ----
             adapter_id: ID of the adapter
 
         Returns:
+        -------
             Optional[Adapter]: The adapter, or None if not found
+
         """
         return self.adapters.get(adapter_id)
 
@@ -210,10 +238,13 @@ class AdapterManager:
         Activate an adapter.
 
         Args:
+        ----
             adapter_id: ID of the adapter to activate
 
         Returns:
+        -------
             bool: Whether the adapter was activated
+
         """
         # Check if adapter exists
         adapter = self.get_adapter(adapter_id)
@@ -238,7 +269,7 @@ class AdapterManager:
 
         return True
 
-    def deactivate_adapter(self) -> None:
+    def deactivate_adapter(self):
         """Deactivate the current adapter."""
         if not self.active_adapter:
             return
@@ -254,16 +285,19 @@ class AdapterManager:
 
         logger.info("Deactivated adapter")
 
-    def update_adapter_metadata(self, adapter_id: str, metadata_dict: Dict[str, Any]) -> bool:
+    def update_adapter_metadata(self, adapter_id: str, metadata_dict: dict[str, Any]) -> bool:
         """
         Update adapter metadata.
 
         Args:
+        ----
             adapter_id: ID of the adapter
             metadata_dict: Dictionary with metadata fields to update
 
         Returns:
+        -------
             bool: Whether the metadata was updated
+
         """
         # Check if adapter exists
         adapter = self.get_adapter(adapter_id)
@@ -285,15 +319,18 @@ class AdapterManager:
 
         return True
 
-    def find_adapters_for_error(self, error_type: str) -> List[Adapter]:
+    def find_adapters_for_error(self, error_type: str) -> list[Adapter]:
         """
         Find adapters for a specific error type.
 
         Args:
+        ----
             error_type: Type of error
 
         Returns:
+        -------
             List[Adapter]: List of adapters that can handle the error
+
         """
         matching_adapters = []
 
@@ -319,7 +356,9 @@ class AdapterManager:
         Prune underperforming adapters.
 
         Args:
+        ----
             min_success_rate: Minimum success rate to keep an adapter
+
         """
         adapters_to_remove = []
 
@@ -340,10 +379,13 @@ class AdapterManager:
         Remove an adapter.
 
         Args:
+        ----
             adapter_id: ID of the adapter to remove
 
         Returns:
+        -------
             bool: Whether the adapter was removed
+
         """
         # Check if adapter exists
         adapter = self.get_adapter(adapter_id)
@@ -364,7 +406,7 @@ class AdapterManager:
             logger.info(f"Removed adapter {adapter_id}")
             return True
         except Exception as e:
-            logger.error(f"Error removing adapter {adapter_id}: {e}")
+            logger.exception(f"Error removing adapter {adapter_id}: {e}")
             return False
 
     def process_judge_feedback(self, score: float, feedback: str) -> None:
@@ -372,8 +414,10 @@ class AdapterManager:
         Process feedback from JudgeAgent.
 
         Args:
+        ----
             score: Score from JudgeAgent
             feedback: Feedback from JudgeAgent
+
         """
         if not self.active_adapter:
             logger.warning("No active adapter to process feedback for")

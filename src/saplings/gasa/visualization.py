@@ -1,37 +1,43 @@
+from __future__ import annotations
+
 """
 Visualization module for Graph-Aligned Sparse Attention (GASA).
 
 This module provides visualization utilities for debugging attention masks.
 """
 
+
 import json
 import logging
 import os
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Union, cast
 
 import numpy as np
-import scipy.sparse as sp
 
 from saplings.gasa.config import GASAConfig
 from saplings.gasa.mask_builder import MaskFormat, MaskType
 
+if TYPE_CHECKING:
+    import scipy.sparse as sp
+
 logger = logging.getLogger(__name__)
 
 try:
-    import matplotlib.colors as mcolors
+    import matplotlib  # noqa: F401
     import matplotlib.pyplot as plt
+    from matplotlib import cm
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
-    # Create dummy plt for type hints
+    # Create dummy modules for type hints
     class DummyModule:
-        def __getattr__(self, name):
+        def __getattr__(self, _name: str) -> Any:
             return None
 
     plt = DummyModule()
+    cm = DummyModule()
 
 
 class MaskVisualizer:
@@ -43,15 +49,47 @@ class MaskVisualizer:
 
     def __init__(
         self,
-        config: Optional[GASAConfig] = None,
-    ):
+        config: GASAConfig | None = None,
+    ) -> None:
         """
         Initialize the mask visualizer.
 
         Args:
+        ----
             config: GASA configuration
+
         """
-        self.config = config or GASAConfig()
+        # Use provided config or create a default one with explicit values
+        if config is None:
+            from saplings.gasa.config import FallbackStrategy, MaskStrategy
+
+            self.config = GASAConfig(
+                enabled=True,  # Default GASA settings for visualization context
+                max_hops=2,
+                mask_strategy=MaskStrategy.BINARY,
+                fallback_strategy=FallbackStrategy.BLOCK_DIAGONAL,
+                global_tokens=["[CLS]", "[SEP]", "<s>", "</s>", "[SUM]"],
+                summary_token="[SUM]",
+                add_summary_token=True,
+                block_size=512,
+                overlap=64,
+                soft_mask_temperature=0.1,
+                cache_masks=False,  # Caching not relevant for visualizer itself
+                cache_dir=None,
+                visualize=True,  # Default to visualize=True contextually
+                visualization_dir=None,
+                enable_shadow_model=False,
+                shadow_model_name="Qwen/Qwen3-1.8B",  # Match default from config.py
+                shadow_model_device="cpu",
+                shadow_model_cache_dir=None,
+                enable_prompt_composer=False,
+                focus_tags=False,
+                core_tag="[CORE_CTX]",
+                near_tag="[NEAR_CTX]",
+                summary_tag="[SUMMARY_CTX]",
+            )
+        else:
+            self.config = config
 
         if not MATPLOTLIB_AVAILABLE:
             logger.warning(
@@ -61,20 +99,21 @@ class MaskVisualizer:
 
     def visualize_mask(
         self,
-        mask: Union[np.ndarray, sp.spmatrix, List[Dict[str, Any]]],
+        mask: np.ndarray | sp.spmatrix | list[dict[str, Any]],
         format: MaskFormat,
         mask_type: MaskType,
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
-        token_labels: Optional[List[str]] = None,
-        highlight_tokens: Optional[List[int]] = None,
-        figsize: Tuple[int, int] = (10, 10),
-    ) -> Optional[Any]:
+        token_labels: list[str] | None = None,
+        highlight_tokens: list[int] | None = None,
+        figsize: tuple[int, int] = (10, 10),
+    ) -> Any | None:
         """
         Visualize an attention mask.
 
         Args:
+        ----
             mask: Attention mask
             format: Format of the mask
             mask_type: Type of attention mask
@@ -86,7 +125,9 @@ class MaskVisualizer:
             figsize: Figure size
 
         Returns:
+        -------
             Optional[plt.Figure]: Figure if matplotlib is available
+
         """
         if not MATPLOTLIB_AVAILABLE:
             logger.warning("Matplotlib not installed. Cannot visualize mask.")
@@ -105,7 +146,7 @@ class MaskVisualizer:
             ax.set_title(f"Attention Mask ({mask_type.value})")
 
         # Create colormap
-        cmap = plt.cm.Blues
+        cmap = cm.get_cmap("Blues")
 
         # Plot mask
         im = ax.imshow(dense_mask, cmap=cmap, interpolation="nearest")
@@ -167,18 +208,19 @@ class MaskVisualizer:
 
     def visualize_mask_sparsity(
         self,
-        mask: Union[np.ndarray, sp.spmatrix, List[Dict[str, Any]]],
+        mask: np.ndarray | sp.spmatrix | list[dict[str, Any]],
         format: MaskFormat,
         mask_type: MaskType,
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
-        figsize: Tuple[int, int] = (10, 5),
-    ) -> Optional[Any]:
+        figsize: tuple[int, int] = (10, 5),
+    ) -> Any | None:
         """
         Visualize the sparsity of an attention mask.
 
         Args:
+        ----
             mask: Attention mask
             format: Format of the mask
             mask_type: Type of attention mask
@@ -188,7 +230,9 @@ class MaskVisualizer:
             figsize: Figure size
 
         Returns:
+        -------
             Optional[plt.Figure]: Figure if matplotlib is available
+
         """
         if not MATPLOTLIB_AVAILABLE:
             logger.warning("Matplotlib not installed. Cannot visualize mask sparsity.")
@@ -246,18 +290,19 @@ class MaskVisualizer:
 
     def visualize_mask_comparison(
         self,
-        masks: List[
-            Tuple[Union[np.ndarray, sp.spmatrix, List[Dict[str, Any]]], MaskFormat, MaskType, str]
+        masks: list[
+            tuple[np.ndarray | sp.spmatrix | list[dict[str, Any]], MaskFormat, MaskType, str]
         ],
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
-        figsize: Tuple[int, int] = (15, 10),
-    ) -> Optional[Any]:
+        figsize: tuple[int, int] = (15, 10),
+    ) -> Any | None:
         """
         Visualize a comparison of multiple attention masks.
 
         Args:
+        ----
             masks: List of (mask, format, type, label) tuples
             output_path: Path to save the visualization
             title: Title for the visualization
@@ -265,7 +310,9 @@ class MaskVisualizer:
             figsize: Figure size
 
         Returns:
+        -------
             Optional[plt.Figure]: Figure if matplotlib is available
+
         """
         if not MATPLOTLIB_AVAILABLE:
             logger.warning("Matplotlib not installed. Cannot visualize mask comparison.")
@@ -279,17 +326,17 @@ class MaskVisualizer:
         if title:
             fig.suptitle(title, fontsize=16)
 
-        # Convert to single axis if only one mask
+        # Ensure axes is always iterable, even for a single subplot
         if n_masks == 1:
             axes = [axes]
 
         # Plot each mask
-        for i, (mask, format, mask_type, label) in enumerate(masks):
+        for i, (mask, format, _mask_type, label) in enumerate(masks):
             # Convert mask to dense format
             dense_mask = self._convert_to_dense(mask, format)
 
             # Plot mask
-            im = axes[i].imshow(dense_mask, cmap=plt.cm.Blues, interpolation="nearest")
+            im = axes[i].imshow(dense_mask, cmap=cm.get_cmap("Blues"), interpolation="nearest")
 
             # Set title
             axes[i].set_title(label)
@@ -302,7 +349,7 @@ class MaskVisualizer:
             axes[i].set_yticks([])
 
         # Tight layout
-        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        plt.tight_layout(rect=(0, 0, 1, 0.95))
 
         # Save figure
         if output_path:
@@ -321,26 +368,84 @@ class MaskVisualizer:
 
     def _convert_to_dense(
         self,
-        mask: Union[np.ndarray, sp.spmatrix, List[Dict[str, Any]]],
+        mask: np.ndarray | sp.spmatrix | list[dict[str, Any]],
         format: MaskFormat,
     ) -> np.ndarray:
         """
         Convert a mask to dense format.
 
         Args:
+        ----
             mask: Attention mask
             format: Format of the mask
 
         Returns:
+        -------
             np.ndarray: Dense mask
+
         """
         if format == MaskFormat.DENSE:
-            return mask
+            if not isinstance(mask, np.ndarray):
+                logger.warning(
+                    f"Expected np.ndarray for DENSE format, got {type(mask)}. Attempting conversion."
+                )
+            # Ensure it's a numpy array
+            return np.asarray(mask, dtype=np.int32)
 
-        elif format == MaskFormat.SPARSE:
-            return mask.toarray()
+        if format == MaskFormat.SPARSE:
+            # Handle sparse matrices
+            import scipy.sparse as sp_local  # Use local import to avoid top-level dependency if matplotlib fails
 
-        elif format == MaskFormat.BLOCK_SPARSE:
+            if not isinstance(mask, sp_local.spmatrix):
+                logger.warning(
+                    f"Expected sp.spmatrix for SPARSE format, got {type(mask)}. Attempting conversion."
+                )
+                # Attempt conversion, might fail if not convertible
+                try:
+                    mask = sp_local.csr_matrix(mask)
+                except Exception as e:
+                    logger.error(f"Failed to convert mask to sparse matrix: {e}")
+                    # Return empty array as fallback
+                    return np.zeros((0, 0), dtype=np.int32)
+
+            # Handle known sparse types with toarray
+            if isinstance(mask, (sp_local.csr_matrix, sp_local.csc_matrix, sp_local.coo_matrix)):
+                known_sparse_mask = cast(
+                    "Union[sp_local.csr_matrix, sp_local.csc_matrix, sp_local.coo_matrix]", mask
+                )
+                return np.asarray(known_sparse_mask.toarray(), dtype=np.int32)
+
+            # Fallback for other sparse types (less common)
+            logger.warning(
+                f"Attempting conversion for potentially unsupported sparse matrix type: {type(mask)}. Using toarray() if available."
+            )
+            if hasattr(mask, "toarray"):
+                # Attempt to call toarray directly if it exists
+                try:
+                    # Cast mask to Any to satisfy Pylance before calling toarray
+                    return np.asarray(cast("Any", mask).toarray(), dtype=np.int32)
+                except Exception as toarray_error:
+                    logger.error(f"Calling toarray failed for {type(mask)}: {toarray_error}")
+
+            # Last resort: direct conversion (might fail)
+            logger.warning(
+                f"No standard conversion method found for {type(mask)}. Attempting direct np.array conversion."
+            )
+            try:
+                return np.asarray(np.array(mask), dtype=np.int32)
+            except Exception as direct_conversion_error:
+                logger.error(
+                    f"Direct conversion failed for {type(mask)}: {direct_conversion_error}"
+                )
+                shape = mask.shape if hasattr(mask, "shape") else (0, 0)
+                return np.zeros(shape, dtype=np.int32)  # Return empty on failure
+
+        if format == MaskFormat.BLOCK_SPARSE:
+            # Ensure mask is a list of dictionaries
+            if not isinstance(mask, list):
+                msg = f"Block sparse mask must be a list of dictionaries, got {type(mask)}"
+                raise TypeError(msg)
+
             # Determine mask dimensions
             max_row = max(block["row"] + block["size_row"] for block in mask)
             max_col = max(block["col"] + block["size_col"] for block in mask)
@@ -360,23 +465,26 @@ class MaskVisualizer:
 
             return dense_mask
 
-        else:
-            raise ValueError(f"Unsupported format: {format}")
+        msg = f"Unsupported format: {format}"
+        raise ValueError(msg)
 
     def calculate_mask_statistics(
         self,
-        mask: Union[np.ndarray, sp.spmatrix, List[Dict[str, Any]]],
+        mask: np.ndarray | sp.spmatrix | list[dict[str, Any]],
         format: MaskFormat,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Calculate statistics for an attention mask.
 
         Args:
+        ----
             mask: Attention mask
             format: Format of the mask
 
         Returns:
+        -------
             Dict[str, Any]: Mask statistics
+
         """
         # Convert mask to dense format
         dense_mask = self._convert_to_dense(mask, format)
@@ -415,15 +523,17 @@ class MaskVisualizer:
 
     def save_statistics(
         self,
-        statistics: Dict[str, Any],
+        statistics: dict[str, Any],
         output_path: str,
     ) -> None:
         """
         Save mask statistics to disk.
 
         Args:
+        ----
             statistics: Mask statistics
             output_path: Path to save the statistics
+
         """
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(output_path), exist_ok=True)

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Utility module for manually registering Saplings plugins.
 
@@ -11,7 +13,9 @@ Example:
 
     # Or run as a script
     python -m saplings.plugins.register
+
 """
+
 
 from saplings.core.plugin import register_plugin
 from saplings.plugins.indexers.code_indexer import CodeIndexer
@@ -31,8 +35,6 @@ def register_all_plugins():
 
     # Register indexer plugins
     register_plugin(CodeIndexer)
-
-    print("All plugins registered successfully!")
 
 
 if __name__ == "__main__":

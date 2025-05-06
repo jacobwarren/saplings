@@ -1,13 +1,15 @@
+from __future__ import annotations
+
 """
 Function authorization module for Saplings.
 
 This module provides utilities for authorizing function calls.
 """
 
+
 import functools
 import logging
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 from saplings.core.function_registry import function_registry
 
@@ -26,10 +28,10 @@ class AuthorizationLevel(Enum):
 class FunctionAuthorizer:
     """Utility for authorizing function calls."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the function authorizer."""
-        self._function_levels: Dict[str, AuthorizationLevel] = {}
-        self._function_groups: Dict[str, AuthorizationLevel] = {}
+        self._function_levels: dict[str, AuthorizationLevel] = {}
+        self._function_groups: dict[str, AuthorizationLevel] = {}
         self._current_level = AuthorizationLevel.PUBLIC
 
     def set_function_level(self, name: str, level: AuthorizationLevel) -> None:
@@ -37,8 +39,10 @@ class FunctionAuthorizer:
         Set the authorization level for a function.
 
         Args:
+        ----
             name: Name of the function
             level: Authorization level
+
         """
         self._function_levels[name] = level
         logger.debug(f"Set authorization level for function {name} to {level.name}")
@@ -48,8 +52,10 @@ class FunctionAuthorizer:
         Set the authorization level for a function group.
 
         Args:
+        ----
             group: Name of the group
             level: Authorization level
+
         """
         self._function_groups[group] = level
         logger.debug(f"Set authorization level for group {group} to {level.name}")
@@ -59,7 +65,9 @@ class FunctionAuthorizer:
         Set the current authorization level.
 
         Args:
+        ----
             level: Authorization level
+
         """
         self._current_level = level
         logger.debug(f"Set current authorization level to {level.name}")
@@ -69,10 +77,13 @@ class FunctionAuthorizer:
         Get the authorization level for a function.
 
         Args:
+        ----
             name: Name of the function
 
         Returns:
+        -------
             AuthorizationLevel: Authorization level
+
         """
         # Check if the function has a specific level
         if name in self._function_levels:
@@ -93,10 +104,13 @@ class FunctionAuthorizer:
         Check if the current level is authorized to call a function.
 
         Args:
+        ----
             name: Name of the function
 
         Returns:
+        -------
             bool: True if authorized, False otherwise
+
         """
         function_level = self.get_function_level(name)
         return self._current_level.value >= function_level.value
@@ -106,25 +120,31 @@ class FunctionAuthorizer:
         Authorize a function call.
 
         Args:
+        ----
             name: Name of the function
 
         Raises:
+        ------
             PermissionError: If not authorized
+
         """
         if not self.is_authorized(name):
             function_level = self.get_function_level(name)
-            raise PermissionError(
+            msg = (
                 f"Not authorized to call function {name}. "
                 f"Required level: {function_level.name}, "
                 f"Current level: {self._current_level.name}"
             )
+            raise PermissionError(msg)
 
-    def get_authorized_functions(self) -> List[str]:
+    def get_authorized_functions(self):
         """
         Get a list of authorized functions.
 
-        Returns:
+        Returns
+        -------
             List[str]: List of authorized function names
+
         """
         authorized = []
 
@@ -135,12 +155,14 @@ class FunctionAuthorizer:
 
         return authorized
 
-    def get_authorized_groups(self) -> List[str]:
+    def get_authorized_groups(self):
         """
         Get a list of authorized function groups.
 
-        Returns:
+        Returns
+        -------
             List[str]: List of authorized group names
+
         """
         authorized = []
 
@@ -161,10 +183,13 @@ def requires_level(level: AuthorizationLevel):
     Decorator for requiring an authorization level.
 
     Args:
+    ----
         level: Required authorization level
 
     Returns:
+    -------
         Callable: Decorated function
+
     """
 
     def decorator(func):
@@ -189,7 +214,9 @@ def set_current_level(level: AuthorizationLevel) -> None:
     Set the current authorization level.
 
     Args:
+    ----
         level: Authorization level
+
     """
     function_authorizer.set_current_level(level)
 
@@ -199,8 +226,10 @@ def set_function_level(name: str, level: AuthorizationLevel) -> None:
     Set the authorization level for a function.
 
     Args:
+    ----
         name: Name of the function
         level: Authorization level
+
     """
     function_authorizer.set_function_level(name, level)
 
@@ -210,27 +239,33 @@ def set_group_level(group: str, level: AuthorizationLevel) -> None:
     Set the authorization level for a function group.
 
     Args:
+    ----
         group: Name of the group
         level: Authorization level
+
     """
     function_authorizer.set_group_level(group, level)
 
 
-def get_authorized_functions() -> List[str]:
+def get_authorized_functions():
     """
     Get a list of authorized functions.
 
-    Returns:
+    Returns
+    -------
         List[str]: List of authorized function names
+
     """
     return function_authorizer.get_authorized_functions()
 
 
-def get_authorized_groups() -> List[str]:
+def get_authorized_groups():
     """
     Get a list of authorized function groups.
 
-    Returns:
+    Returns
+    -------
         List[str]: List of authorized group names
+
     """
     return function_authorizer.get_authorized_groups()

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 FactualValidator plugin for Saplings.
 
@@ -5,14 +7,18 @@ This module provides a validator for checking factual accuracy of outputs
 against reference documents.
 """
 
+
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from saplings.core.plugin import PluginType
-from saplings.memory.document import Document
 from saplings.retrieval import CascadeRetriever, RetrievalConfig
-from saplings.validator.validator import RuntimeValidator, ValidationResult, ValidationStatus
+from saplings.validator.result import ValidationResult, ValidationStatus
+from saplings.validator.validator import RuntimeValidator
+
+if TYPE_CHECKING:
+    from saplings.memory.document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +30,7 @@ class FactualValidator(RuntimeValidator):
     This validator checks outputs for factual accuracy against reference documents.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the factual validator."""
         self.retriever = None
 
@@ -53,20 +59,23 @@ class FactualValidator(RuntimeValidator):
         """Type of the plugin."""
         return PluginType.VALIDATOR
 
-    async def validate_output(self, output: str, prompt: str, **kwargs) -> ValidationResult:
+    async def validate_output(self, output: str, _prompt: str, **kwargs) -> ValidationResult:
         """
         Validate an output for factual accuracy.
 
         Args:
+        ----
             output: Output to validate
-            prompt: Prompt that generated the output
+            _prompt: Prompt that generated the output (unused)
             **kwargs: Additional validation parameters
                 - memory_store: MemoryStore to use for retrieval
                 - threshold: Similarity threshold for factual validation
                 - max_statements: Maximum number of statements to check
 
         Returns:
+        -------
             ValidationResult: Validation result
+
         """
         # Get memory store from kwargs
         memory_store = kwargs.get("memory_store")
@@ -80,10 +89,11 @@ class FactualValidator(RuntimeValidator):
 
         # Initialize retriever if needed
         if self.retriever is None:
-            config = RetrievalConfig(
-                use_graph_expansion=True,
-                max_results=5,
-            )
+            config = RetrievalConfig()
+            # Configure graph expansion
+            config.graph.max_hops = 2
+            # Configure max documents
+            config.entropy.max_documents = 5
             self.retriever = CascadeRetriever(memory_store=memory_store, config=config)
 
         # Extract statements from the output
@@ -108,7 +118,8 @@ class FactualValidator(RuntimeValidator):
 
         for i, statement in enumerate(statements):
             # Retrieve relevant documents
-            relevant_docs = await self.retriever.retrieve(statement)
+            retrieval_result = self.retriever.retrieve(statement)
+            relevant_docs = retrieval_result.documents
 
             if not relevant_docs:
                 issues.append(
@@ -160,15 +171,18 @@ class FactualValidator(RuntimeValidator):
             },
         )
 
-    def _extract_statements(self, text: str) -> List[str]:
+    def _extract_statements(self, text: str) -> list[str]:
         """
         Extract statements from text.
 
         Args:
+        ----
             text: Text to extract statements from
 
         Returns:
+        -------
             List[str]: List of statements
+
         """
         # Split text into sentences
         sentence_pattern = r"[.!?]\s+"
@@ -185,7 +199,7 @@ class FactualValidator(RuntimeValidator):
                 continue
 
             # Skip sentences that don't make factual claims
-            if sentence.startswith("I think") or sentence.startswith("In my opinion"):
+            if sentence.startswith(("I think", "In my opinion")):
                 continue
 
             statements.append(sentence)
@@ -193,17 +207,20 @@ class FactualValidator(RuntimeValidator):
         return statements
 
     def _check_statement_support(
-        self, statement: str, documents: List[Document]
-    ) -> Tuple[bool, float, Optional[Document]]:
+        self, statement: str, documents: list[Document]
+    ) -> tuple[bool, float, Document | None]:
         """
         Check if a statement is supported by documents.
 
         Args:
+        ----
             statement: Statement to check
             documents: Documents to check against
 
         Returns:
+        -------
             Tuple[bool, float, Optional[Document]]: (is_supported, confidence, supporting_doc)
+
         """
         # Simple implementation: check for keyword overlap
         statement_words = set(statement.lower().split())
@@ -218,10 +235,7 @@ class FactualValidator(RuntimeValidator):
             intersection = len(statement_words.intersection(doc_words))
             union = len(statement_words.union(doc_words))
 
-            if union == 0:
-                score = 0.0
-            else:
-                score = intersection / union
+            score = 0.0 if union == 0 else intersection / union
 
             if score > best_score:
                 best_score = score

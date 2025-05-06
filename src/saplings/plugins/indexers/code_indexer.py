@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 CodeIndexer plugin for Saplings.
 
@@ -5,18 +7,45 @@ This module provides an indexer specialized for code repositories,
 extracting entities and relationships from code files.
 """
 
+
 import ast
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from saplings.core.plugin import IndexerPlugin, PluginType
-from saplings.memory.config import MemoryConfig
-from saplings.memory.document import Document
-from saplings.memory.indexer import Entity, Indexer, IndexingResult, Relationship
+from saplings.memory.indexer import Entity, Indexer, Relationship
+
+if TYPE_CHECKING:
+    from saplings.memory.config import MemoryConfig
+    from saplings.memory.document import Document
 
 logger = logging.getLogger(__name__)
+
+
+def get_source_from_metadata(metadata: Any) -> str | None:
+    """
+    Extract source from document metadata.
+
+    Args:
+    ----
+        metadata: Document metadata (DocumentMetadata, dict, or None)
+
+    Returns:
+    -------
+        str | None: Source path or None if not available
+
+    """
+    if metadata is None:
+        return None
+
+    if hasattr(metadata, "source"):
+        return metadata.source
+    if isinstance(metadata, dict) and "source" in metadata:
+        return metadata["source"]
+
+    return None
 
 
 class CodeIndexer(IndexerPlugin, Indexer):
@@ -27,12 +56,14 @@ class CodeIndexer(IndexerPlugin, Indexer):
     such as classes, functions, imports, and dependencies.
     """
 
-    def __init__(self, config: Optional[MemoryConfig] = None):
+    def __init__(self, config: MemoryConfig | None = None) -> None:
         """
         Initialize the code indexer.
 
         Args:
+        ----
             config: Memory configuration
+
         """
         super().__init__(config)
         self.supported_extensions = {
@@ -65,18 +96,21 @@ class CodeIndexer(IndexerPlugin, Indexer):
         """Type of the plugin."""
         return PluginType.INDEXER
 
-    def extract_entities(self, document: Document) -> List[Entity]:
+    def extract_entities(self, document: Document) -> list[Entity]:
         """
         Extract entities from a document.
 
         Args:
+        ----
             document: Document to extract entities from
 
         Returns:
+        -------
             List[Entity]: Extracted entities
+
         """
         # Check if this is a code file
-        file_path = document.metadata.source if document.metadata else None
+        file_path = get_source_from_metadata(document.metadata)
         if not file_path or not isinstance(file_path, str):
             return []
 
@@ -90,20 +124,23 @@ class CodeIndexer(IndexerPlugin, Indexer):
         return indexer_func(document)
 
     def extract_relationships(
-        self, document: Document, entities: List[Entity]
-    ) -> List[Relationship]:
+        self, document: Document, entities: list[Entity]
+    ) -> list[Relationship]:
         """
         Extract relationships between entities in a document.
 
         Args:
+        ----
             document: Document to extract relationships from
             entities: Entities extracted from the document
 
         Returns:
+        -------
             List[Relationship]: Extracted relationships
+
         """
         # Check if this is a code file
-        file_path = document.metadata.source if document.metadata else None
+        file_path = get_source_from_metadata(document.metadata)
         if not file_path or not isinstance(file_path, str):
             return []
 
@@ -162,15 +199,18 @@ class CodeIndexer(IndexerPlugin, Indexer):
 
         return relationships
 
-    def _index_python_file(self, document: Document) -> List[Entity]:
+    def _index_python_file(self, document: Document) -> list[Entity]:
         """
         Index a Python file.
 
         Args:
+        ----
             document: Document to index
 
         Returns:
+        -------
             List[Entity]: Extracted entities
+
         """
         entities = []
 
@@ -179,7 +219,7 @@ class CodeIndexer(IndexerPlugin, Indexer):
             tree = ast.parse(document.content)
 
             # Extract module name from file path
-            file_path = document.metadata.source if document.metadata else None
+            file_path = get_source_from_metadata(document.metadata)
             if file_path and isinstance(file_path, str):
                 module_name = os.path.basename(file_path).replace(".py", "")
 
@@ -201,9 +241,8 @@ class CodeIndexer(IndexerPlugin, Indexer):
                 if isinstance(node, ast.Import):
                     for name in node.names:
                         imports.append(name.name)
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        imports.append(node.module)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imports.append(node.module)
 
             if module_entity:
                 module_entity.metadata["imports"] = imports
@@ -258,20 +297,23 @@ class CodeIndexer(IndexerPlugin, Indexer):
 
         return entities
 
-    def _index_javascript_file(self, document: Document) -> List[Entity]:
+    def _index_javascript_file(self, document: Document) -> list[Entity]:
         """
         Index a JavaScript file.
 
         Args:
+        ----
             document: Document to index
 
         Returns:
+        -------
             List[Entity]: Extracted entities
+
         """
         entities = []
 
         # Extract file name as module name
-        file_path = document.metadata.source if document.metadata else None
+        file_path = get_source_from_metadata(document.metadata)
         if file_path and isinstance(file_path, str):
             module_name = os.path.basename(file_path).replace(".js", "")
 
@@ -341,15 +383,18 @@ class CodeIndexer(IndexerPlugin, Indexer):
 
         return entities
 
-    def _index_typescript_file(self, document: Document) -> List[Entity]:
+    def _index_typescript_file(self, document: Document) -> list[Entity]:
         """
         Index a TypeScript file.
 
         Args:
+        ----
             document: Document to index
 
         Returns:
+        -------
             List[Entity]: Extracted entities
+
         """
         # TypeScript indexing is similar to JavaScript but with type annotations
         entities = self._index_javascript_file(document)
@@ -379,15 +424,18 @@ class CodeIndexer(IndexerPlugin, Indexer):
 
         return entities
 
-    def _index_java_file(self, document: Document) -> List[Entity]:
+    def _index_java_file(self, document: Document) -> list[Entity]:
         """
         Index a Java file.
 
         Args:
+        ----
             document: Document to index
 
         Returns:
+        -------
             List[Entity]: Extracted entities
+
         """
         entities = []
 
@@ -397,7 +445,7 @@ class CodeIndexer(IndexerPlugin, Indexer):
         package_name = package_match.group(1) if package_match else "default"
 
         # Extract class name from file path
-        file_path = document.metadata.source if document.metadata else None
+        file_path = get_source_from_metadata(document.metadata)
         if file_path and isinstance(file_path, str):
             class_name = os.path.basename(file_path).replace(".java", "")
 
@@ -461,20 +509,23 @@ class CodeIndexer(IndexerPlugin, Indexer):
 
         return entities
 
-    def _index_cpp_file(self, document: Document) -> List[Entity]:
+    def _index_cpp_file(self, document: Document) -> list[Entity]:
         """
         Index a C++ file.
 
         Args:
+        ----
             document: Document to index
 
         Returns:
+        -------
             List[Entity]: Extracted entities
+
         """
         entities = []
 
         # Extract file name as module name
-        file_path = document.metadata.source if document.metadata else None
+        file_path = get_source_from_metadata(document.metadata)
         if file_path and isinstance(file_path, str):
             module_name = os.path.basename(file_path).replace(".cpp", "")
 
@@ -534,20 +585,23 @@ class CodeIndexer(IndexerPlugin, Indexer):
 
         return entities
 
-    def _index_c_file(self, document: Document) -> List[Entity]:
+    def _index_c_file(self, document: Document) -> list[Entity]:
         """
         Index a C file.
 
         Args:
+        ----
             document: Document to index
 
         Returns:
+        -------
             List[Entity]: Extracted entities
+
         """
         entities = []
 
         # Extract file name as module name
-        file_path = document.metadata.source if document.metadata else None
+        file_path = get_source_from_metadata(document.metadata)
         if file_path and isinstance(file_path, str):
             module_name = os.path.basename(file_path).replace(".c", "")
 
@@ -597,20 +651,23 @@ class CodeIndexer(IndexerPlugin, Indexer):
 
         return entities
 
-    def _index_header_file(self, document: Document) -> List[Entity]:
+    def _index_header_file(self, document: Document) -> list[Entity]:
         """
         Index a C/C++ header file.
 
         Args:
+        ----
             document: Document to index
 
         Returns:
+        -------
             List[Entity]: Extracted entities
+
         """
         entities = []
 
         # Extract file name as module name
-        file_path = document.metadata.source if document.metadata else None
+        file_path = get_source_from_metadata(document.metadata)
         if file_path and isinstance(file_path, str):
             module_name = os.path.basename(file_path).replace(".h", "")
 

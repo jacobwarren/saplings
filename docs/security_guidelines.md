@@ -1,277 +1,310 @@
-# Security and Privacy Guidelines for Saplings
+# Security Guidelines
 
-This document outlines security and privacy best practices for using the Saplings framework, with a particular focus on the Graph-Aligned Sparse Attention (GASA) and monitoring components.
+The Security system in Saplings provides comprehensive protection against common security threats and vulnerabilities, ensuring that agents operate safely and securely.
 
 ## Overview
 
-Saplings is designed with security and privacy in mind, but proper configuration and usage are essential to maintain these protections. This guide covers:
+The Security system consists of several key components:
 
-1. Data handling and privacy
-2. API key management
-3. Secure model deployment
-4. Monitoring security
-5. GASA-specific considerations
+- **Prompt Sanitization**: Prevents injection attacks by sanitizing user inputs
+- **Tool Validation**: Ensures that dynamically generated tools meet security standards
+- **Sandboxing**: Isolates tool execution in secure environments
+- **Code Signing**: Verifies the integrity and authenticity of code
+- **Function Authorization**: Controls access to sensitive functions
+- **Log Filtering**: Redacts sensitive information from logs
 
-## Data Handling and Privacy
+This system provides multiple layers of defense to protect against various security threats while maintaining flexibility and usability.
 
-### Sensitive Information in Documents
+## Core Concepts
 
-When using Saplings' memory and retrieval components:
+### Security Levels
 
-- **Data Minimization**: Only store documents that are necessary for your application.
-- **Content Filtering**: Implement pre-processing to filter out sensitive information before indexing.
-- **Metadata Sanitization**: Ensure document metadata doesn't contain sensitive information.
+Saplings defines different security levels that can be applied to various components:
 
 ```python
-from saplings.memory import Document, DocumentMetadata, MemoryStore
-from saplings.memory.config import PrivacyLevel
-
-# Configure memory store with privacy settings
-memory_store = MemoryStore(
-    config=MemoryConfig(
-        secure_store=SecureStoreConfig(
-            privacy_level=PrivacyLevel.HASHED,  # Options: NONE, HASHED, DIFFERENTIAL_PRIVACY
-            hash_salt="your-secure-salt",  # Use a secure, unique salt
-            dp_epsilon=0.1,  # Lower epsilon = more privacy, less utility
-        )
-    )
-)
-
-# Filter sensitive information before adding documents
-def sanitize_content(content):
-    # Implement your sanitization logic here
-    # e.g., remove PII, credit card numbers, etc.
-    return sanitized_content
-
-# Add document with sanitized content
-document = Document(
-    content=sanitize_content(original_content),
-    metadata=DocumentMetadata(
-        source="example.txt",
-        document_id="doc1",
-        # Avoid including sensitive metadata
-    ),
-)
-
-memory_store.add_document(document)
+class SecurityLevel(str, Enum):
+    """Security level for tool generation."""
+    LOW = "low"  # Basic security checks
+    MEDIUM = "medium"  # Standard security checks
+    HIGH = "high"  # Strict security checks
 ```
 
-### Differential Privacy
+### Sandbox Types
 
-For applications requiring strong privacy guarantees:
+For tool execution, Saplings provides different sandboxing options:
 
 ```python
-from saplings.memory.config import PrivacyLevel, DifferentialPrivacyConfig
-
-# Configure differential privacy
-dp_config = DifferentialPrivacyConfig(
-    epsilon=0.1,  # Privacy budget (lower = more private)
-    delta=1e-5,   # Probability of privacy failure
-    mechanism="gaussian",  # Noise mechanism
-    sensitivity=1.0,  # Maximum influence of a single record
-)
-
-memory_config = MemoryConfig(
-    secure_store=SecureStoreConfig(
-        privacy_level=PrivacyLevel.DIFFERENTIAL_PRIVACY,
-        dp_config=dp_config,
-    )
-)
+class SandboxType(str, Enum):
+    """Type of sandbox for tool execution."""
+    NONE = "none"  # No sandboxing
+    DOCKER = "docker"  # Docker-based sandbox
+    E2B = "e2b"  # E2B-based sandbox
 ```
 
-## API Key Management
+### Authorization Levels
 
-### Secure Storage
-
-Never hardcode API keys in your application code:
+Function authorization is controlled through authorization levels:
 
 ```python
-# DON'T do this
-model = LLM.from_uri("openai://gpt-4?api_key=sk-1234567890abcdef")
-
-# DO use environment variables
-import os
-api_key = os.environ.get("OPENAI_API_KEY")
-model = LLM.from_uri(f"openai://gpt-4?api_key={api_key}")
-
-# OR use a secure configuration manager
-from saplings.core.config import SecureConfigManager
-config_manager = SecureConfigManager()
-api_key = config_manager.get_secret("openai_api_key")
+class AuthorizationLevel(Enum):
+    """Authorization level for function calls."""
+    PUBLIC = 0  # Anyone can call
+    USER = 1  # Authenticated users can call
+    ADMIN = 2  # Administrators can call
+    SYSTEM = 3  # System only
 ```
 
-### Key Rotation
+## Security Components
 
-- Implement regular key rotation for all API keys.
-- Use different keys for development, testing, and production environments.
-- Revoke keys immediately if compromised.
+### Prompt Sanitization
 
-## Secure Model Deployment
-
-### Local Model Security
-
-When using local models:
+The prompt sanitizer removes dangerous substrings from user inputs:
 
 ```python
-from saplings.core.model_adapter import LLM
-from saplings.executor import Executor, ExecutorConfig
+def sanitize_prompt(
+    raw: str,
+    max_len: int = 8_192,
+    remove_urls: bool = True,
+    remove_shell_metacharacters: bool = True,
+    remove_sql_patterns: bool = True,
+    remove_path_traversal: bool = True,
+    remove_html: bool = True,
+    custom_patterns: Optional[List[Pattern[str]]] = None
+) -> str:
+    """
+    Remove dangerous substrings and truncate at max_len.
 
-# Set resource limits
-model = LLM.from_uri(
-    "local://llama3?model_path=/path/to/model&max_tokens=1024&max_batch_size=4"
-)
+    Args:
+        raw: The raw input string to sanitize
+        max_len: Maximum length of the output string
+        remove_urls: Whether to redact URLs
+        remove_shell_metacharacters: Whether to remove shell metacharacters
+        remove_sql_patterns: Whether to remove SQL injection patterns
+        remove_path_traversal: Whether to remove path traversal patterns
+        remove_html: Whether to remove HTML and script tags
+        custom_patterns: Additional custom patterns to remove
 
-# Configure execution timeouts
-executor = Executor(
-    model=model,
-    config=ExecutorConfig(
-        timeout_seconds=30,  # Timeout for model calls
-        max_retries=3,       # Maximum retry attempts
-    )
-)
+    Returns:
+        Sanitized string
+    """
 ```
 
-### Input Validation
+### Tool Validation
 
-Always validate inputs before passing them to models:
+The tool validator checks dynamically generated code for security issues:
 
 ```python
-def validate_prompt(prompt):
-    # Implement validation logic
-    if len(prompt) > 10000:
-        raise ValueError("Prompt too long")
-    if contains_harmful_content(prompt):
-        raise ValueError("Prompt contains harmful content")
-    return prompt
+class ToolValidator:
+    """
+    Validates tool code for security and correctness.
 
-# Use validated prompt
-result = await executor.execute(prompt=validate_prompt(user_input))
+    This class checks tool code for security issues, syntax errors,
+    and other potential problems before allowing it to be executed.
+    """
+
+    def __init__(self, config: Optional[ToolFactoryConfig] = None):
+        """
+        Initialize the tool validator.
+
+        Args:
+            config: Configuration for the validator
+        """
+
+    def validate(self, code: str) -> ValidationResult:
+        """
+        Validate tool code.
+
+        Args:
+            code: Code to validate
+
+        Returns:
+            ValidationResult: Result of the validation
+        """
 ```
 
-## Monitoring Security
+### Sandboxing
 
-### Sensitive Data in Traces
-
-When using the monitoring system:
+Saplings provides several sandbox implementations for secure tool execution:
 
 ```python
-from saplings.monitoring import TraceManager, MonitoringConfig
+class Sandbox:
+    """
+    Base class for sandbox execution environments.
 
-# Configure data retention
-config = MonitoringConfig(
-    trace_retention_days=7,  # Automatically clear traces after 7 days
-    scrub_sensitive_data=True,  # Enable data scrubbing
-    sensitive_patterns=[      # Patterns to scrub
-        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",  # Email
-        r"\b\d{3}-\d{2}-\d{4}\b",  # SSN
-    ],
-)
+    This class provides a common interface for different sandbox implementations.
+    """
 
-trace_manager = TraceManager(config=config)
+    def __init__(self, config: Optional[ToolFactoryConfig] = None):
+        """
+        Initialize the sandbox.
 
-# Manually scrub sensitive data
-def scrub_attributes(attributes):
-    scrubbed = attributes.copy()
-    if "user_input" in scrubbed:
-        scrubbed["user_input"] = "[REDACTED]"
-    return scrubbed
+        Args:
+            config: Configuration for the sandbox
+        """
 
-# Start span with scrubbed attributes
-span = trace_manager.start_span(
-    name="process_user_input",
-    attributes=scrub_attributes(original_attributes),
-)
+    async def execute(
+        self,
+        code: str,
+        function_name: str,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+    ) -> Any:
+        """
+        Execute code in the sandbox.
+
+        Args:
+            code: Code to execute
+            function_name: Name of the function to call
+            args: Positional arguments for the function
+            kwargs: Keyword arguments for the function
+
+        Returns:
+            Any: Result of the function call
+        """
 ```
 
-### Access Control for Visualizations
+Available sandbox implementations:
+
+- **LocalSandbox**: Executes code in the local Python interpreter with minimal isolation
+- **DockerSandbox**: Executes code in a Docker container with network isolation
+- **E2BSandbox**: Executes code in the E2B cloud sandbox
+
+### Function Authorization
+
+The function authorizer controls access to sensitive functions:
 
 ```python
-from saplings.monitoring import TraceViewer
-from saplings.monitoring.config import VisualizationFormat
+class FunctionAuthorizer:
+    """Utility for authorizing function calls."""
 
-# Export visualizations to a secure location
-trace_viewer = TraceViewer(trace_manager=trace_manager)
-trace_viewer.export_trace(
-    trace_id=trace.trace_id,
-    output_path="/secure/path/trace.json",
-    format=VisualizationFormat.JSON,
-)
+    def __init__(self):
+        """Initialize the function authorizer."""
+
+    def set_function_level(self, name: str, level: AuthorizationLevel) -> None:
+        """
+        Set the authorization level for a function.
+
+        Args:
+            name: Name of the function
+            level: Authorization level
+        """
+
+    def set_current_level(self, level: AuthorizationLevel) -> None:
+        """
+        Set the current authorization level.
+
+        Args:
+            level: Authorization level
+        """
+
+    def is_authorized(self, name: str) -> bool:
+        """
+        Check if the current level is authorized to call a function.
+
+        Args:
+            name: Name of the function
+
+        Returns:
+            bool: True if authorized, False otherwise
+        """
+
+    def authorize_function_call(self, name: str) -> None:
+        """
+        Authorize a function call.
+
+        Args:
+            name: Name of the function
+
+        Raises:
+            PermissionError: If not authorized
+        """
 ```
 
-## GASA-Specific Considerations
+### Log Filtering
 
-### Attention Mask Security
-
-GASA attention masks can potentially leak information about document relationships:
+The log filter redacts sensitive information from logs:
 
 ```python
-from saplings.gasa import GASAConfig, MaskBuilder
+def install_global_filter(
+    patterns: Optional[List[Pattern[str]]] = None,
+    replacement: str = "****"
+) -> None:
+    """
+    Install the redacting filter globally on the root logger.
 
-# Configure GASA with security in mind
-gasa_config = GASAConfig(
-    max_hops=2,  # Limit information flow
-    mask_strategy="binary",  # Use binary masks (less information leakage)
-    cache_masks=False,  # Disable caching for sensitive applications
-)
-
-# Use secure visualization settings
-from saplings.monitoring import GASAHeatmap
-from saplings.monitoring.config import VisualizationFormat
-
-heatmap = GASAHeatmap(config=MonitoringConfig(
-    visualization_output_dir="/secure/path/visualizations",
-))
-
-# Export to a secure format
-heatmap.visualize_mask(
-    mask=mask,
-    format=MaskFormat.DENSE,
-    mask_type=MaskType.ATTENTION,
-    output_path="/secure/path/mask.json",
-    format=VisualizationFormat.JSON,  # Use JSON instead of HTML for sensitive data
-)
+    Args:
+        patterns: Additional patterns to redact beyond the defaults
+        replacement: String to use as replacement for redacted content
+    """
 ```
 
-### Graph Privacy
+## Best Practices
 
-The dependency graph can reveal sensitive relationships:
+### Secure Tool Development
+
+When developing tools for Saplings, follow these guidelines:
+
+1. **Validate Inputs**: Always validate and sanitize inputs to prevent injection attacks
+2. **Limit Permissions**: Use the principle of least privilege when accessing resources
+3. **Avoid Dangerous Functions**: Avoid using functions that could be exploited (e.g., `eval`, `exec`, `os.system`)
+4. **Use Sandboxing**: Run untrusted code in a sandbox to isolate it from the rest of the system
+5. **Handle Errors Securely**: Avoid exposing sensitive information in error messages
+
+### Secure Agent Configuration
+
+When configuring agents, follow these guidelines:
+
+1. **Set Appropriate Security Levels**: Use the highest security level that meets your requirements
+2. **Enable Sandboxing**: Use sandboxing for tool execution, especially for dynamically generated tools
+3. **Limit Tool Access**: Only provide agents with the tools they need to complete their tasks
+4. **Monitor Agent Activity**: Use the monitoring system to track agent activity and detect suspicious behavior
+5. **Validate Outputs**: Use the validation system to ensure that agent outputs meet security standards
+
+### Secure Deployment
+
+When deploying Saplings in production, follow these guidelines:
+
+1. **Use HTTPS**: Always use HTTPS for communication between components
+2. **Secure API Keys**: Store API keys and other secrets securely (e.g., using environment variables or a secrets manager)
+3. **Implement Rate Limiting**: Limit the number of requests to prevent abuse
+4. **Use Authentication**: Require authentication for accessing sensitive functionality
+5. **Regular Updates**: Keep Saplings and its dependencies up to date to address security vulnerabilities
+
+## Example: Secure Tool Factory Configuration
 
 ```python
-from saplings.memory import DependencyGraph
-from saplings.memory.config import GraphPrivacyConfig
-
-# Configure graph privacy
-graph_privacy = GraphPrivacyConfig(
-    anonymize_nodes=True,  # Use anonymous IDs for nodes
-    prune_rare_edges=True,  # Remove rare relationships that might identify specific documents
-    min_edge_count=3,      # Minimum number of edges to retain
+from saplings.tool_factory import (
+    ToolFactory, ToolFactoryConfig, SecurityLevel, SandboxType
 )
 
-# Create a privacy-preserving graph
-graph = DependencyGraph(
-    config=MemoryConfig(
-        graph=GraphConfig(
-            privacy=graph_privacy,
-        )
-    )
-)
-```
-
-## Tool Factory Security
-
-When using the dynamic tool generation capabilities:
-
-```python
-from saplings.tool_factory import ToolFactory, ToolFactoryConfig, SecurityLevel
-
-# Configure tool factory with strict security
+# Create a tool factory with high security
 tool_factory = ToolFactory(
     config=ToolFactoryConfig(
-        security_level=SecurityLevel.HIGH,  # Strict security checks
-        sandbox_enabled=True,               # Enable sandboxing
-        code_signing=True,                  # Enable code signing
-        allowed_imports=["numpy", "pandas"],  # Restrict imports
-        blocked_imports=["os", "subprocess"],  # Block dangerous imports
+        output_dir="./tools",
+        security_level=SecurityLevel.HIGH,
+        sandbox_type=SandboxType.DOCKER,
+        docker_image="python:3.9-slim",
+        sandbox_timeout=30,
+    )
+)
+```
+
+## Example: Secure Hot Loading
+
+```python
+from saplings.integration import (
+    SecureHotLoader, SecureHotLoaderConfig
+)
+
+# Create a secure hot loader
+hot_loader = SecureHotLoader(
+    config=SecureHotLoaderConfig(
+        enable_sandboxing=True,
+        sandbox_type="docker",
+        docker_image="python:3.9-slim",
+        sandbox_timeout=30,
+        allowed_imports=["numpy", "pandas"],
+        blocked_imports=["os", "subprocess", "sys"],
         resource_limits={
             "memory_mb": 512,
             "cpu_seconds": 30,
@@ -279,81 +312,50 @@ tool_factory = ToolFactory(
         },
     )
 )
+
+# Load a tool securely
+tool_class = hot_loader.load_tool("path/to/tool.py")
 ```
 
-## Audit and Compliance
-
-### Logging
-
-Configure comprehensive logging for security audits:
+## Example: Function Authorization
 
 ```python
-import logging
-from saplings.core.logging import SecurityLogger
-
-# Configure security logging
-security_logger = SecurityLogger(
-    log_file="/secure/path/security.log",
-    log_level=logging.INFO,
-    include_timestamps=True,
-    include_source_ip=True,
+from saplings.core.function_authorization import (
+    function_authorizer, AuthorizationLevel, requires_level
 )
 
-# Log security events
-security_logger.log_access("user123", "document456", "read")
-security_logger.log_api_call("openai", "completion", status="success")
-security_logger.log_security_event("rate_limit_exceeded", severity="warning")
+# Define a function that requires admin authorization
+@requires_level(AuthorizationLevel.ADMIN)
+def sensitive_operation():
+    """Perform a sensitive operation."""
+    # Implementation
+
+# Set the current authorization level
+function_authorizer.set_current_level(AuthorizationLevel.USER)
+
+try:
+    # This will raise a PermissionError
+    sensitive_operation()
+except PermissionError as e:
+    print(f"Error: {e}")
+
+# Set the current authorization level to admin
+function_authorizer.set_current_level(AuthorizationLevel.ADMIN)
+
+# Now this will succeed
+sensitive_operation()
 ```
 
-### Compliance Helpers
+## Security Considerations for Third-Party Integrations
 
-For applications requiring compliance with regulations:
+When integrating with third-party services, follow these guidelines:
 
-```python
-from saplings.compliance import ComplianceManager, RegulationType
+1. **Validate Responses**: Always validate responses from third-party services
+2. **Limit Access**: Only provide the minimum required access to third-party services
+3. **Use Timeouts**: Set appropriate timeouts for requests to third-party services
+4. **Handle Errors**: Implement robust error handling for third-party service failures
+5. **Monitor Usage**: Monitor usage of third-party services to detect unusual patterns
 
-# Initialize compliance manager
-compliance_manager = ComplianceManager(
-    regulations=[
-        RegulationType.GDPR,
-        RegulationType.HIPAA,
-        RegulationType.CCPA,
-    ]
-)
+## Conclusion
 
-# Check compliance of an operation
-is_compliant = compliance_manager.check_operation(
-    operation="store_document",
-    data_categories=["personal_information"],
-    user_consent=True,
-    data_location="eu-west-1",
-)
-
-# Generate compliance report
-report = compliance_manager.generate_report(
-    start_date="2023-01-01",
-    end_date="2023-12-31",
-    format="pdf",
-    output_path="/secure/path/compliance_report.pdf",
-)
-```
-
-## Best Practices Summary
-
-1. **Data Minimization**: Only collect and store the data you need.
-2. **Encryption**: Use encryption for sensitive data at rest and in transit.
-3. **Access Control**: Implement proper access controls for all components.
-4. **Input Validation**: Validate all inputs to prevent injection attacks.
-5. **Regular Updates**: Keep all dependencies and models up to date.
-6. **Monitoring**: Implement security monitoring and alerting.
-7. **Documentation**: Maintain documentation of security measures.
-8. **Testing**: Regularly test security controls and perform penetration testing.
-9. **Incident Response**: Have a plan for security incidents.
-10. **Compliance**: Ensure compliance with relevant regulations.
-
-## Additional Resources
-
-- [OpenAI Security Best Practices](https://platform.openai.com/docs/guides/safety-best-practices)
-- [OWASP AI Security and Privacy Guide](https://owasp.org/www-project-ai-security-and-privacy-guide/)
-- [Differential Privacy: A Primer for a Non-Technical Audience](https://journalprivacyconfidentiality.org/index.php/jpc/article/view/689)
-- [Secure Coding Practices](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/)
+Security is a critical aspect of agent development. Saplings provides a comprehensive security system that helps protect against common threats while maintaining flexibility and usability. By following the guidelines and best practices outlined in this document, you can build secure and reliable agent applications.

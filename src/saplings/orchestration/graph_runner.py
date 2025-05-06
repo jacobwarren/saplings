@@ -1,20 +1,23 @@
+from __future__ import annotations
+
 """
 GraphRunner module for Saplings.
 
 This module provides the GraphRunner class for coordinating multiple agents.
 """
 
+
 import asyncio
 import json
 import logging
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any
 
 from saplings.core.model_adapter import LLM
-from saplings.judge import JudgeAgent, JudgeConfig
+from saplings.judge import JudgeAgent
 from saplings.memory import MemoryStore
-from saplings.monitoring import BlameGraph, MonitoringConfig, TraceManager
+from saplings.monitoring import BlameGraph, TraceManager
 from saplings.orchestration.config import (
     AgentNode,
     CommunicationChannel,
@@ -40,24 +43,26 @@ class GraphRunner:
     def __init__(
         self,
         model: LLM,
-        config: Optional[GraphRunnerConfig] = None,
-    ):
+        config: GraphRunnerConfig | None = None,
+    ) -> None:
         """
         Initialize the graph runner.
 
         Args:
+        ----
             model: LLM model to use for coordination
             config: Configuration for the graph runner
+
         """
         self.model = model
         self.config = config or GraphRunnerConfig()
 
         # Initialize agent graph
-        self.agents: Dict[str, AgentNode] = {}
-        self.channels: List[CommunicationChannel] = []
+        self.agents: dict[str, AgentNode] = {}
+        self.channels: list[CommunicationChannel] = []
 
         # Initialize interaction history
-        self.history: List[Dict[str, Any]] = []
+        self.history: list[dict[str, Any]] = []
 
         # Initialize memory if provided or enabled
         self.memory_store = self.config.memory_store or MemoryStore()
@@ -91,13 +96,17 @@ class GraphRunner:
         Register an agent in the graph.
 
         Args:
+        ----
             agent: Agent to register
 
         Raises:
+        ------
             ValueError: If an agent with the same ID already exists
+
         """
         if agent.id in self.agents:
-            raise ValueError(f"Agent with ID '{agent.id}' already exists")
+            msg = f"Agent with ID '{agent.id}' already exists"
+            raise ValueError(msg)
 
         self.agents[agent.id] = agent
 
@@ -127,12 +136,13 @@ class GraphRunner:
         target_id: str,
         channel_type: str,
         description: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> CommunicationChannel:
         """
         Create a communication channel between agents.
 
         Args:
+        ----
             source_id: ID of the source agent
             target_id: ID of the target agent
             channel_type: Type of channel
@@ -140,16 +150,21 @@ class GraphRunner:
             metadata: Additional metadata
 
         Returns:
+        -------
             CommunicationChannel: The created channel
 
         Raises:
+        ------
             ValueError: If either agent does not exist
+
         """
         # Verify that both agents exist
         if source_id not in self.agents:
-            raise ValueError(f"Agent with ID '{source_id}' does not exist")
+            msg = f"Agent with ID '{source_id}' does not exist"
+            raise ValueError(msg)
         if target_id not in self.agents:
-            raise ValueError(f"Agent with ID '{target_id}' does not exist")
+            msg = f"Agent with ID '{target_id}' does not exist"
+            raise ValueError(msg)
 
         # Create the channel
         channel = CommunicationChannel(
@@ -164,7 +179,7 @@ class GraphRunner:
         self.channels.append(channel)
 
         logger.info(
-            f"Created channel: {channel_type} from {source_id} to {target_id} " f"({description})"
+            f"Created channel: {channel_type} from {source_id} to {target_id} ({description})"
         )
 
         return channel
@@ -175,43 +190,69 @@ class GraphRunner:
         Add a document to the shared memory store.
 
         Args:
+        ----
             document: Document to add
+
         """
         if self.memory_store:
-            self.memory_store.add(document)
+            self.memory_store.add_document(document)
             logger.info(f"Added document to shared memory: {getattr(document, 'id', 'unknown')}")
         else:
             logger.warning("No memory store available")
 
-    def retrieve_from_memory(self, query: str, limit: int = 5) -> List[Any]:
+    def retrieve_from_memory(self, query: str, limit: int = 5) -> list[Any]:
         """
         Retrieve documents from the shared memory store.
 
         Args:
+        ----
             query: Query to search for
             limit: Maximum number of documents to retrieve
 
         Returns:
+        -------
             List[Any]: Retrieved documents
+
         """
         if self.memory_store:
-            results = self.memory_store.search(query, limit=limit)
-            logger.info(f"Retrieved {len(results)} documents from shared memory")
-            return results
-        else:
-            logger.warning("No memory store available")
+            # Create a simple text document for the query
+            from saplings.memory.document import Document, DocumentMetadata
+
+            # Create metadata for the query document
+            metadata = DocumentMetadata(
+                source="query", content_type="text/plain", language="en", author="system"
+            )
+
+            # Create the document
+            query_doc = Document(id="query", content=query, metadata=metadata)
+
+            # Use the indexer to create an embedding
+            if not query_doc.embedding:
+                self.memory_store.indexer.index_document(query_doc)
+
+            # Search using the embedding
+            if query_doc.embedding is not None:
+                results = self.memory_store.search(query_embedding=query_doc.embedding, limit=limit)
+                logger.info(f"Retrieved {len(results)} documents from shared memory")
+                return [doc for doc, _ in results]  # Unpack (document, score) tuples
+            logger.warning("Failed to create embedding for query")
             return []
+        logger.warning("No memory store available")
+        return []
 
     # Monitoring and tracing methods
-    def create_trace(self, task: str) -> Optional[str]:
+    def create_trace(self, task: str) -> str | None:
         """
         Create a new trace for a task.
 
         Args:
+        ----
             task: Task being traced
 
         Returns:
+        -------
             Optional[str]: Trace ID if monitoring is enabled, None otherwise
+
         """
         if self.trace_manager:
             trace_id = str(uuid.uuid4())
@@ -220,25 +261,27 @@ class GraphRunner:
             return trace_id
         return None
 
-    def add_span(self, trace_id: str, agent_id: str, action: str, content: str) -> Optional[str]:
+    def add_span(self, trace_id: str, agent_id: str, action: str, content: str) -> str | None:
         """
         Add a span to a trace.
 
         Args:
+        ----
             trace_id: ID of the trace
             agent_id: ID of the agent
             action: Action being performed
             content: Content of the action
 
         Returns:
+        -------
             Optional[str]: Span ID if monitoring is enabled, None otherwise
+
         """
         if self.trace_manager and trace_id:
             span_id = str(uuid.uuid4())
-            self.trace_manager.create_span(
-                trace_id=trace_id,
-                span_id=span_id,
+            self.trace_manager.start_span(
                 name=f"{agent_id}_{action}",
+                trace_id=trace_id,
                 attributes={
                     "agent_id": agent_id,
                     "action": action,
@@ -250,16 +293,19 @@ class GraphRunner:
         return None
 
     # Validation and judging methods
-    async def validate_output(self, output: str, prompt: str) -> Optional[Dict[str, Any]]:
+    async def validate_output(self, output: str, prompt: str) -> dict[str, Any] | None:
         """
         Validate an output using the judge agent.
 
         Args:
+        ----
             output: Output to validate
             prompt: Prompt that generated the output
 
         Returns:
+        -------
             Optional[Dict[str, Any]]: Validation result if validation is enabled, None otherwise
+
         """
         if self.judge:
             result = await self.judge.judge(output, prompt)
@@ -273,48 +319,59 @@ class GraphRunner:
         return None
 
     # Self-healing methods
-    def collect_success_pair(self, input_text: str, output_text: str, score: float) -> None:
+    async def collect_success_pair(self, input_text: str, output_text: str, score: float) -> None:
         """
         Collect a successful input-output pair.
 
         Args:
+        ----
             input_text: Input text
             output_text: Output text
             score: Quality score
+
         """
-        if self.success_pair_collector and score >= 0.8:  # Only collect high-quality pairs
-            self.success_pair_collector.add_pair(
-                {
-                    "input": input_text,
-                    "output": output_text,
+        # Threshold for high-quality pairs
+        HIGH_QUALITY_THRESHOLD = 0.8
+
+        if (
+            self.success_pair_collector and score >= HIGH_QUALITY_THRESHOLD
+        ):  # Only collect high-quality pairs
+            await self.success_pair_collector.collect(
+                input_text=input_text,
+                output_text=output_text,
+                metadata={
                     "score": score,
                     "timestamp": time.time(),
-                }
+                },
             )
             logger.info(f"Collected success pair with score {score}")
 
     async def negotiate(
         self,
         task: str,
-        context: Optional[str] = None,
-        max_rounds: Optional[int] = None,
-        timeout_seconds: Optional[int] = None,
+        context: str | None = None,
+        max_rounds: int | None = None,
+        timeout_seconds: int | None = None,
     ) -> str:
         """
         Run a negotiation between agents to solve a task.
 
         Args:
+        ----
             task: Task to solve
             context: Additional context for the task
             max_rounds: Maximum number of negotiation rounds (overrides config)
             timeout_seconds: Timeout for negotiation in seconds (overrides config)
 
         Returns:
+        -------
             str: Result of the negotiation
 
         Raises:
+        ------
             ValueError: If the negotiation strategy is invalid
             asyncio.TimeoutError: If the negotiation times out
+
         """
         # Use provided values or fall back to config
         max_rounds = max_rounds or self.config.max_rounds
@@ -349,7 +406,7 @@ class GraphRunner:
                 if validation:
                     # Collect success pair if self-healing is enabled
                     if self.config.enable_self_healing and validation["passed"]:
-                        self.collect_success_pair(task, result, validation["score"])
+                        await self.collect_success_pair(task, result, validation["score"])
 
                     # Add validation information to the result
                     result = f"Result: {result}\n\nValidation: {json.dumps(validation, indent=2)}"
@@ -362,53 +419,64 @@ class GraphRunner:
     async def _run_negotiation(
         self,
         task: str,
-        context: Optional[str],
+        context: str | None,
         max_rounds: int,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> str:
         """
         Run the appropriate negotiation strategy.
 
         Args:
+        ----
             task: Task to solve
             context: Additional context for the task
             max_rounds: Maximum number of negotiation rounds
             trace_id: ID of the trace for monitoring
 
         Returns:
+        -------
             str: Result of the negotiation
 
         Raises:
+        ------
             ValueError: If the negotiation strategy is invalid
+
         """
         if self.config.negotiation_strategy == NegotiationStrategy.DEBATE:
             return await self._run_debate(task, context, max_rounds, trace_id)
-        elif self.config.negotiation_strategy == NegotiationStrategy.CONTRACT_NET:
+        if self.config.negotiation_strategy == NegotiationStrategy.CONTRACT_NET:
             return await self._run_contract_net(task, context, max_rounds, trace_id)
-        else:
-            raise ValueError(f"Invalid negotiation strategy: {self.config.negotiation_strategy}")
+        msg = f"Invalid negotiation strategy: {self.config.negotiation_strategy}"
+        raise ValueError(msg)
 
     async def _run_debate(
         self,
         task: str,
-        context: Optional[str],
+        context: str | None,
         max_rounds: int,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> str:
         """
         Run a debate between agents to reach consensus.
 
         Args:
+        ----
             task: Task to solve
             context: Additional context for the task
             max_rounds: Maximum number of debate rounds
 
         Returns:
+        -------
             str: Result of the debate
+
         """
         # Verify that we have at least two agents
-        if len(self.agents) < 2:
-            raise ValueError("Debate requires at least two agents")
+        # Minimum number of agents required for debate
+        MIN_AGENTS_FOR_DEBATE = 2
+
+        if len(self.agents) < MIN_AGENTS_FOR_DEBATE:
+            msg = "Debate requires at least two agents"
+            raise ValueError(msg)
 
         # Initialize the debate
         round_num = 0
@@ -424,7 +492,10 @@ class GraphRunner:
             debate_agents = list(self.agents.values())
 
             # In the first round, the first agent makes a proposal
-            if round_num == 1:
+            # Index for round num
+            ROUND_NUM_INDEX = 1
+
+            if round_num == ROUND_NUM_INDEX:
                 proposer = debate_agents[0]
                 proposal = await self._generate_proposal(proposer, task, context)
                 current_proposal = proposal
@@ -503,30 +574,33 @@ class GraphRunner:
         # Return the final proposal
         if consensus_reached:
             return f"Consensus reached: {current_proposal}"
-        else:
-            return f"Max rounds reached without consensus. Final proposal: {current_proposal}"
+        return f"Max rounds reached without consensus. Final proposal: {current_proposal}"
 
     async def _run_contract_net(
         self,
         task: str,
-        context: Optional[str],
+        context: str | None,
         max_rounds: int,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> str:
         """
         Run a contract-net protocol for task delegation.
 
         Args:
+        ----
             task: Task to solve
             context: Additional context for the task
             max_rounds: Maximum number of rounds
 
         Returns:
+        -------
             str: Result of the contract-net protocol
+
         """
         # Identify the manager agent (first agent by default)
         if not self.agents:
-            raise ValueError("Contract-net requires at least one agent")
+            msg = "Contract-net requires at least one agent"
+            raise ValueError(msg)
 
         manager_id = next(iter(self.agents.keys()))
         manager = self.agents[manager_id]
@@ -537,11 +611,10 @@ class GraphRunner:
         }
 
         if not workers:
-            raise ValueError("Contract-net requires at least one worker agent")
+            msg = "Contract-net requires at least one worker agent"
+            raise ValueError(msg)
 
-        logger.info(
-            f"Starting contract-net with manager {manager.name} and " f"{len(workers)} workers"
-        )
+        logger.info(f"Starting contract-net with manager {manager.name} and {len(workers)} workers")
 
         # Step 1: Task announcement
         subtasks = await self._generate_subtasks(manager, task, context)
@@ -631,18 +704,21 @@ class GraphRunner:
         self,
         agent: AgentNode,
         task: str,
-        context: Optional[str],
+        context: str | None,
     ) -> str:
         """
         Generate a proposal from an agent.
 
         Args:
+        ----
             agent: Agent to generate the proposal
             task: Task to solve
             context: Additional context for the task
 
         Returns:
+        -------
             str: Generated proposal
+
         """
         # Create the prompt
         prompt = f"""
@@ -650,7 +726,7 @@ class GraphRunner:
 
         Task: {task}
 
-        {f'Context: {context}' if context else ''}
+        {f"Context: {context}" if context else ""}
 
         Generate a detailed proposal to solve this task. Be specific and thorough.
         """
@@ -661,7 +737,8 @@ class GraphRunner:
         # Generate the proposal
         response = await model.generate(prompt=prompt.strip())
 
-        return response.text
+        # Ensure we return a string even if response.text is None
+        return response.text or ""
 
     def _get_agent_model(self, agent: AgentNode) -> LLM:
         """
@@ -672,10 +749,13 @@ class GraphRunner:
         Otherwise, use the default model.
 
         Args:
+        ----
             agent: Agent to get the model for
 
         Returns:
+        -------
             LLM: Model to use for the agent
+
         """
         # If the agent has a base Agent, use its model
         if agent.agent:
@@ -693,20 +773,23 @@ class GraphRunner:
         self,
         agent: AgentNode,
         task: str,
-        context: Optional[str],
+        context: str | None,
         proposal: str,
     ) -> str:
         """
         Generate feedback on a proposal from an agent.
 
         Args:
+        ----
             agent: Agent to generate the feedback
             task: Task to solve
             context: Additional context for the task
             proposal: Proposal to provide feedback on
 
         Returns:
+        -------
             str: Generated feedback
+
         """
         # Create the prompt
         prompt = f"""
@@ -714,7 +797,7 @@ class GraphRunner:
 
         Task: {task}
 
-        {f'Context: {context}' if context else ''}
+        {f"Context: {context}" if context else ""}
 
         Proposal:
         {proposal}
@@ -729,32 +812,36 @@ class GraphRunner:
         # Generate the feedback
         response = await model.generate(prompt=prompt.strip())
 
-        return response.text
+        # Ensure we return a string even if response.text is None
+        return response.text or ""
 
     async def _evaluate_consensus(
         self,
         task: str,
-        context: Optional[str],
+        context: str | None,
         proposal: str,
-        feedback: List[Tuple[str, str]],
+        feedback: list[tuple[str, str]],
     ) -> float:
         """
         Evaluate the level of consensus on a proposal.
 
         Args:
+        ----
             task: Task to solve
             context: Additional context for the task
             proposal: Current proposal
             feedback: List of (agent_id, feedback) tuples
 
         Returns:
+        -------
             float: Consensus score (0.0 to 1.0)
+
         """
         # Create the prompt
         prompt = f"""
         Task: {task}
 
-        {f'Context: {context}' if context else ''}
+        {f"Context: {context}" if context else ""}
 
         Proposal:
         {proposal}
@@ -774,10 +861,11 @@ class GraphRunner:
 
         # Extract the score
         try:
-            score = float(response.text.strip())
+            # Ensure response.text is not None
+            text = response.text or ""
+            score = float(text.strip())
             # Ensure the score is between 0.0 and 1.0
-            score = max(0.0, min(1.0, score))
-            return score
+            return max(0.0, min(1.0, score))
         except ValueError:
             logger.warning(f"Failed to parse consensus score: {response.text}")
             return 0.0
@@ -786,14 +874,15 @@ class GraphRunner:
         self,
         agent: AgentNode,
         task: str,
-        context: Optional[str],
+        context: str | None,
         current_proposal: str,
-        feedback: List[Tuple[str, str]],
+        feedback: list[tuple[str, str]],
     ) -> str:
         """
         Generate a refined proposal based on feedback.
 
         Args:
+        ----
             agent: Agent to generate the refined proposal
             task: Task to solve
             context: Additional context for the task
@@ -801,7 +890,9 @@ class GraphRunner:
             feedback: List of (agent_id, feedback) tuples
 
         Returns:
+        -------
             str: Refined proposal
+
         """
         # Create the prompt
         prompt = f"""
@@ -809,7 +900,7 @@ class GraphRunner:
 
         Task: {task}
 
-        {f'Context: {context}' if context else ''}
+        {f"Context: {context}" if context else ""}
 
         Current proposal:
         {current_proposal}
@@ -827,24 +918,28 @@ class GraphRunner:
         # Generate the refined proposal
         response = await model.generate(prompt=prompt.strip())
 
-        return response.text
+        # Ensure we return a string even if response.text is None
+        return response.text or ""
 
     async def _generate_subtasks(
         self,
         manager: AgentNode,
         task: str,
-        context: Optional[str],
-    ) -> List[Dict[str, Any]]:
+        context: str | None,
+    ) -> list[dict[str, Any]]:
         """
         Generate subtasks for a task.
 
         Args:
+        ----
             manager: Manager agent
             task: Task to solve
             context: Additional context for the task
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of subtasks
+
         """
         # Create the prompt
         prompt = f"""
@@ -852,7 +947,7 @@ class GraphRunner:
 
         Task: {task}
 
-        {f'Context: {context}' if context else ''}
+        {f"Context: {context}" if context else ""}
 
         Break down this task into smaller subtasks that can be delegated to other agents.
         For each subtask, provide:
@@ -872,17 +967,21 @@ class GraphRunner:
 
         # Parse the JSON response
         try:
+            # Ensure response.text is not None
+            text = response.text or ""
+
             # Extract JSON from the response if it's wrapped in ```json ... ```
-            if "```json" in response.text and "```" in response.text.split("```json", 1)[1]:
-                json_str = response.text.split("```json", 1)[1].split("```", 1)[0]
+            if "```json" in text and "```" in text.split("```json", 1)[1]:
+                json_str = text.split("```json", 1)[1].split("```", 1)[0]
                 subtasks = json.loads(json_str)
             else:
                 # Try to parse the whole response as JSON
-                subtasks = json.loads(response.text)
+                subtasks = json.loads(text)
 
             # Ensure it's a list
             if not isinstance(subtasks, list):
-                raise ValueError("Subtasks must be a list")
+                msg = "Subtasks must be a list"
+                raise ValueError(msg)
 
             return subtasks
         except (json.JSONDecodeError, ValueError) as e:
@@ -899,25 +998,28 @@ class GraphRunner:
     async def _generate_bids(
         self,
         worker: AgentNode,
-        subtasks: List[Dict[str, Any]],
-        context: Optional[str],
-    ) -> Dict[str, float]:
+        subtasks: list[dict[str, Any]],
+        context: str | None,
+    ) -> dict[str, float]:
         """
         Generate bids for subtasks from a worker agent.
 
         Args:
+        ----
             worker: Worker agent
             subtasks: List of subtasks
             context: Additional context for the task
 
         Returns:
+        -------
             Dict[str, float]: Dictionary of subtask ID to bid value
+
         """
         # Create the prompt
         prompt = f"""
         You are {worker.name}, a {worker.role}. {worker.description}
 
-        {f'Context: {context}' if context else ''}
+        {f"Context: {context}" if context else ""}
 
         Available subtasks:
         {json.dumps(subtasks, indent=2)}
@@ -937,17 +1039,21 @@ class GraphRunner:
 
         # Parse the JSON response
         try:
+            # Ensure response.text is not None
+            text = response.text or ""
+
             # Extract JSON from the response if it's wrapped in ```json ... ```
-            if "```json" in response.text and "```" in response.text.split("```json", 1)[1]:
-                json_str = response.text.split("```json", 1)[1].split("```", 1)[0]
+            if "```json" in text and "```" in text.split("```json", 1)[1]:
+                json_str = text.split("```json", 1)[1].split("```", 1)[0]
                 bids = json.loads(json_str)
             else:
                 # Try to parse the whole response as JSON
-                bids = json.loads(response.text)
+                bids = json.loads(text)
 
             # Ensure it's a dictionary
             if not isinstance(bids, dict):
-                raise ValueError("Bids must be a dictionary")
+                msg = "Bids must be a dictionary"
+                raise ValueError(msg)
 
             # Ensure all values are between 0.0 and 1.0
             for subtask_id, bid in bids.items():
@@ -962,19 +1068,22 @@ class GraphRunner:
     async def _evaluate_bids(
         self,
         manager: AgentNode,
-        subtasks: List[Dict[str, Any]],
-        bids: Dict[str, Dict[str, float]],
-    ) -> Dict[str, str]:
+        subtasks: list[dict[str, Any]],
+        bids: dict[str, dict[str, float]],
+    ) -> dict[str, str]:
         """
         Evaluate bids and allocate subtasks to workers.
 
         Args:
+        ----
             manager: Manager agent
             subtasks: List of subtasks
             bids: Dictionary of worker ID to dictionary of subtask ID to bid value
 
         Returns:
+        -------
             Dict[str, str]: Dictionary of subtask ID to worker ID
+
         """
         # Simple allocation strategy: assign each subtask to the worker with the highest bid
         allocations = {}
@@ -997,25 +1106,28 @@ class GraphRunner:
     async def _execute_subtask(
         self,
         worker: AgentNode,
-        subtask: Dict[str, Any],
-        context: Optional[str],
+        subtask: dict[str, Any],
+        context: str | None,
     ) -> str:
         """
         Execute a subtask with a worker agent.
 
         Args:
+        ----
             worker: Worker agent
             subtask: Subtask to execute
             context: Additional context for the task
 
         Returns:
+        -------
             str: Result of the subtask execution
+
         """
         # Create the prompt
         prompt = f"""
         You are {worker.name}, a {worker.role}. {worker.description}
 
-        {f'Context: {context}' if context else ''}
+        {f"Context: {context}" if context else ""}
 
         Subtask: {subtask["description"]}
         Requirements: {subtask.get("requirements", "None")}
@@ -1029,26 +1141,30 @@ class GraphRunner:
         # Generate the result
         response = await model.generate(prompt=prompt.strip())
 
-        return response.text
+        # Ensure we return a string even if response.text is None
+        return response.text or ""
 
     async def _aggregate_results(
         self,
         manager: AgentNode,
         task: str,
-        subtasks: List[Dict[str, Any]],
-        results: Dict[str, str],
+        subtasks: list[dict[str, Any]],
+        results: dict[str, str],
     ) -> str:
         """
         Aggregate results from subtasks.
 
         Args:
+        ----
             manager: Manager agent
             task: Original task
             subtasks: List of subtasks
             results: Dictionary of subtask ID to result
 
         Returns:
+        -------
             str: Aggregated result
+
         """
         # Create the prompt
         prompt = f"""
@@ -1075,7 +1191,8 @@ class GraphRunner:
         # Generate the aggregated result
         response = await model.generate(prompt=prompt.strip())
 
-        return response.text
+        # Ensure we return a string even if response.text is None
+        return response.text or ""
 
     def _record_interaction(
         self,
@@ -1083,17 +1200,19 @@ class GraphRunner:
         action: str,
         content: str,
         round: int,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> None:
         """
         Record an agent interaction in the history.
 
         Args:
+        ----
             agent_id: ID of the agent
             action: Action performed
             content: Content of the interaction
             round: Round number
             trace_id: ID of the trace for monitoring
+
         """
         if not self.config.logging_enabled:
             return
@@ -1112,15 +1231,17 @@ class GraphRunner:
         if self.trace_manager and trace_id:
             self.add_span(trace_id, agent_id, action, content)
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self):
         """
         Get the interaction history.
 
-        Returns:
+        Returns
+        -------
             List[Dict[str, Any]]: List of interaction records
+
         """
         return self.history
 
-    def clear_history(self) -> None:
+    def clear_history(self):
         """Clear the interaction history."""
         self.history = []

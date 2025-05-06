@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Validator module for Saplings.
 
@@ -10,22 +12,21 @@ This module provides the validator functionality for Saplings, including:
 
 from saplings.validator.config import ValidatorConfig, ValidatorType
 from saplings.validator.registry import ValidatorRegistry, get_validator_registry
+from saplings.validator.result import ValidationResult, ValidationStatus
 from saplings.validator.validator import (
     RuntimeValidator,
     StaticValidator,
-    ValidationResult,
-    ValidationStatus,
     Validator,
 )
 
 __all__ = [
-    "Validator",
-    "StaticValidator",
     "RuntimeValidator",
+    "StaticValidator",
     "ValidationResult",
     "ValidationStatus",
+    "Validator",
     "ValidatorConfig",
-    "ValidatorType",
     "ValidatorRegistry",
+    "ValidatorType",
     "get_validator_registry",
 ]

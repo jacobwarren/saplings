@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Integration manager for Saplings.
 
@@ -5,15 +7,19 @@ This module provides the integration manager for connecting different components
 of the Saplings framework.
 """
 
-import logging
-from typing import Any, Dict, List, Optional, Type
 
-from saplings.core.plugin import ToolPlugin
-from saplings.executor import Executor
+import logging
+from typing import TYPE_CHECKING
+
 from saplings.integration.events import Event, EventSystem, EventType
 from saplings.integration.hot_loader import HotLoader, HotLoaderConfig
-from saplings.orchestration import AgentNode, GraphRunner
-from saplings.planner import BasePlanner
+from saplings.integration.secure_hot_loader import SecureHotLoader, SecureHotLoaderConfig
+
+if TYPE_CHECKING:
+    from saplings.core.plugin import ToolPlugin
+    from saplings.executor import Executor
+    from saplings.orchestration import AgentNode, GraphRunner
+    from saplings.planner import BasePlanner
 
 logger = logging.getLogger(__name__)
 
@@ -31,29 +37,50 @@ class IntegrationManager:
 
     def __init__(
         self,
-        executor: Optional[Executor] = None,
-        planner: Optional[BasePlanner] = None,
-        graph_runner: Optional[GraphRunner] = None,
-        hot_loader: Optional[HotLoader] = None,
-        hot_loader_config: Optional[HotLoaderConfig] = None,
-    ):
+        executor: Executor | None = None,
+        planner: BasePlanner | None = None,
+        graph_runner: GraphRunner | None = None,
+        hot_loader: HotLoader | SecureHotLoader | None = None,
+        hot_loader_config: HotLoaderConfig | SecureHotLoaderConfig | None = None,
+    ) -> None:
         """
         Initialize the integration manager.
 
         Args:
+        ----
             executor: Executor instance
             planner: Planner instance
             graph_runner: GraphRunner instance
-            hot_loader: HotLoader instance
+            hot_loader: HotLoader or SecureHotLoader instance
             hot_loader_config: Configuration for the hot-loader
+
         """
         self.executor = executor
         self.planner = planner
         self.graph_runner = graph_runner
 
-        # Create a hot loader if not provided
+        # Create a hot loader if not provided - use SecureHotLoader by default
         if hot_loader is None:
-            self.hot_loader = HotLoader(config=hot_loader_config)
+            if isinstance(hot_loader_config, SecureHotLoaderConfig):
+                self.hot_loader = SecureHotLoader(config=hot_loader_config)
+            elif isinstance(hot_loader_config, HotLoaderConfig):
+                # Regular HotLoaderConfig - but still use SecureHotLoader with security disabled
+                secure_config = SecureHotLoaderConfig(
+                    watch_directories=hot_loader_config.watch_directories,
+                    auto_reload=hot_loader_config.auto_reload,
+                    reload_interval=hot_loader_config.reload_interval,
+                    tool_discovery_method=hot_loader_config.tool_discovery_method,
+                    on_tool_load_callback=hot_loader_config.on_tool_load_callback,
+                    on_tool_unload_callback=hot_loader_config.on_tool_unload_callback,
+                    # Security settings - disabled by default for backward compatibility
+                    enable_sandboxing=False,
+                )
+                self.hot_loader = SecureHotLoader(config=secure_config)
+            else:
+                # No config provided, create with defaults
+                self.hot_loader = SecureHotLoader(
+                    config=SecureHotLoaderConfig(enable_sandboxing=True)
+                )
         else:
             self.hot_loader = hot_loader
 
@@ -65,7 +92,7 @@ class IntegrationManager:
 
         logger.info("Initialized IntegrationManager")
 
-    def _register_event_listeners(self) -> None:
+    def _register_event_listeners(self):
         """Register event listeners."""
         # Register tool events
         self.event_system.add_listener(
@@ -98,7 +125,9 @@ class IntegrationManager:
         Handle tool loaded event.
 
         Args:
+        ----
             event: Event data
+
         """
         tool_class = event.data.get("tool_class")
         if tool_class is not None:
@@ -114,7 +143,9 @@ class IntegrationManager:
         Handle tool unloaded event.
 
         Args:
+        ----
             event: Event data
+
         """
         tool_id = event.data.get("tool_id")
         if tool_id is not None:
@@ -130,7 +161,9 @@ class IntegrationManager:
         Handle tool updated event.
 
         Args:
+        ----
             event: Event data
+
         """
         tool_class = event.data.get("tool_class")
         if tool_class is not None:
@@ -146,7 +179,9 @@ class IntegrationManager:
         Handle agent registered event.
 
         Args:
+        ----
             event: Event data
+
         """
         agent = event.data.get("agent")
         if agent is not None:
@@ -160,18 +195,22 @@ class IntegrationManager:
         Handle agent unregistered event.
 
         Args:
+        ----
             event: Event data
+
         """
         agent_id = event.data.get("agent_id")
         if agent_id is not None:
             logger.info(f"Agent {agent_id} unregistered")
 
-    def register_tool_with_executor(self, tool_class: Type[ToolPlugin]) -> None:
+    def register_tool_with_executor(self, tool_class: type[ToolPlugin]) -> None:
         """
         Register a tool with the executor.
 
         Args:
+        ----
             tool_class: Tool class to register
+
         """
         if self.executor is None:
             logger.warning("Cannot register tool with executor: executor not set")
@@ -194,7 +233,9 @@ class IntegrationManager:
         Unregister a tool from the executor.
 
         Args:
+        ----
             tool_id: ID of the tool to unregister
+
         """
         if self.executor is None:
             logger.warning("Cannot unregister tool from executor: executor not set")
@@ -207,12 +248,14 @@ class IntegrationManager:
         else:
             logger.warning(f"Cannot unregister tool {tool_id} from executor: not registered")
 
-    def register_tool_with_planner(self, tool_class: Type[ToolPlugin]) -> None:
+    def register_tool_with_planner(self, tool_class: type[ToolPlugin]) -> None:
         """
         Register a tool with the planner.
 
         Args:
+        ----
             tool_class: Tool class to register
+
         """
         if self.planner is None:
             logger.warning("Cannot register tool with planner: planner not set")
@@ -235,7 +278,9 @@ class IntegrationManager:
         Unregister a tool from the planner.
 
         Args:
+        ----
             tool_id: ID of the tool to unregister
+
         """
         if self.planner is None:
             logger.warning("Cannot unregister tool from planner: planner not set")
@@ -248,19 +293,21 @@ class IntegrationManager:
         else:
             logger.warning(f"Cannot unregister tool {tool_id} from planner: not registered")
 
-    def register_tool_with_graph_runner(self, tool_class: Type[ToolPlugin]) -> None:
+    def register_tool_with_graph_runner(self, tool_class: type[ToolPlugin]) -> None:
         """
         Register a tool with the graph runner.
 
         Args:
+        ----
             tool_class: Tool class to register
+
         """
         if self.graph_runner is None:
             logger.warning("Cannot register tool with graph runner: graph runner not set")
             return
 
         # Register the tool with each agent
-        for agent_id, agent in self.graph_runner.agents.items():
+        for agent in self.graph_runner.agents.values():
             self.register_tool_with_agent(agent, tool_class)
 
     def unregister_tool_from_graph_runner(self, tool_id: str) -> None:
@@ -268,25 +315,29 @@ class IntegrationManager:
         Unregister a tool from the graph runner.
 
         Args:
+        ----
             tool_id: ID of the tool to unregister
+
         """
         if self.graph_runner is None:
             logger.warning("Cannot unregister tool from graph runner: graph runner not set")
             return
 
         # Unregister the tool from each agent
-        for agent_id, agent in self.graph_runner.agents.items():
+        for agent in self.graph_runner.agents.values():
             self.unregister_tool_from_agent(agent, tool_id)
 
     def register_tool_with_agent(
-        self, agent: AgentNode, tool_class: Optional[Type[ToolPlugin]] = None
+        self, agent: AgentNode, tool_class: type[ToolPlugin] | None = None
     ) -> None:
         """
         Register a tool with an agent.
 
         Args:
+        ----
             agent: Agent to register the tool with
             tool_class: Tool class to register, or None to register all tools
+
         """
         # Make sure the agent has a metadata dictionary with a tools entry
         if agent.metadata is None:
@@ -311,8 +362,10 @@ class IntegrationManager:
         Unregister a tool from an agent.
 
         Args:
+        ----
             agent: Agent to unregister the tool from
             tool_id: ID of the tool to unregister
+
         """
         if (
             agent.metadata is not None
@@ -326,7 +379,7 @@ class IntegrationManager:
                 f"Cannot unregister tool {tool_id} from agent {agent.id}: not registered"
             )
 
-    def register_tools_with_executor(self) -> None:
+    def register_tools_with_executor(self):
         """Register all tools with the executor."""
         if self.executor is None:
             logger.warning("Cannot register tools with executor: executor not set")
@@ -342,7 +395,7 @@ class IntegrationManager:
 
         logger.info(f"Registered {len(self.hot_loader.tools)} tools with executor")
 
-    def register_tools_with_planner(self) -> None:
+    def register_tools_with_planner(self):
         """Register all tools with the planner."""
         if self.planner is None:
             logger.warning("Cannot register tools with planner: planner not set")
@@ -358,14 +411,14 @@ class IntegrationManager:
 
         logger.info(f"Registered {len(self.hot_loader.tools)} tools with planner")
 
-    def register_tools_with_graph_runner(self) -> None:
+    def register_tools_with_graph_runner(self):
         """Register all tools with the graph runner."""
         if self.graph_runner is None:
             logger.warning("Cannot register tools with graph runner: graph runner not set")
             return
 
         # Register tools with each agent
-        for agent_id, agent in self.graph_runner.agents.items():
+        for agent in self.graph_runner.agents.values():
             self.register_tools_with_agent(agent)
 
     def register_tools_with_agent(self, agent: AgentNode) -> None:
@@ -373,7 +426,9 @@ class IntegrationManager:
         Register all tools with an agent.
 
         Args:
+        ----
             agent: Agent to register tools with
+
         """
         # Make sure the agent has a metadata dictionary with a tools entry
         if agent.metadata is None:
@@ -387,7 +442,7 @@ class IntegrationManager:
 
         logger.info(f"Registered {len(self.hot_loader.tools)} tools with agent {agent.id}")
 
-    def start(self) -> None:
+    def start(self):
         """Start the integration manager."""
         # Start the hot loader
         if self.hot_loader.config.auto_reload:
@@ -400,7 +455,7 @@ class IntegrationManager:
 
         logger.info("Started IntegrationManager")
 
-    def stop(self) -> None:
+    def stop(self):
         """Stop the integration manager."""
         # Stop the hot loader
         self.hot_loader.stop_auto_reload()

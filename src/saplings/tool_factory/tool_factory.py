@@ -1,32 +1,30 @@
+from __future__ import annotations
+
 """
 ToolFactory module for Saplings.
 
 This module provides the ToolFactory class for dynamic tool synthesis.
 """
 
-import importlib
-import inspect
+
 import json
 import logging
 import os
-import re
-import sys
-import tempfile
-from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Dict
 
-from saplings.core.model_adapter import LLM
 from saplings.core.plugin import PluginType, ToolPlugin, register_plugin
 from saplings.tool_factory.code_signing import CodeSigner, SignatureVerifier
 from saplings.tool_factory.config import (
     SandboxType,
-    SecurityLevel,
-    SigningLevel,
     ToolFactoryConfig,
     ToolSpecification,
     ToolTemplate,
 )
 from saplings.tool_factory.sandbox import get_sandbox
-from saplings.tool_factory.tool_validator import ToolValidator, ValidationResult
+from saplings.tool_factory.tool_validator import ToolValidator
+
+if TYPE_CHECKING:
+    from saplings.core.model_adapter import LLM
 
 logger = logging.getLogger(__name__)
 
@@ -44,22 +42,36 @@ class ToolFactory:
 
     def __init__(
         self,
-        model: LLM,
-        config: Optional[ToolFactoryConfig] = None,
-    ):
+        model: LLM | None = None,
+        executor=None,
+        config: ToolFactoryConfig | None = None,
+    ) -> None:
         """
         Initialize the tool factory.
 
         Args:
+        ----
             model: LLM model to use for code generation
+            executor: Executor to use for code generation (alternative to model)
             config: Configuration for the tool factory
+
         """
-        self.model = model
+        # Handle model/executor parameter
+        if executor is not None:
+            # Extract model from executor if provided
+            self.model = getattr(executor, "model", model)
+        else:
+            self.model = model
+
+        if self.model is None:
+            msg = "Either model or executor must be provided"
+            raise ValueError(msg)
+
         self.config = config or ToolFactoryConfig()
 
         # Initialize template and tool registries
-        self.templates: Dict[str, ToolTemplate] = {}
-        self.tools: Dict[str, Type[ToolPlugin]] = {}
+        self.templates: dict[str, ToolTemplate] = {}
+        self.tools: dict[str, type[ToolPlugin]] = {}
 
         # Create the output directory if it doesn't exist
         os.makedirs(self.config.output_dir, exist_ok=True)
@@ -77,13 +89,17 @@ class ToolFactory:
         Register a tool template.
 
         Args:
+        ----
             template: Template to register
 
         Raises:
+        ------
             ValueError: If a template with the same ID already exists
+
         """
         if template.id in self.templates:
-            raise ValueError(f"Template with ID '{template.id}' already exists")
+            msg = f"Template with ID '{template.id}' already exists"
+            raise ValueError(msg)
 
         self.templates[template.id] = template
         logger.info(f"Registered template: {template.name} (ID: {template.id})")
@@ -93,17 +109,22 @@ class ToolFactory:
         Generate code for a tool based on a specification.
 
         Args:
+        ----
             spec: Tool specification
 
         Returns:
+        -------
             str: Generated code
 
         Raises:
+        ------
             ValueError: If the template doesn't exist or parameters are missing
+
         """
         # Verify that the template exists
         if spec.template_id not in self.templates:
-            raise ValueError(f"Template with ID '{spec.template_id}' does not exist")
+            msg = f"Template with ID '{spec.template_id}' does not exist"
+            raise ValueError(msg)
 
         template = self.templates[spec.template_id]
 
@@ -115,7 +136,8 @@ class ToolFactory:
                     # Generate the code body using the LLM
                     spec.parameters["code_body"] = await self._generate_code_with_llm(spec)
                 else:
-                    raise ValueError(f"Required parameter '{param}' is missing")
+                    msg = f"Required parameter '{param}' is missing"
+                    raise ValueError(msg)
 
         # Generate the code by replacing placeholders in the template
         code = template.template_code
@@ -130,10 +152,13 @@ class ToolFactory:
         Generate code body using the LLM.
 
         Args:
+        ----
             spec: Tool specification
 
         Returns:
+        -------
             str: Generated code body
+
         """
         # Create the prompt
         prompt = f"""
@@ -151,22 +176,33 @@ class ToolFactory:
         """
 
         # Generate the code body
+        if self.model is None:
+            msg = "Model is not available for code generation"
+            raise ValueError(msg)
+
         response = await self.model.generate(prompt=prompt.strip())
+
+        if response.text is None:
+            return ""
 
         return response.text.strip()
 
-    async def create_tool(self, spec: ToolSpecification) -> Type[ToolPlugin]:
+    async def create_tool(self, spec: ToolSpecification) -> type[ToolPlugin]:
         """
         Create a tool from a specification.
 
         Args:
+        ----
             spec: Tool specification
 
         Returns:
+        -------
             Type[ToolPlugin]: Tool class
 
         Raises:
+        ------
             ValueError: If the tool code is invalid or fails security checks
+
         """
         # Generate the tool code
         code = await self.generate_tool_code(spec)
@@ -174,12 +210,14 @@ class ToolFactory:
         # Validate the code
         is_valid, validation_error = self._validate_tool_code(code)
         if not is_valid:
-            raise ValueError(f"Invalid tool code: {validation_error}")
+            msg = f"Invalid tool code: {validation_error}"
+            raise ValueError(msg)
 
         # Perform security checks
         is_secure, security_error = self._perform_security_checks(code)
         if not is_secure:
-            raise ValueError(f"Security check failed: {security_error}")
+            msg = f"Security check failed: {security_error}"
+            raise ValueError(msg)
 
         # Create the tool class
         tool_class = self._create_tool_class(spec, code)
@@ -194,15 +232,18 @@ class ToolFactory:
 
         return tool_class
 
-    def _validate_tool_code(self, code: str) -> Tuple[bool, str]:
+    def _validate_tool_code(self, code: str) -> tuple[bool, str]:
         """
         Validate the generated code.
 
         Args:
+        ----
             code: Generated code
 
         Returns:
+        -------
             Tuple[bool, str]: (is_valid, error_message)
+
         """
         # Use the validator to check the code
         validation_result = self.validator.validate(code)
@@ -213,15 +254,18 @@ class ToolFactory:
 
         return validation_result.is_valid, validation_result.error_message or ""
 
-    def _perform_security_checks(self, code: str) -> Tuple[bool, str]:
+    def _perform_security_checks(self, code: str) -> tuple[bool, str]:
         """
         Perform security checks on the generated code.
 
         Args:
+        ----
             code: Generated code
 
         Returns:
+        -------
             Tuple[bool, str]: (is_secure, error_message)
+
         """
         # The validator already performs security checks, but we'll add additional
         # checks specific to the tool factory here if needed
@@ -231,16 +275,19 @@ class ToolFactory:
 
         return validation_result.is_valid, validation_result.error_message or ""
 
-    def _create_tool_class(self, spec: ToolSpecification, code: str) -> Type[ToolPlugin]:
+    def _create_tool_class(self, spec: ToolSpecification, code: str) -> type[ToolPlugin]:
         """
         Create a tool class from the specification and code.
 
         Args:
+        ----
             spec: Tool specification
             code: Generated code
 
         Returns:
+        -------
             Type[ToolPlugin]: Tool class
+
         """
         # Create a namespace for the tool
         namespace = {}
@@ -256,7 +303,8 @@ class ToolFactory:
                 break
 
         if not function_name:
-            raise ValueError("No function found in the generated code")
+            msg = "No function found in the generated code"
+            raise ValueError(msg)
 
         # Get the function
         function = namespace[function_name]
@@ -264,36 +312,78 @@ class ToolFactory:
         # Sign the code if enabled
         signature_info = self.code_signer.sign(code)
 
+        # Create a dictionary to store tool factory and signature verifier references
+        tool_refs: Dict[str, Any] = {
+            "tool_factory": self,
+            "signature_verifier": self.signature_verifier,
+        }
+
         # Create the tool class
         class DynamicTool(ToolPlugin):
             """Dynamically generated tool."""
 
-            id = spec.id
-            name = spec.name
-            description = spec.description
-            version = "1.0.0"
-            plugin_type = PluginType.TOOL
+            @property
+            def id(self) -> str:
+                """ID of the tool."""
+                return spec.id
+
+            @property
+            def name(self) -> str:
+                """Name of the tool."""
+                return spec.name
+
+            @property
+            def description(self) -> str:
+                """Description of the tool."""
+                return spec.description
+
+            @property
+            def version(self) -> str:
+                """Version of the tool."""
+                return "1.0.0"
+
+            @property
+            def plugin_type(self) -> PluginType:
+                """Type of the plugin."""
+                return PluginType.TOOL
+
             _code = code
             _signature_info = signature_info
             _sandbox_type = self.config.sandbox_type
 
+            # Store references in a class variable
+            _refs = tool_refs
+
             def execute(self, *args, **kwargs):
                 """Execute the tool."""
+                # Get the signature verifier from refs
+                signature_verifier = self._refs.get("signature_verifier")
+                if signature_verifier is None:
+                    msg = "Signature verifier not available"
+                    raise ValueError(msg)
+
                 # Verify the signature if enabled
-                if not self.signature_verifier.verify(self._code, self._signature_info):
-                    raise ValueError("Code signature verification failed")
+                if not signature_verifier.verify(self._code, self._signature_info):
+                    msg = "Code signature verification failed"
+                    raise ValueError(msg)
 
                 # If sandboxing is enabled, execute in sandbox
                 if self._sandbox_type != SandboxType.NONE:
+                    # Get the tool factory from refs
+                    tool_factory = self._refs.get("tool_factory")
+                    if tool_factory is None:
+                        msg = "Tool factory not available"
+                        raise ValueError(msg)
+
                     # Lazy initialize the sandbox
-                    if self.tool_factory.sandbox is None:
-                        self.tool_factory.sandbox = get_sandbox(self.tool_factory.config)
+                    if tool_factory.sandbox is None:
+                        tool_factory.sandbox = get_sandbox(tool_factory.config)
 
                     # Execute in sandbox
-                    return self.tool_factory.sandbox.execute(
+                    return tool_factory.sandbox.execute(
                         code=self._code,
                         function_name=function_name,
-                        args=args,
+                        args=list(args),  # Convert tuple to list
                         kwargs=kwargs,
                     )
 
@@ -302,10 +392,6 @@ class ToolFactory:
 
         # Set the class name
         DynamicTool.__name__ = f"{spec.id.capitalize()}Tool"
-
-        # Set a reference to the tool factory
-        DynamicTool.tool_factory = self
-        DynamicTool.signature_verifier = self.signature_verifier
 
         # Register the tool as a plugin
         register_plugin(DynamicTool)
@@ -317,8 +403,10 @@ class ToolFactory:
         Save the tool to disk.
 
         Args:
+        ----
             spec: Tool specification
             code: Generated code
+
         """
         # Create the file path
         file_path = os.path.join(self.config.output_dir, f"{spec.id}.py")
@@ -350,39 +438,48 @@ class ToolFactory:
                 f.write(signature_json)
             logger.info(f"Saved signature to: {sig_path}")
 
-    def get_tool(self, tool_id: str) -> Type[ToolPlugin]:
+    def get_tool(self, tool_id: str) -> type[ToolPlugin]:
         """
         Get a tool by ID.
 
         Args:
+        ----
             tool_id: ID of the tool
 
         Returns:
+        -------
             Type[ToolPlugin]: Tool class
 
         Raises:
+        ------
             ValueError: If the tool doesn't exist
+
         """
         if tool_id not in self.tools:
-            raise ValueError(f"Tool with ID '{tool_id}' does not exist")
+            msg = f"Tool with ID '{tool_id}' does not exist"
+            raise ValueError(msg)
 
         return self.tools[tool_id]
 
-    def list_tools(self) -> Dict[str, Type[ToolPlugin]]:
+    def list_tools(self):
         """
         List all registered tools.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Type[ToolPlugin]]: Dictionary of tool ID to tool class
+
         """
         return self.tools.copy()
 
-    def list_templates(self) -> Dict[str, ToolTemplate]:
+    def list_templates(self):
         """
         List all registered templates.
 
-        Returns:
+        Returns
+        -------
             Dict[str, ToolTemplate]: Dictionary of template ID to template
+
         """
         return self.templates.copy()
 

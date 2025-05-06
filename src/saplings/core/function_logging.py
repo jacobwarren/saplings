@@ -1,15 +1,17 @@
+from __future__ import annotations
+
 """
 Function logging module for Saplings.
 
 This module provides utilities for logging function calls.
 """
 
-import json
+
 import logging
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +19,14 @@ logger = logging.getLogger(__name__)
 class FunctionLogger:
     """Utility for logging function calls."""
 
-    def __init__(self, log_level: int = logging.INFO):
+    def __init__(self, log_level: int = logging.INFO) -> None:
         """
         Initialize the function logger.
 
         Args:
+        ----
             log_level: Logging level
+
         """
         self.log_level = log_level
         self._function_logger = logging.getLogger("saplings.function_calls")
@@ -31,17 +35,18 @@ class FunctionLogger:
     def log_function_call(
         self,
         name: str,
-        arguments: Dict[str, Any],
+        arguments: dict[str, Any],
         result: Any = None,
-        error: Optional[Exception] = None,
-        duration: Optional[float] = None,
-        call_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        error: Exception | None = None,
+        duration: float | None = None,
+        call_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Log a function call.
 
         Args:
+        ----
             name: Name of the function
             arguments: Arguments passed to the function
             result: Result of the function call
@@ -51,7 +56,9 @@ class FunctionLogger:
             metadata: Additional metadata
 
         Returns:
+        -------
             Dict[str, Any]: Log entry
+
         """
         # Create a log entry
         log_entry = {
@@ -85,21 +92,24 @@ class FunctionLogger:
     def log_function_start(
         self,
         name: str,
-        arguments: Dict[str, Any],
-        call_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        arguments: dict[str, Any],
+        call_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Log the start of a function call.
 
         Args:
+        ----
             name: Name of the function
             arguments: Arguments passed to the function
             call_id: Unique ID for the function call
             metadata: Additional metadata
 
         Returns:
+        -------
             Dict[str, Any]: Log entry
+
         """
         # Create a log entry
         call_id = call_id or str(uuid.uuid4())
@@ -124,14 +134,15 @@ class FunctionLogger:
         name: str,
         call_id: str,
         result: Any = None,
-        error: Optional[Exception] = None,
-        duration: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        error: Exception | None = None,
+        duration: float | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Log the end of a function call.
 
         Args:
+        ----
             name: Name of the function
             call_id: Unique ID for the function call
             result: Result of the function call
@@ -140,7 +151,9 @@ class FunctionLogger:
             metadata: Additional metadata
 
         Returns:
+        -------
             Dict[str, Any]: Log entry
+
         """
         # Create a log entry
         log_entry = {
@@ -170,15 +183,18 @@ class FunctionLogger:
 
         return log_entry
 
-    def _sanitize_arguments(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def _sanitize_arguments(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """
         Sanitize arguments for logging.
 
         Args:
+        ----
             arguments: Arguments to sanitize
 
         Returns:
+        -------
             Dict[str, Any]: Sanitized arguments
+
         """
         # Make a copy to avoid modifying the original
         sanitized = arguments.copy()
@@ -196,10 +212,13 @@ class FunctionLogger:
         Sanitize a result for logging.
 
         Args:
+        ----
             result: Result to sanitize
 
         Returns:
+        -------
             Any: Sanitized result
+
         """
         # For simple types, return as is
         if result is None or isinstance(result, (str, int, float, bool)):
@@ -228,17 +247,19 @@ class FunctionCallTimer:
         self,
         function_logger: FunctionLogger,
         name: str,
-        arguments: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
+        arguments: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
         """
         Initialize the function call timer.
 
         Args:
+        ----
             function_logger: Function logger
             name: Name of the function
             arguments: Arguments passed to the function
             metadata: Additional metadata
+
         """
         self.function_logger = function_logger
         self.name = name
@@ -260,11 +281,12 @@ class FunctionCallTimer:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """End timing the function call."""
         end_time = time.time()
-        duration = end_time - self.start_time
+        duration = end_time - self.start_time if self.start_time is not None else None
 
+        call_id = self.call_id if self.call_id is not None else ""
         self.function_logger.log_function_end(
             self.name,
-            self.call_id,
+            call_id,
             result=None if exc_val else "***RESULT_NOT_CAPTURED***",
             error=exc_val,
             duration=duration,
@@ -278,19 +300,20 @@ function_logger = FunctionLogger()
 
 def log_function_call(
     name: str,
-    arguments: Dict[str, Any],
+    arguments: dict[str, Any],
     result: Any = None,
-    error: Optional[Exception] = None,
-    duration: Optional[float] = None,
-    call_id: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    error: Exception | None = None,
+    duration: float | None = None,
+    call_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Log a function call.
 
     This is a convenience function that uses the FunctionLogger.
 
     Args:
+    ----
         name: Name of the function
         arguments: Arguments passed to the function
         result: Result of the function call
@@ -300,7 +323,9 @@ def log_function_call(
         metadata: Additional metadata
 
     Returns:
+    -------
         Dict[str, Any]: Log entry
+
     """
     return function_logger.log_function_call(
         name, arguments, result, error, duration, call_id, metadata
@@ -308,7 +333,7 @@ def log_function_call(
 
 
 def time_function_call(
-    name: str, arguments: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None
+    name: str, arguments: dict[str, Any], metadata: dict[str, Any] | None = None
 ) -> FunctionCallTimer:
     """
     Time a function call.
@@ -316,11 +341,14 @@ def time_function_call(
     This is a convenience function that returns a context manager.
 
     Args:
+    ----
         name: Name of the function
         arguments: Arguments passed to the function
         metadata: Additional metadata
 
     Returns:
+    -------
         FunctionCallTimer: Context manager for timing the function call
+
     """
     return FunctionCallTimer(function_logger, name, arguments, metadata)

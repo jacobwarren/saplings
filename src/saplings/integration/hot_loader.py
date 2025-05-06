@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Hot-loading system for Saplings.
 
@@ -5,14 +7,16 @@ This module provides the hot-loading mechanism for tools, allowing them to be
 added, updated, or removed without restarting the system.
 """
 
+
 import asyncio
 import importlib
+import importlib.util
 import logging
 import os
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set, Type, cast
+from typing import Any, Callable, TypeVar, cast
 
 from saplings.core.plugin import (
     Plugin,
@@ -22,6 +26,9 @@ from saplings.core.plugin import (
     get_plugins_by_type,
 )
 
+# Define a type variable for plugins that are tool plugins
+T = TypeVar("T", bound=Plugin)
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +36,7 @@ logger = logging.getLogger(__name__)
 class HotLoaderConfig:
     """Configuration for the hot-loading system."""
 
-    watch_directories: List[str] = field(default_factory=list)
+    watch_directories: list[str] = field(default_factory=list)
     """Directories to watch for tool changes."""
 
     auto_reload: bool = True
@@ -41,10 +48,10 @@ class HotLoaderConfig:
     tool_discovery_method: str = "entry_points"
     """Method to discover tools. Options: 'entry_points', 'directory'."""
 
-    on_tool_load_callback: Optional[Callable[[Type[ToolPlugin]], None]] = None
+    on_tool_load_callback: Callable[[type[ToolPlugin]], None] | None = None
     """Callback to call when a tool is loaded."""
 
-    on_tool_unload_callback: Optional[Callable[[str], None]] = None
+    on_tool_unload_callback: Callable[[str], None] | None = None
     """Callback to call when a tool is unloaded."""
 
 
@@ -55,19 +62,21 @@ class ToolLifecycleManager:
     This class handles the initialization, update, and retirement of tools.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the tool lifecycle manager."""
-        self.initialized_tools: Dict[str, Type[ToolPlugin]] = {}
-        self.retired_tools: Set[str] = set()
+        self.initialized_tools: dict[str, type[ToolPlugin]] = {}
+        self.retired_tools: set[str] = set()
 
         logger.info("Initialized ToolLifecycleManager")
 
-    def initialize_tool(self, tool_class: Type[ToolPlugin]) -> None:
+    def initialize_tool(self, tool_class: type[ToolPlugin]) -> None:
         """
         Initialize a tool.
 
         Args:
+        ----
             tool_class: Tool class to initialize
+
         """
         # Create a temporary instance to get the tool ID
         temp_instance = tool_class()
@@ -82,12 +91,14 @@ class ToolLifecycleManager:
 
         logger.info(f"Initialized tool: {tool_id}")
 
-    def update_tool(self, tool_class: Type[ToolPlugin]) -> None:
+    def update_tool(self, tool_class: type[ToolPlugin]) -> None:
         """
         Update a tool.
 
         Args:
+        ----
             tool_class: Tool class to update
+
         """
         # Create a temporary instance to get the tool ID
         temp_instance = tool_class()
@@ -107,7 +118,9 @@ class ToolLifecycleManager:
         Retire a tool.
 
         Args:
+        ----
             tool_id: ID of the tool to retire
+
         """
         # Check if the tool is initialized
         if tool_id in self.initialized_tools:
@@ -121,24 +134,29 @@ class ToolLifecycleManager:
         else:
             logger.warning(f"Cannot retire tool {tool_id}: not initialized")
 
-    def get_tool(self, tool_id: str) -> Optional[Type[ToolPlugin]]:
+    def get_tool(self, tool_id: str) -> type[ToolPlugin] | None:
         """
         Get a tool by ID.
 
         Args:
+        ----
             tool_id: ID of the tool
 
         Returns:
+        -------
             Optional[Type[ToolPlugin]]: Tool class if found, None otherwise
+
         """
         return self.initialized_tools.get(tool_id)
 
-    def get_all_tools(self) -> Dict[str, Type[ToolPlugin]]:
+    def get_all_tools(self):
         """
         Get all initialized tools.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Type[ToolPlugin]]: Dictionary of tool ID to tool class
+
         """
         return self.initialized_tools.copy()
 
@@ -147,10 +165,13 @@ class ToolLifecycleManager:
         Check if a tool is retired.
 
         Args:
+        ----
             tool_id: ID of the tool
 
         Returns:
+        -------
             bool: True if the tool is retired, False otherwise
+
         """
         return tool_id in self.retired_tools
 
@@ -163,17 +184,19 @@ class HotLoader:
     added, updated, or removed without restarting the system.
     """
 
-    def __init__(self, config: Optional[HotLoaderConfig] = None):
+    def __init__(self, config: HotLoaderConfig | None = None) -> None:
         """
         Initialize the hot-loading system.
 
         Args:
+        ----
             config: Configuration for the hot-loading system
+
         """
         self.config = config or HotLoaderConfig()
-        self.tools: Dict[str, Type[ToolPlugin]] = {}
+        self.tools: dict[str, type[ToolPlugin]] = {}
         self.lifecycle_manager = ToolLifecycleManager()
-        self._auto_reload_task: Optional[asyncio.Task] = None
+        self._auto_reload_task: asyncio.Task | None = None
         self._last_reload_time = 0.0
 
         # Create watch directories if they don't exist
@@ -182,15 +205,18 @@ class HotLoader:
 
         logger.info(f"Initialized HotLoader with config: {self.config}")
 
-    def load_tool(self, tool_class: Type[ToolPlugin]) -> Type[ToolPlugin]:
+    def load_tool(self, tool_class: type[ToolPlugin]) -> type[ToolPlugin]:
         """
         Load a tool.
 
         Args:
+        ----
             tool_class: Tool class to load
 
         Returns:
+        -------
             Type[ToolPlugin]: Loaded tool class
+
         """
         # Create a temporary instance to get the tool ID
         temp_instance = tool_class()
@@ -215,7 +241,9 @@ class HotLoader:
         Unload a tool.
 
         Args:
+        ----
             tool_id: ID of the tool to unload
+
         """
         # Check if the tool is loaded
         if tool_id in self.tools:
@@ -233,7 +261,7 @@ class HotLoader:
         else:
             logger.warning(f"Cannot unload tool {tool_id}: not loaded")
 
-    def reload_tools(self) -> None:
+    def reload_tools(self):
         """Reload all tools."""
         # Record the reload time
         self._last_reload_time = time.time()
@@ -248,8 +276,12 @@ class HotLoader:
         found_tools = set()
 
         # Load or update each tool
-        for tool_id, tool_class in tool_plugins.items():
+        for tool_id, plugin_class in tool_plugins.items():
             found_tools.add(tool_id)
+
+            # Cast the plugin class to ToolPlugin to satisfy type checking
+            # This is safe because we filtered by PluginType.TOOL
+            tool_class = cast("type[ToolPlugin]", plugin_class)
 
             if tool_id in self.tools:
                 # Update the tool
@@ -269,28 +301,33 @@ class HotLoader:
             f"Reloaded tools: {len(self.tools)} active, {len(self.lifecycle_manager.retired_tools)} retired"
         )
 
-    def get_tool(self, tool_id: str) -> Optional[Type[ToolPlugin]]:
+    def get_tool(self, tool_id: str) -> type[ToolPlugin] | None:
         """
         Get a tool by ID.
 
         Args:
+        ----
             tool_id: ID of the tool
 
         Returns:
+        -------
             Optional[Type[ToolPlugin]]: Tool class if found, None otherwise
+
         """
         return self.tools.get(tool_id)
 
-    def get_all_tools(self) -> Dict[str, Type[ToolPlugin]]:
+    def get_all_tools(self):
         """
         Get all loaded tools.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Type[ToolPlugin]]: Dictionary of tool ID to tool class
+
         """
         return self.tools.copy()
 
-    async def _auto_reload_loop(self) -> None:
+    async def _auto_reload_loop(self):
         """Auto-reload loop."""
         while True:
             try:
@@ -306,7 +343,7 @@ class HotLoader:
                 logger.exception(f"Error in auto-reload loop: {e}")
                 await asyncio.sleep(self.config.reload_interval)
 
-    def start_auto_reload(self) -> None:
+    def start_auto_reload(self):
         """Start the auto-reload loop."""
         if self._auto_reload_task is None:
             self._auto_reload_task = asyncio.create_task(self._auto_reload_loop())
@@ -314,7 +351,7 @@ class HotLoader:
         else:
             logger.warning("Auto-reload loop already running")
 
-    def stop_auto_reload(self) -> None:
+    def stop_auto_reload(self):
         """Stop the auto-reload loop."""
         if self._auto_reload_task is not None:
             self._auto_reload_task.cancel()
@@ -323,15 +360,18 @@ class HotLoader:
         else:
             logger.warning("Auto-reload loop not running")
 
-    def scan_directory(self, directory: str) -> List[str]:
+    def scan_directory(self, directory: str) -> list[str]:
         """
         Scan a directory for Python files.
 
         Args:
+        ----
             directory: Directory to scan
 
         Returns:
+        -------
             List[str]: List of Python file paths
+
         """
         python_files = []
 
@@ -342,15 +382,18 @@ class HotLoader:
 
         return python_files
 
-    def load_module_from_file(self, file_path: str) -> Optional[Any]:
+    def load_module_from_file(self, file_path: str) -> Any | None:
         """
         Load a module from a file.
 
         Args:
+        ----
             file_path: Path to the file
 
         Returns:
+        -------
             Optional[Any]: Loaded module if successful, None otherwise
+
         """
         try:
             # Get the module name from the file path
@@ -363,8 +406,8 @@ class HotLoader:
 
             # Import the module
             spec = importlib.util.spec_from_file_location(module_name, file_path)
-            if spec is None:
-                logger.warning(f"Failed to get spec for {file_path}")
+            if spec is None or spec.loader is None:
+                logger.warning(f"Failed to get spec or loader for {file_path}")
                 return None
 
             module = importlib.util.module_from_spec(spec)

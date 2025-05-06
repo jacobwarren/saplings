@@ -1,18 +1,21 @@
+from __future__ import annotations
+
 """
 Trace module for Saplings monitoring.
 
 This module provides the core tracing infrastructure for monitoring.
 """
 
+
 import json
 import logging
 import os
-import time
 import uuid
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable
 
 from saplings.monitoring.config import MonitoringConfig, TracingBackend
+from saplings.security.log_filter import redact
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +40,18 @@ class SpanEvent:
     def __init__(
         self,
         name: str,
-        timestamp: Optional[datetime] = None,
-        attributes: Optional[Dict[str, Any]] = None,
-    ):
+        timestamp: datetime | None = None,
+        attributes: dict[str, Any] | None = None,
+    ) -> None:
         """
         Initialize a span event.
 
         Args:
+        ----
             name: Name of the event
             timestamp: Timestamp of the event
             attributes: Attributes of the event
+
         """
         self.name = name
         self.timestamp = timestamp or datetime.now()
@@ -60,15 +65,17 @@ class SpanContext:
         self,
         trace_id: str,
         span_id: str,
-        parent_id: Optional[str] = None,
-    ):
+        parent_id: str | None = None,
+    ) -> None:
         """
         Initialize a span context.
 
         Args:
+        ----
             trace_id: ID of the trace
             span_id: ID of the span
             parent_id: ID of the parent span
+
         """
         self.trace_id = trace_id
         self.span_id = span_id
@@ -82,21 +89,23 @@ class Span:
         self,
         name: str,
         context: SpanContext,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         status: str = "OK",
-        attributes: Optional[Dict[str, Any]] = None,
-    ):
+        attributes: dict[str, Any] | None = None,
+    ) -> None:
         """
         Initialize a span.
 
         Args:
+        ----
             name: Name of the span
             context: Context of the span
             start_time: Start time of the span
             end_time: End time of the span
             status: Status of the span
             attributes: Attributes of the span
+
         """
         self.name = name
         self.context = context
@@ -107,32 +116,39 @@ class Span:
         self.end_time = end_time
         self.status = status
         self.attributes = attributes or {}
-        self.events: List[SpanEvent] = []
+        self.events: list[SpanEvent] = []
+        # OpenTelemetry span reference, set when using OTEL tracing
+        self.otel_span: Any = None
 
     def add_event(
         self,
         name: str,
-        attributes: Optional[Dict[str, Any]] = None,
+        attributes: dict[str, Any] | None = None,
     ) -> SpanEvent:
         """
         Add an event to the span.
 
         Args:
+        ----
             name: Name of the event
             attributes: Attributes of the event
 
         Returns:
+        -------
             SpanEvent: The created event
+
         """
         event = SpanEvent(name=name, attributes=attributes)
         self.events.append(event)
 
         # Add event to OTEL span if available
         if hasattr(self, "otel_span"):
+            # Convert datetime to nanoseconds for OpenTelemetry
+            timestamp_ns = int(event.timestamp.timestamp() * 1_000_000_000)
             self.otel_span.add_event(
                 name=name,
                 attributes=attributes,
-                timestamp=event.timestamp,
+                timestamp=timestamp_ns,
             )
 
         return event
@@ -142,7 +158,9 @@ class Span:
         Set the status of the span.
 
         Args:
+        ----
             status: Status of the span
+
         """
         self.status = status
 
@@ -163,26 +181,38 @@ class Span:
         Set an attribute of the span.
 
         Args:
+        ----
             key: Key of the attribute
             value: Value of the attribute
+
         """
-        self.attributes[key] = value
+        # Redact any sensitive values before storing
+        if isinstance(value, str):
+            self.attributes[key] = redact(value)
+        else:
+            self.attributes[key] = value
 
         # Set attribute on OTEL span if available
         if hasattr(self, "otel_span"):
-            self.otel_span.set_attribute(key, value)
+            # Also redact for OTEL if it's a string
+            if isinstance(value, str):
+                self.otel_span.set_attribute(key, redact(value))
+            else:
+                self.otel_span.set_attribute(key, value)
 
-    def end(self) -> None:
+    def end(self):
         """End the span."""
         if not self.end_time:
             self.end_time = datetime.now()
 
-    def duration_ms(self) -> float:
+    def duration_ms(self):
         """
         Get the duration of the span in milliseconds.
 
-        Returns:
+        Returns
+        -------
             float: Duration in milliseconds
+
         """
         if not self.end_time:
             return 0.0
@@ -196,34 +226,38 @@ class Trace:
     def __init__(
         self,
         trace_id: str,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         status: str = "OK",
-        attributes: Optional[Dict[str, Any]] = None,
-    ):
+        attributes: dict[str, Any] | None = None,
+    ) -> None:
         """
         Initialize a trace.
 
         Args:
+        ----
             trace_id: ID of the trace
             start_time: Start time of the trace
             end_time: End time of the trace
             status: Status of the trace
             attributes: Attributes of the trace
+
         """
         self.trace_id = trace_id
         self.start_time = start_time or datetime.now()
         self.end_time = end_time
         self.status = status
         self.attributes = attributes or {}
-        self.spans: List[Span] = []
+        self.spans: list[Span] = []
 
     def add_span(self, span: Span) -> None:
         """
         Add a span to the trace.
 
         Args:
+        ----
             span: Span to add
+
         """
         self.spans.append(span)
 
@@ -231,41 +265,48 @@ class Trace:
         if span.status == "ERROR" and self.status != "ERROR":
             self.status = "ERROR"
 
-    def end(self) -> None:
+    def end(self):
         """End the trace."""
         if not self.end_time:
             self.end_time = datetime.now()
 
-    def duration_ms(self) -> float:
+    def duration_ms(self):
         """
         Get the duration of the trace in milliseconds.
 
-        Returns:
+        Returns
+        -------
             float: Duration in milliseconds
+
         """
         if not self.end_time:
             return 0.0
 
         return (self.end_time - self.start_time).total_seconds() * 1000.0
 
-    def get_root_spans(self) -> List[Span]:
+    def get_root_spans(self):
         """
         Get the root spans of the trace.
 
-        Returns:
+        Returns
+        -------
             List[Span]: Root spans
+
         """
         return [span for span in self.spans if not span.parent_id]
 
-    def get_child_spans(self, parent_id: str) -> List[Span]:
+    def get_child_spans(self, parent_id: str) -> list[Span]:
         """
         Get the child spans of a parent span.
 
         Args:
+        ----
             parent_id: ID of the parent span
 
         Returns:
+        -------
             List[Span]: Child spans
+
         """
         return [span for span in self.spans if span.parent_id == parent_id]
 
@@ -282,28 +323,30 @@ class TraceManager:
 
     def __init__(
         self,
-        config: Optional[MonitoringConfig] = None,
-    ):
+        config: MonitoringConfig | None = None,
+    ) -> None:
         """
         Initialize the trace manager.
 
         Args:
+        ----
             config: Monitoring configuration
+
         """
         self.config = config or MonitoringConfig()
-        self.traces: Dict[str, Trace] = {}
-        self.active_traces: Set[str] = set()
-        self.active_spans: Dict[str, Span] = {}
+        self.traces: dict[str, Trace] = {}
+        self.active_traces: set[str] = set()
+        self.active_spans: dict[str, Span] = {}
 
         # Callbacks for trace lifecycle events
-        self.trace_callbacks: List[Callable[[str, str], None]] = []
+        self.trace_callbacks: list[Callable[[str, str], None]] = []
 
         # Initialize OpenTelemetry if available and enabled
         self.otel_tracer = None
         if self.config.tracing_backend == TracingBackend.OTEL:
             self._init_otel()
 
-    def _init_otel(self) -> None:
+    def _init_otel(self):
         """Initialize OpenTelemetry."""
         if not OTEL_AVAILABLE:
             logger.warning("OpenTelemetry not installed. OTEL tracing will not be available.")
@@ -333,7 +376,7 @@ class TraceManager:
 
             logger.info("OpenTelemetry initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize OpenTelemetry: {e}")
+            logger.exception(f"Failed to initialize OpenTelemetry: {e}")
             self.otel_tracer = None
 
     def register_trace_callback(
@@ -347,7 +390,9 @@ class TraceManager:
         when a trace is created, completed, or encounters an error.
 
         Args:
+        ----
             callback: Function to call with (trace_id, event_type)
+
         """
         if callback not in self.trace_callbacks:
             self.trace_callbacks.append(callback)
@@ -361,10 +406,13 @@ class TraceManager:
         Unregister a trace callback.
 
         Args:
+        ----
             callback: Function to unregister
 
         Returns:
+        -------
             bool: True if the callback was removed, False if not found
+
         """
         if callback in self.trace_callbacks:
             self.trace_callbacks.remove(callback)
@@ -381,29 +429,34 @@ class TraceManager:
         Trigger all registered callbacks for a trace event.
 
         Args:
+        ----
             trace_id: ID of the trace
             event: Event type (e.g., "created", "completed", "error")
+
         """
         for callback in self.trace_callbacks:
             try:
                 callback(trace_id, event)
             except Exception as e:
-                logger.error(f"Error in trace callback {callback.__name__}: {e}")
+                logger.exception(f"Error in trace callback {callback.__name__}: {e}")
 
     def create_trace(
         self,
-        trace_id: Optional[str] = None,
-        attributes: Optional[Dict[str, Any]] = None,
+        trace_id: str | None = None,
+        attributes: dict[str, Any] | None = None,
     ) -> Trace:
         """
         Create a new trace.
 
         Args:
+        ----
             trace_id: ID of the trace (generated if not provided)
             attributes: Attributes of the trace
 
         Returns:
+        -------
             Trace: The created trace
+
         """
         trace_id = trace_id or str(uuid.uuid4())
         trace = Trace(trace_id=trace_id, attributes=attributes)
@@ -418,21 +471,24 @@ class TraceManager:
     def start_span(
         self,
         name: str,
-        trace_id: Optional[str] = None,
-        parent_id: Optional[str] = None,
-        attributes: Optional[Dict[str, Any]] = None,
+        trace_id: str | None = None,
+        parent_id: str | None = None,
+        attributes: dict[str, Any] | None = None,
     ) -> Span:
         """
         Start a new span.
 
         Args:
+        ----
             name: Name of the span
             trace_id: ID of the trace (created if not provided)
             parent_id: ID of the parent span
             attributes: Attributes of the span
 
         Returns:
+        -------
             Span: The created span
+
         """
         # Create trace if not provided
         if not trace_id:
@@ -469,7 +525,7 @@ class TraceManager:
 
             # Determine span kind
             span_kind = otel_trace.SpanKind.INTERNAL
-            if "kind" in attributes:
+            if attributes is not None and "kind" in attributes:
                 kind = attributes.get("kind", "internal").lower()
                 if kind == "server":
                     span_kind = otel_trace.SpanKind.SERVER
@@ -481,12 +537,14 @@ class TraceManager:
                     span_kind = otel_trace.SpanKind.CONSUMER
 
             # Start the OTEL span
+            # Convert datetime to nanoseconds for OpenTelemetry
+            start_time_ns = int(span.start_time.timestamp() * 1_000_000_000)
             otel_span = self.otel_tracer.start_span(
                 name=name,
                 context=otel_context,
                 kind=span_kind,
                 attributes=attributes,
-                start_time=span.start_time,
+                start_time=start_time_ns,
             )
 
             # Store the OTEL span in our span object for later reference
@@ -497,14 +555,16 @@ class TraceManager:
     def end_span(
         self,
         span_id: str,
-        status: Optional[str] = None,
+        status: str | None = None,
     ) -> None:
         """
         End a span.
 
         Args:
+        ----
             span_id: ID of the span to end
             status: Final status of the span
+
         """
         if span_id not in self.active_spans:
             logger.warning(f"Span {span_id} not found in active spans")
@@ -541,14 +601,21 @@ class TraceManager:
 
             # Record events
             for event in span.events:
+                # Convert datetime to nanoseconds for OpenTelemetry
+                timestamp_ns = int(event.timestamp.timestamp() * 1_000_000_000)
                 span.otel_span.add_event(
                     name=event.name,
                     attributes=event.attributes,
-                    timestamp=event.timestamp,
+                    timestamp=timestamp_ns,
                 )
 
             # End the span
-            span.otel_span.end(end_time=span.end_time)
+            # Convert datetime to nanoseconds for OpenTelemetry
+            if span.end_time:
+                end_time_ns = int(span.end_time.timestamp() * 1_000_000_000)
+                span.otel_span.end(end_time=end_time_ns)
+            else:
+                span.otel_span.end()
 
         # Remove from active spans
         del self.active_spans[span_id]
@@ -569,27 +636,33 @@ class TraceManager:
                 event = "error" if trace.status == "ERROR" else "completed"
                 self._trigger_callbacks(trace.trace_id, event)
 
-    def get_trace(self, trace_id: str) -> Optional[Trace]:
+    def get_trace(self, trace_id: str) -> Trace | None:
         """
         Get a trace by ID.
 
         Args:
+        ----
             trace_id: ID of the trace
 
         Returns:
+        -------
             Optional[Trace]: The trace if found
+
         """
         return self.traces.get(trace_id)
 
-    def get_span(self, span_id: str) -> Optional[Span]:
+    def get_span(self, span_id: str) -> Span | None:
         """
         Get a span by ID.
 
         Args:
+        ----
             span_id: ID of the span
 
         Returns:
+        -------
             Optional[Span]: The span if found
+
         """
         # Check active spans first
         if span_id in self.active_spans:
@@ -605,18 +678,21 @@ class TraceManager:
 
     def list_traces(
         self,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-    ) -> List[Trace]:
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> list[Trace]:
         """
         List all traces within a time range.
 
         Args:
+        ----
             start_time: Start time for filtering
             end_time: End time for filtering
 
         Returns:
+        -------
             List[Trace]: Matching traces
+
         """
         traces = list(self.traces.values())
 
@@ -632,16 +708,19 @@ class TraceManager:
 
     def clear_traces(
         self,
-        before_time: Optional[datetime] = None,
+        before_time: datetime | None = None,
     ) -> int:
         """
         Clear traces from memory.
 
         Args:
+        ----
             before_time: Clear traces that ended before this time
 
         Returns:
+        -------
             int: Number of traces cleared
+
         """
         if not before_time:
             # Clear all inactive traces
@@ -653,35 +732,37 @@ class TraceManager:
                 del self.traces[trace_id]
 
             return len(inactive_traces)
-        else:
-            # Clear traces that ended before the specified time
-            traces_to_clear = [
-                trace_id
-                for trace_id, trace in self.traces.items()
-                if trace.end_time
-                and trace.end_time < before_time
-                and trace_id not in self.active_traces
-            ]
+        # Clear traces that ended before the specified time
+        traces_to_clear = [
+            trace_id
+            for trace_id, trace in self.traces.items()
+            if trace.end_time
+            and trace.end_time < before_time
+            and trace_id not in self.active_traces
+        ]
 
-            for trace_id in traces_to_clear:
-                del self.traces[trace_id]
+        for trace_id in traces_to_clear:
+            del self.traces[trace_id]
 
-            return len(traces_to_clear)
+        return len(traces_to_clear)
 
     def export_traces(
         self,
         output_path: str,
-        trace_ids: Optional[List[str]] = None,
+        trace_ids: list[str] | None = None,
     ) -> int:
         """
         Export traces to a file.
 
         Args:
+        ----
             output_path: Path to save the traces
             trace_ids: IDs of traces to export (all if not provided)
 
         Returns:
+        -------
             int: Number of traces exported
+
         """
         # Determine which traces to export
         if trace_ids:

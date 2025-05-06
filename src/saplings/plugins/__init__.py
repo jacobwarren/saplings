@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 """Plugin modules for the Saplings framework."""
 
 # Import the register_all_plugins function
+
 from saplings.plugins.register import register_all_plugins
 
 # Import plugins to make them available
@@ -17,9 +20,9 @@ except ImportError:
     pass
 
 __all__ = [
-    "register_all_plugins",
-    "SecureMemoryStore",
+    "CodeIndexer",
     "CodeValidator",
     "FactualValidator",
-    "CodeIndexer",
+    "SecureMemoryStore",
+    "register_all_plugins",
 ]

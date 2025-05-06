@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Safety validators for Saplings.
 
@@ -5,14 +7,9 @@ This module provides safety validators for Saplings.
 """
 
 import re
-from typing import Dict, List, Optional, Set, Union
 
-from saplings.validator.validator import (
-    RuntimeValidator,
-    StaticValidator,
-    ValidationResult,
-    ValidationStatus,
-)
+from saplings.validator.result import ValidationResult, ValidationStatus
+from saplings.validator.validator import RuntimeValidator
 
 
 class ProfanityValidator(RuntimeValidator):
@@ -24,15 +21,17 @@ class ProfanityValidator(RuntimeValidator):
 
     def __init__(
         self,
-        custom_profanity_list: Optional[List[str]] = None,
+        custom_profanity_list: list[str] | None = None,
         threshold: float = 0.0,
-    ):
+    ) -> None:
         """
         Initialize the profanity validator.
 
         Args:
+        ----
             custom_profanity_list: Custom list of profanity words
             threshold: Threshold for profanity detection (0.0 = any profanity fails)
+
         """
         self._threshold = threshold
 
@@ -67,17 +66,20 @@ class ProfanityValidator(RuntimeValidator):
         """Description of the validator."""
         return "Validates that the output does not contain profanity"
 
-    async def validate_output(self, output: str, prompt: str, **kwargs) -> ValidationResult:
+    async def validate_output(self, output: str, _prompt: str, **_kwargs) -> ValidationResult:
         """
         Validate the output for profanity.
 
         Args:
+        ----
             output: Output to validate
-            prompt: Prompt that generated the output
-            **kwargs: Additional validation parameters
+            _prompt: Prompt that generated the output (unused)
+            **_kwargs: Additional validation parameters (unused)
 
         Returns:
+        -------
             ValidationResult: Validation result
+
         """
         # Simple profanity detection based on word matching
         # In a real implementation, you would use a more sophisticated approach
@@ -85,10 +87,7 @@ class ProfanityValidator(RuntimeValidator):
         profanity_words = [word for word in words if word in self._profanity_list]
 
         # Calculate profanity score
-        if words:
-            profanity_score = len(profanity_words) / len(words)
-        else:
-            profanity_score = 0.0
+        profanity_score = len(profanity_words) / len(words) if words else 0.0
 
         # Check if the profanity score is below the threshold
         if profanity_score <= self._threshold:
@@ -102,17 +101,16 @@ class ProfanityValidator(RuntimeValidator):
                     "profanity_words": profanity_words,
                 },
             )
-        else:
-            return ValidationResult(
-                validator_id=self.id,
-                status=ValidationStatus.FAILED,
-                message=f"Output contains profanity (score: {profanity_score:.2f})",
-                details={
-                    "profanity_score": profanity_score,
-                    "threshold": self._threshold,
-                    "profanity_words": profanity_words,
-                },
-            )
+        return ValidationResult(
+            validator_id=self.id,
+            status=ValidationStatus.FAILED,
+            message=f"Output contains profanity (score: {profanity_score:.2f})",
+            details={
+                "profanity_score": profanity_score,
+                "threshold": self._threshold,
+                "profanity_words": profanity_words,
+            },
+        )
 
 
 class PiiValidator(RuntimeValidator):
@@ -128,17 +126,19 @@ class PiiValidator(RuntimeValidator):
         check_phone_numbers: bool = True,
         check_credit_cards: bool = True,
         check_ssns: bool = True,
-        custom_patterns: Optional[Dict[str, str]] = None,
-    ):
+        custom_patterns: dict[str, str] | None = None,
+    ) -> None:
         """
         Initialize the PII validator.
 
         Args:
+        ----
             check_emails: Whether to check for email addresses
             check_phone_numbers: Whether to check for phone numbers
             check_credit_cards: Whether to check for credit card numbers
             check_ssns: Whether to check for Social Security Numbers
             custom_patterns: Custom regex patterns to check for
+
         """
         self._check_emails = check_emails
         self._check_phone_numbers = check_phone_numbers
@@ -191,17 +191,20 @@ class PiiValidator(RuntimeValidator):
             "Validates that the output does not contain personally identifiable information (PII)"
         )
 
-    async def validate_output(self, output: str, prompt: str, **kwargs) -> ValidationResult:
+    async def validate_output(self, output: str, _prompt: str, **_kwargs) -> ValidationResult:
         """
         Validate the output for PII.
 
         Args:
+        ----
             output: Output to validate
-            prompt: Prompt that generated the output
-            **kwargs: Additional validation parameters
+            _prompt: Prompt that generated the output (unused)
+            **_kwargs: Additional validation parameters (unused)
 
         Returns:
+        -------
             ValidationResult: Validation result
+
         """
         # Check for PII using regex patterns
         found_pii = {}
@@ -223,12 +226,11 @@ class PiiValidator(RuntimeValidator):
                     "pii_types": pii_types,
                 },
             )
-        else:
-            return ValidationResult(
-                validator_id=self.id,
-                status=ValidationStatus.PASSED,
-                message="Output does not contain PII",
-                details={
-                    "checked_types": list(self._patterns.keys()),
-                },
-            )
+        return ValidationResult(
+            validator_id=self.id,
+            status=ValidationStatus.PASSED,
+            message="Output does not contain PII",
+            details={
+                "checked_types": list(self._patterns.keys()),
+            },
+        )

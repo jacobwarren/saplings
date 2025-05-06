@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Cascade retriever module for Saplings.
 
@@ -5,19 +7,22 @@ This module provides the cascade retriever that orchestrates the entire
 retrieval pipeline with entropy-based termination.
 """
 
+
 import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
-from saplings.memory.document import Document
-from saplings.memory.memory_store import MemoryStore
 from saplings.retrieval.config import RetrievalConfig
 from saplings.retrieval.embedding_retriever import EmbeddingRetriever
 from saplings.retrieval.entropy_calculator import EntropyCalculator
 from saplings.retrieval.graph_expander import GraphExpander
 from saplings.retrieval.tfidf_retriever import TFIDFRetriever
+
+if TYPE_CHECKING:
+    from saplings.memory.document import Document
+    from saplings.memory.memory_store import MemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -32,48 +37,52 @@ class RetrievalResult:
 
     def __init__(
         self,
-        documents: List[Document],
-        scores: List[float],
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
+        documents: list[Document],
+        scores: list[float],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
         """
         Initialize a retrieval result.
 
         Args:
+        ----
             documents: Retrieved documents
             scores: Scores for each document
             metadata: Additional metadata about the retrieval
+
         """
         self.documents = documents
         self.scores = scores
         self.metadata = metadata or {}
 
-    def __len__(self) -> int:
+    def __len__(self):
         """Get the number of documents in the result."""
         return len(self.documents)
 
-    def get_documents(self) -> List[Document]:
+    def get_documents(self):
         """Get the retrieved documents."""
         return self.documents
 
-    def get_scores(self) -> List[float]:
+    def get_scores(self):
         """Get the scores for each document."""
         return self.scores
 
-    def get_document_score_pairs(self) -> List[Tuple[Document, float]]:
+    def get_document_score_pairs(self):
         """Get document-score pairs."""
         return list(zip(self.documents, self.scores))
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> dict[str, Any]:
         """Get metadata about the retrieval."""
         return self.metadata
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the retrieval result to a dictionary.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Dictionary representation
+
         """
         return {
             "documents": [doc.to_dict() for doc in self.documents],
@@ -82,15 +91,18 @@ class RetrievalResult:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "RetrievalResult":
+    def from_dict(cls, data: dict[str, Any]) -> "RetrievalResult":
         """
         Create a retrieval result from a dictionary.
 
         Args:
+        ----
             data: Dictionary representation
 
         Returns:
+        -------
             RetrievalResult: Retrieval result
+
         """
         from saplings.memory.document import Document
 
@@ -111,14 +123,16 @@ class CascadeRetriever:
     def __init__(
         self,
         memory_store: MemoryStore,
-        config: Optional[RetrievalConfig] = None,
-    ):
+        config: RetrievalConfig | None = None,
+    ) -> None:
         """
         Initialize the cascade retriever.
 
         Args:
+        ----
             memory_store: Memory store containing the documents
             config: Retrieval configuration
+
         """
         self.memory_store = memory_store
         self.config = config or RetrievalConfig.default()
@@ -132,19 +146,22 @@ class CascadeRetriever:
     def retrieve(
         self,
         query: str,
-        filter_dict: Optional[Dict[str, Any]] = None,
-        max_documents: Optional[int] = None,
+        filter_dict: dict[str, Any] | None = None,
+        max_documents: int | None = None,
     ) -> RetrievalResult:
         """
         Retrieve documents relevant to the query.
 
         Args:
+        ----
             query: Query string
             filter_dict: Optional filter criteria
             max_documents: Maximum number of documents to retrieve
 
         Returns:
+        -------
             RetrievalResult: Retrieval result
+
         """
         # Reset entropy calculator
         self.entropy_calculator.reset()
@@ -166,8 +183,8 @@ class CascadeRetriever:
             max_documents = self.config.entropy.max_documents
 
         # Initialize result set
-        all_documents: List[Document] = []
-        all_scores: List[float] = []
+        all_documents: list[Document] = []
+        all_scores: list[float] = []
 
         # Main retrieval loop
         iteration = 0
@@ -177,7 +194,9 @@ class CascadeRetriever:
 
             # Step 1: TF-IDF retrieval
             tfidf_start = time.time()
-            if iteration == 1:
+            # Index for iteration
+            ITERATION_INDEX = 1
+            if iteration == ITERATION_INDEX:
                 # Build TF-IDF index if not already built
                 if not self.tfidf_retriever.is_built:
                     self.tfidf_retriever.build_index()
@@ -196,8 +215,19 @@ class CascadeRetriever:
                 )
 
             tfidf_docs = [doc for doc, _ in tfidf_results]
-            tfidf_scores = [score for _, score in tfidf_results]
+            [score for _, score in tfidf_results]
             metadata["tfidf_time"] += time.time() - tfidf_start
+
+            # If no documents were retrieved, return an empty result
+            if not tfidf_docs and iteration == 1:
+                logger.warning("No documents retrieved from TF-IDF retriever")
+                metadata["end_time"] = time.time()
+                metadata["total_time"] = metadata["end_time"] - metadata["start_time"]
+                return RetrievalResult(
+                    documents=[],
+                    scores=[],
+                    metadata=metadata,
+                )
 
             # Step 2: Embedding-based retrieval
             embedding_start = time.time()
@@ -218,8 +248,8 @@ class CascadeRetriever:
                 scores=embedding_scores,
             )
 
-            graph_docs = [doc for doc, _ in graph_results]
-            graph_scores = [score for _, score in graph_results]
+            [doc for doc, _ in graph_results]
+            [score for _, score in graph_results]
             metadata["graph_time"] += time.time() - graph_start
 
             # Merge results with existing set
@@ -259,20 +289,20 @@ class CascadeRetriever:
         metadata["total_time"] = metadata["end_time"] - metadata["start_time"]
 
         # Create result
-        result = RetrievalResult(
+        return RetrievalResult(
             documents=all_documents,
             scores=all_scores,
             metadata=metadata,
         )
-
-        return result
 
     def save(self, directory: str) -> None:
         """
         Save the cascade retriever to disk.
 
         Args:
+        ----
             directory: Directory to save to
+
         """
         directory_path = Path(directory)
         directory_path.mkdir(parents=True, exist_ok=True)
@@ -294,14 +324,16 @@ class CascadeRetriever:
         Load the cascade retriever from disk.
 
         Args:
+        ----
             directory: Directory to load from
+
         """
         directory_path = Path(directory)
 
         # Load config
         config_path = directory_path / "config.json"
         if config_path.exists():
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 config_data = json.load(f)
                 self.config = RetrievalConfig(**config_data)
 

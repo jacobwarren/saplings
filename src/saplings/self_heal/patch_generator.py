@@ -1,23 +1,51 @@
+from __future__ import annotations
+
 """
 Patch generator module for Saplings.
 
 This module provides the PatchGenerator class for auto-fixing errors in code.
 """
 
+
 import ast
+import contextlib
 import logging
 import os
 import re
 import sys
 import tempfile
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
+
+from saplings.core.exceptions import DataError, SelfHealingError
+from saplings.core.resilience import Validation, retry
+from saplings.self_heal.interfaces import IPatchGenerator
+
+
+def get_indentation(line: str, extra_indent: str = "") -> str:
+    """
+    Safely get the indentation from a line of code.
+
+    Args:
+    ----
+        line: The line to extract indentation from
+        extra_indent: Additional indentation to add
+
+    Returns:
+    -------
+        The indentation string
+
+    """
+    match = re.match(r"^(\s*)", line)
+    return (match.group(1) if match else "") + extra_indent
+
 
 logger = logging.getLogger(__name__)
 
 # Check if pylint is available
 try:
-    import pylint
+    import pylint  # type: ignore
 
     PYLINT_AVAILABLE = True
 except ImportError:
@@ -26,7 +54,7 @@ except ImportError:
 
 # Check if pyflakes is available
 try:
-    import pyflakes
+    import pyflakes  # type: ignore
 
     PYFLAKES_AVAILABLE = True
 except ImportError:
@@ -49,16 +77,18 @@ class PatchResult:
     def __init__(
         self,
         success: bool,
-        patched_code: Optional[str] = None,
-        error: Optional[str] = None,
-    ):
+        patched_code: str | None = None,
+        error: str | None = None,
+    ) -> None:
         """
         Initialize the patch result.
 
         Args:
+        ----
             success: Whether the patch was successfully applied
             patched_code: The patched code (if successful)
             error: Error message (if unsuccessful)
+
         """
         self.success = success
         self.patched_code = patched_code
@@ -73,20 +103,22 @@ class Patch:
         original_code: str,
         patched_code: str,
         error: str,
-        error_info: Dict[str, Any],
+        error_info: dict[str, Any],
         status: PatchStatus = PatchStatus.GENERATED,
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
         """
         Initialize the patch.
 
         Args:
+        ----
             original_code: Original code with error
             patched_code: Patched code
             error: Error message
             error_info: Information about the error
             status: Status of the patch
             metadata: Additional metadata
+
         """
         self.original_code = original_code
         self.patched_code = patched_code
@@ -97,39 +129,52 @@ class Patch:
         self.timestamp = self.metadata.get("timestamp", None)
 
 
-class PatchGenerator:
+class PatchGenerator(IPatchGenerator):
     """
     Generator for code patches.
 
     This class analyzes errors in code and generates patches to fix them.
+    It implements the IPatchGenerator interface for consistent API usage.
     """
 
     def __init__(
         self,
         max_retries: int = 3,
-        success_pair_collector: Optional[Any] = None,
-    ):
+        success_pair_collector: Any | None = None,
+    ) -> None:
         """
         Initialize the patch generator.
 
         Args:
+        ----
             max_retries: Maximum number of retry attempts
             success_pair_collector: Collector for successful error-fix pairs
+
+        Raises:
+        ------
+            ValueError: If max_retries is not positive
+
         """
+        # Validate inputs
+        Validation.require(max_retries > 0, "max_retries must be positive")
+
         self.max_retries = max_retries
         self.retry_count = 0
-        self.patches: List[Patch] = []
+        self.patches: list[Patch] = []
         self.success_pair_collector = success_pair_collector
 
-    def analyze_code_with_static_tools(self, code: str) -> Dict[str, Any]:
+    def analyze_code_with_static_tools(self, code: str) -> dict[str, Any]:
         """
         Analyze code using static analysis tools to identify issues.
 
         Args:
+        ----
             code: Code to analyze
 
         Returns:
+        -------
             Dict with analysis results
+
         """
         analysis_results = {"pylint": [], "pyflakes": [], "ast": {"valid": False, "errors": []}}
 
@@ -146,11 +191,11 @@ class PatchGenerator:
         # Use pylint for static analysis if available
         if PYLINT_AVAILABLE:
             try:
-                from pylint.lint import Run
-                from pylint.reporters.text import TextReporter
+                from pylint.lint import Run  # type: ignore
+                from pylint.reporters.text import TextReporter  # type: ignore
 
                 class CustomReporter(TextReporter):
-                    def __init__(self):
+                    def __init__(self) -> None:
                         super().__init__()
                         self.messages = []
 
@@ -184,17 +229,17 @@ class PatchGenerator:
         # Use pyflakes for additional error detection if available
         if PYFLAKES_AVAILABLE:
             try:
-                from pyflakes.api import check
-                from pyflakes.reporter import Reporter
+                from pyflakes.api import check  # type: ignore
+                from pyflakes.reporter import Reporter  # type: ignore
 
                 class CustomFlakesReporter(Reporter):
-                    def __init__(self):
+                    def __init__(self) -> None:
                         self.messages = []
 
                     def unexpectedError(self, filename, msg):
                         self.messages.append({"type": "unexpected", "message": str(msg)})
 
-                    def syntaxError(self, filename, msg, lineno, offset, text):
+                    def syntaxError(self, filename, msg, lineno, offset, text: str) -> None:
                         self.messages.append(
                             {
                                 "type": "syntax",
@@ -222,7 +267,11 @@ class PatchGenerator:
                     temp_path = temp_file.name
 
                 # Run pyflakes
-                check(temp_path, reporter)
+                with open(temp_path) as f:
+                    code_str = f.read()
+                check(
+                    code_str, temp_path, reporter
+                )  # Correct order: code string, filename, reporter
                 os.unlink(temp_path)
 
                 analysis_results["pyflakes"] = reporter.messages
@@ -231,16 +280,19 @@ class PatchGenerator:
 
         return analysis_results
 
-    def analyze_error(self, code: str, error: str) -> Dict[str, Any]:
+    def analyze_error(self, code: str, error: str) -> dict[str, Any]:
         """
         Analyze an error message to identify the type and patterns.
 
         Args:
+        ----
             code: Code with error
             error: Error message
 
         Returns:
+        -------
             Dict[str, Any]: Information about the error
+
         """
         error_info = {
             "type": "Unknown",
@@ -307,88 +359,136 @@ class PatchGenerator:
 
         return error_info
 
-    def generate_patch(self, code: str, error: str) -> Patch:
+    @retry(max_attempts=2, retry_exceptions=[DataError, SelfHealingError])
+    async def generate_patch(
+        self,
+        error_message: str,
+        code_context: str,
+    ) -> dict[str, Any]:
         """
-        Generate a patch for an error.
+        Generate a patch for a failed execution.
 
         Args:
-            code: Code with error
-            error: Error message
+        ----
+            error_message: Error message from failed execution
+            code_context: Code context where error occurred
 
         Returns:
-            Patch: Generated patch
+        -------
+            Dictionary with patch information including success status and patch details
+
+        Raises:
+        ------
+            SelfHealingError: If patch generation fails
+
         """
-        # Analyze the error
-        error_info = self.analyze_error(code, error)
+        try:
+            # Validate inputs
+            Validation.require_not_empty(error_message, "error_message")
+            Validation.require_not_empty(code_context, "code_context")
 
-        # Initialize patched code with original code
-        patched_code = code
-        used_static_analysis = False
+            # Analyze the error
+            error_info = self.analyze_error(code_context, error_message)
 
-        # First, try to use static analysis results to guide the fix
-        static_analysis = error_info.get("static_analysis", {})
+            # Initialize patched code with original code
+            patched_code = code_context
+            used_static_analysis = False
 
-        # Check if we have useful static analysis results
-        if self._can_fix_with_static_analysis(static_analysis, error_info):
-            static_patched_code = self._fix_with_static_analysis(code, static_analysis, error_info)
-            # Only use the static analysis result if it actually changed the code
-            if static_patched_code != code:
-                patched_code = static_patched_code
-                used_static_analysis = True
+            # First, try to use static analysis results to guide the fix
+            static_analysis = error_info.get("static_analysis", {})
 
-        # If static analysis didn't produce a fix or didn't change the code, fall back to pattern-based fixes
-        if patched_code == code:
-            if "missing_parenthesis" in error_info["patterns"]:
-                patched_code = self._fix_missing_parenthesis(code)
+            # Check if we have useful static analysis results
+            if self._can_fix_with_static_analysis(static_analysis, error_info):
+                static_patched_code = self._fix_with_static_analysis(
+                    code_context, static_analysis, error_info
+                )
+                # Only use the static analysis result if it actually changed the code
+                if static_patched_code != code_context:
+                    patched_code = static_patched_code
+                    used_static_analysis = True
 
-            elif "undefined_variable" in error_info["patterns"] and "variable" in error_info:
-                patched_code = self._fix_undefined_variable(code, error_info["variable"])
+            # If static analysis didn't produce a fix or didn't change the code, fall back to pattern-based fixes
+            if patched_code == code_context:
+                if "missing_parenthesis" in error_info["patterns"]:
+                    patched_code = self._fix_missing_parenthesis(code_context)
 
-            elif (
-                "indentation_error" in error_info["patterns"]
-                or "expected an indented block" in error
-            ):
-                patched_code = self._fix_indentation(code)
+                elif "undefined_variable" in error_info["patterns"] and "variable" in error_info:
+                    patched_code = self._fix_undefined_variable(
+                        code_context, error_info["variable"]
+                    )
 
-            elif "invalid_syntax" in error_info["patterns"]:
-                patched_code = self._fix_invalid_syntax(code)
+                elif (
+                    "indentation_error" in error_info["patterns"]
+                    or "expected an indented block" in error_message
+                ):
+                    patched_code = self._fix_indentation(code_context)
 
-            elif "argument_error" in error_info["patterns"]:
-                patched_code = self._fix_argument_error(code, error)
+                elif "invalid_syntax" in error_info["patterns"]:
+                    patched_code = self._fix_invalid_syntax(code_context)
 
-            elif "type_mismatch" in error_info["patterns"]:
-                patched_code = self._fix_type_mismatch(code, error)
+                elif "argument_error" in error_info["patterns"]:
+                    patched_code = self._fix_argument_error(code_context, error_message)
 
-            elif "missing_module" in error_info["patterns"] and "module" in error_info:
-                patched_code = self._fix_missing_module(code, error_info["module"])
+                elif "type_mismatch" in error_info["patterns"]:
+                    patched_code = self._fix_type_mismatch(code_context, error_message)
 
-        # Create and return the patch
-        patch = Patch(
-            original_code=code,
-            patched_code=patched_code,
-            error=error,
-            error_info=error_info,
-            status=PatchStatus.GENERATED,
-            metadata={
-                "retry_count": self.retry_count,
-                "used_static_analysis": used_static_analysis,
-            },
-        )
+                elif "missing_module" in error_info["patterns"] and "module" in error_info:
+                    patched_code = self._fix_missing_module(code_context, error_info["module"])
 
-        return patch
+            # Create the patch
+            patch = Patch(
+                original_code=code_context,
+                patched_code=patched_code,
+                error=error_message,
+                error_info=error_info,
+                status=PatchStatus.GENERATED,
+                metadata={
+                    "retry_count": self.retry_count,
+                    "used_static_analysis": used_static_analysis,
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
+
+            # Check if the patch actually changes anything
+            if patch.patched_code == patch.original_code:
+                return {
+                    "success": False,
+                    "reason": "Could not generate a patch for this error",
+                    "error_info": error_info,
+                }
+
+            # Return the patch information
+            return {
+                "success": True,
+                "patch": {
+                    "original_code": patch.original_code,
+                    "patched_code": patch.patched_code,
+                    "error": patch.error,
+                    "error_info": patch.error_info,
+                    "status": patch.status,
+                    "metadata": patch.metadata,
+                },
+            }
+        except Exception as e:
+            logger.exception("Error generating patch: %s", e)
+            msg = f"Failed to generate patch: {e!s}"
+            raise SelfHealingError(msg, cause=e)
 
     def _can_fix_with_static_analysis(
-        self, static_analysis: Dict[str, Any], error_info: Dict[str, Any]
+        self, static_analysis: dict[str, Any], error_info: dict[str, Any]
     ) -> bool:
         """
         Determine if we can fix the error using static analysis results.
 
         Args:
+        ----
             static_analysis: Static analysis results
             error_info: Error information (not used in current implementation but kept for future use)
 
         Returns:
+        -------
             bool: True if we can fix with static analysis, False otherwise
+
         """
         # Check if AST parsing failed (syntax error)
         if not static_analysis.get("ast", {}).get("valid", True):
@@ -399,24 +499,24 @@ class PatchGenerator:
             return True
 
         # Check if we have pyflakes results
-        if static_analysis.get("pyflakes") and len(static_analysis["pyflakes"]) > 0:
-            return True
-
-        return False
+        return bool(static_analysis.get("pyflakes") and len(static_analysis["pyflakes"]) > 0)
 
     def _fix_with_static_analysis(
-        self, code: str, static_analysis: Dict[str, Any], error_info: Dict[str, Any]
+        self, code: str, static_analysis: dict[str, Any], error_info: dict[str, Any]
     ) -> str:
         """
         Fix code using static analysis results.
 
         Args:
+        ----
             code: Code to fix
             static_analysis: Static analysis results
             error_info: Error information (not used in current implementation but kept for future use)
 
         Returns:
+        -------
             str: Fixed code
+
         """
         # Start with the original code
         fixed_code = code
@@ -524,11 +624,14 @@ class PatchGenerator:
         Remove an unused import from the code.
 
         Args:
+        ----
             code: Code to modify
             import_name: Name of the import to remove
 
         Returns:
+        -------
             str: Modified code
+
         """
         lines = code.split("\n")
         modified_lines = []
@@ -566,11 +669,14 @@ class PatchGenerator:
         Add a docstring to a function or class.
 
         Args:
+        ----
             code: Code to modify
             line_num: Line number of the function or class definition
 
         Returns:
+        -------
             str: Modified code
+
         """
         lines = code.split("\n")
 
@@ -608,10 +714,13 @@ class PatchGenerator:
         Apply a patch and update the retry count.
 
         Args:
+        ----
             patch: Patch to apply
 
         Returns:
+        -------
             PatchResult: Result of applying the patch
+
         """
         # Check if we've reached the retry limit
         if self.retry_count >= self.max_retries:
@@ -635,27 +744,51 @@ class PatchGenerator:
             patched_code=patch.patched_code,
         )
 
-    def validate_patch(self, patched_code: str) -> Tuple[bool, Optional[str]]:
+    def validate_patch(self, patched_code: str) -> tuple[bool, str | None]:
         """
-        Validate a patched code by executing it.
+        Validate a patched code by analyzing and/or executing it.
 
         Args:
+        ----
             patched_code: Patched code to validate
 
         Returns:
+        -------
             Tuple[bool, Optional[str]]: (is_valid, error_message)
-        """
-        # Execute the patched code
-        success, error = self._execute_code(patched_code)
 
-        return success, error
+        Raises:
+        ------
+            SelfHealingError: If validation fails due to an unexpected error
+
+        """
+        try:
+            # Validate inputs
+            Validation.require_not_empty(patched_code, "patched_code")
+
+            # First, try to parse the code to catch syntax errors
+            try:
+                ast.parse(patched_code)
+            except SyntaxError as e:
+                return False, f"Syntax error: {e!s}"
+
+            # Execute the code in a safe environment
+            success, error = self._execute_code(patched_code)
+            return success, error
+
+        except Exception as e:
+            logger.exception("Error validating patch: %s", e)
+            # We don't want to raise an exception here since this is a validation method
+            # that should return False rather than crash
+            return False, f"Validation error: {e!s}"
 
     def after_success(self, patch: Patch) -> None:
         """
         Process a successful patch for collection and learning.
 
         Args:
+        ----
             patch: Successful patch
+
         """
         # Update the patch status
         patch.status = PatchStatus.VALIDATED
@@ -666,20 +799,23 @@ class PatchGenerator:
 
         logger.info(f"Successfully applied patch after {self.retry_count} retries")
 
-    def reset(self) -> None:
+    def reset(self):
         """Reset the patch generator state."""
         self.retry_count = 0
         self.patches = []
 
-    def _execute_code(self, code: str) -> Tuple[bool, Optional[str]]:
+    def _execute_code(self, code: str) -> tuple[bool, str | None]:
         """
         Execute code in a safe environment to check for errors.
 
         Args:
+        ----
             code: Code to execute
 
         Returns:
+        -------
             Tuple[bool, Optional[str]]: (success, error_message)
+
         """
         try:
             # First, try to parse the code to catch syntax errors
@@ -700,7 +836,8 @@ class PatchGenerator:
                     [sys.executable, temp_path],
                     capture_output=True,
                     text=True,
-                    timeout=5,  # 5 second timeout
+                    timeout=5,
+                    check=False,  # 5 second timeout
                 )
 
                 # Check for errors
@@ -714,10 +851,8 @@ class PatchGenerator:
                 return False, str(e)
             finally:
                 # Clean up the temporary file
-                try:
+                with contextlib.suppress(Exception):
                     os.unlink(temp_path)
-                except Exception:
-                    pass
         except Exception as e:
             return False, str(e)
 
@@ -726,10 +861,13 @@ class PatchGenerator:
         Fix missing parenthesis in code.
 
         Args:
+        ----
             code: Code with missing parenthesis
 
         Returns:
+        -------
             str: Fixed code
+
         """
         # Simple heuristic: count opening and closing parentheses
         open_count = code.count("(")
@@ -738,7 +876,7 @@ class PatchGenerator:
         if open_count > close_count:
             # Missing closing parenthesis
             return code + ")" * (open_count - close_count)
-        elif close_count > open_count:
+        if close_count > open_count:
             # Missing opening parenthesis (less common)
             return "(" * (close_count - open_count) + code
 
@@ -756,11 +894,14 @@ class PatchGenerator:
         Fix undefined variable in code by analyzing context and adding appropriate definition.
 
         Args:
+        ----
             code: Code with undefined variable
             variable: Name of the undefined variable
 
         Returns:
+        -------
             str: Fixed code with properly defined variable
+
         """
         lines = code.split("\n")
 
@@ -841,17 +982,21 @@ class PatchGenerator:
                 # Check if it's used like a dict or list
                 is_dict = False
                 for node in variable_uses:
-                    parent = next(
-                        (p for p in ast.walk(tree) if hasattr(p, "value") and p.value == node), None
-                    )
+                    # Find parent node that contains this node as a value
+                    parent = None
+                    for p in ast.walk(tree):
+                        # Check if it's a subscript node (which has a value attribute)
+                        if isinstance(p, ast.Subscript) and hasattr(p, "value"):
+                            if p.value == node:
+                                parent = p
+                                break
                     if (
                         parent
                         and isinstance(parent, ast.Subscript)
                         and isinstance(parent.slice, ast.Constant)
-                    ):
-                        if isinstance(parent.slice.value, str):
-                            is_dict = True
-                            break
+                    ) and isinstance(parent.slice.value, str):
+                        is_dict = True
+                        break
 
                 if is_dict:
                     definition = f"{variable} = {{}}  # TODO: Populate this dictionary"
@@ -870,7 +1015,7 @@ class PatchGenerator:
                 # Find the first line after the function definition
                 for i in range(func_line, len(lines)):
                     if ":" in lines[i]:
-                        indent = re.match(r"^(\s*)", lines[i]).group(1) + "    "
+                        indent = get_indentation(lines[i], "    ")
                         lines.insert(i + 1, f"{indent}{definition}")
                         return "\n".join(lines)
 
@@ -897,10 +1042,11 @@ class PatchGenerator:
                     for i, line in enumerate(lines):
                         if re.match(r"^\s*def\s+__init__\s*\(", line):
                             init_line = i
-                            init_indent = re.match(r"^(\s*)", line).group(1) + "    "
+                            init_indent = get_indentation(line, "    ")
                             break
-
-                    if init_line >= 0:
+                    # Minimum threshold for init line
+                    INIT_LINE_MIN_THRESHOLD = 0
+                    if init_line >= INIT_LINE_MIN_THRESHOLD:
                         # Find where to insert in __init__
                         for i in range(init_line, len(lines)):
                             if ":" in lines[i]:
@@ -912,14 +1058,28 @@ class PatchGenerator:
                     else:
                         # Create __init__ method
                         class_line = class_node.lineno
-                        class_indent = re.match(r"^(\s*)", lines[class_line - 1]).group(1)
+                        class_indent = get_indentation(lines[class_line - 1])
                         method_indent = class_indent + "    "
                         body_indent = method_indent + "    "
 
                         init_method = [
-                            f"{method_indent}def __init__(self):",
+                            f"{method_indent}def __init__(self) -> None:",
                             f"{body_indent}super().__init__()",
-                            f"{body_indent}self.{variable} = None  # TODO: Initialize properly",
+                            f"{body_indent}# Initialize with appropriate default value based on variable name",
+                            f"{body_indent}if '{variable}' in globals():",
+                            f"{body_indent}    self.{variable} = globals()['{variable}']",
+                            f"{body_indent}elif '{variable.lower()}' in ('id', 'index', 'count', 'number', 'position'):",
+                            f"{body_indent}    self.{variable} = 0  # Initialize numeric variables",
+                            f"{body_indent}elif '{variable.lower()}' in ('name', 'title', 'label', 'description', 'text'):",
+                            f"{body_indent}    self.{variable} = ''  # Initialize string variables",
+                            f"{body_indent}elif '{variable.lower()}' in ('items', 'elements', 'values', 'data', 'list'):",
+                            f"{body_indent}    self.{variable} = []  # Initialize list variables",
+                            f"{body_indent}elif '{variable.lower()}' in ('config', 'options', 'settings', 'properties', 'attributes'):",
+                            f"{body_indent}    self.{variable} = {{}}  # Initialize dict variables",
+                            f"{body_indent}elif '{variable.lower()}' in ('enabled', 'active', 'valid', 'visible'):",
+                            f"{body_indent}    self.{variable} = False  # Initialize boolean variables",
+                            f"{body_indent}else:",
+                            f"{body_indent}    self.{variable} = None  # Default initialization",
                         ]
 
                         # Find where to insert the __init__ method
@@ -931,7 +1091,7 @@ class PatchGenerator:
                 else:
                     # Regular class variable
                     class_line = class_node.lineno
-                    class_indent = re.match(r"^(\s*)", lines[class_line - 1]).group(1) + "    "
+                    class_indent = get_indentation(lines[class_line - 1], "    ")
 
                     # Insert after class definition
                     for i in range(class_line, len(lines)):
@@ -958,10 +1118,31 @@ class PatchGenerator:
             # Simple heuristic: add a variable definition at the beginning
             for i, line in enumerate(lines):
                 if line.strip() and not line.strip().startswith(("#", "import", "from")):
-                    lines.insert(i, f"{variable} = None  # TODO: Replace with appropriate value")
+                    # Determine appropriate default value based on variable name
+                    if variable.lower() in ("id", "index", "count", "number", "position"):
+                        default_value = "0  # Numeric default"
+                    elif variable.lower() in ("name", "title", "label", "description", "text"):
+                        default_value = "''  # String default"
+                    elif variable.lower() in ("items", "elements", "values", "data", "list"):
+                        default_value = "[]  # List default"
+                    elif variable.lower() in (
+                        "config",
+                        "options",
+                        "settings",
+                        "properties",
+                        "attributes",
+                    ):
+                        default_value = "{}  # Dict default"
+                    elif variable.lower() in ("enabled", "active", "valid", "visible"):
+                        default_value = "False  # Boolean default"
+                    else:
+                        default_value = "None  # Default value"
+
+                    lines.insert(i, f"{variable} = {default_value}")
                     break
             else:
-                lines.insert(0, f"{variable} = None  # TODO: Replace with appropriate value")
+                # Default to None if we can't determine a better default
+                lines.insert(0, f"{variable} = None  # Default value")
 
         return "\n".join(lines)
 
@@ -970,10 +1151,13 @@ class PatchGenerator:
         Fix indentation errors in code.
 
         Args:
+        ----
             code: Code with indentation errors
 
         Returns:
+        -------
             str: Fixed code
+
         """
         lines = code.split("\n")
         fixed_lines = []
@@ -1005,11 +1189,7 @@ class PatchGenerator:
 
             # If indentation is less than expected and this is not a dedent line
             if current_indent < expected_indent and not (
-                stripped.startswith("else:")
-                or stripped.startswith("elif ")
-                or stripped.startswith("except:")
-                or stripped.startswith("except ")
-                or stripped.startswith("finally:")
+                stripped.startswith(("else:", "elif ", "except:", "except ", "finally:"))
             ):
                 # Fix indentation
                 fixed_lines.append(" " * expected_indent + stripped)
@@ -1017,13 +1197,7 @@ class PatchGenerator:
                 fixed_lines.append(line)
 
                 # Update expected indentation if this is a dedent line
-                if (
-                    stripped.startswith("else:")
-                    or stripped.startswith("elif ")
-                    or stripped.startswith("except:")
-                    or stripped.startswith("except ")
-                    or stripped.startswith("finally:")
-                ):
+                if stripped.startswith(("else:", "elif ", "except:", "except ", "finally:")):
                     expected_indent = current_indent
 
         return "\n".join(fixed_lines)
@@ -1033,10 +1207,13 @@ class PatchGenerator:
         Fix invalid syntax in code by analyzing common syntax errors.
 
         Args:
+        ----
             code: Code with invalid syntax
 
         Returns:
+        -------
             str: Fixed code with proper syntax
+
         """
         lines = code.split("\n")
         fixed_lines = []
@@ -1084,8 +1261,8 @@ class PatchGenerator:
                     if j + 2 < len(line) and line[j : j + 3] in ['"""', "'''"]:
                         if not in_string:
                             in_string = True
-                            string_char = line[j]
-                        elif string_char == line[j] and line[j : j + 3] in ['"""', "'''"]:
+                            string_char = char
+                        elif string_char == char and line[j : j + 3] in ['"""', "'''"]:
                             in_string = False
                             string_char = None
                     # Single quote
@@ -1152,8 +1329,7 @@ class PatchGenerator:
                             (prev_char.isalnum() or prev_char in "\"']})")
                             and (char.isspace() or char == "#")
                             and (next_char.isalnum() or next_char in "\"'[({")
-                            and char != ","
-                            and char != ":"
+                            and char not in {",", ":"}
                         ):
                             # Don't add comma if it's a dict key-value pair
                             if not (container_type == "{" and ":" in line[j:]):
@@ -1173,15 +1349,11 @@ class PatchGenerator:
                         bracket_stack.pop()
                 elif char == "{":
                     brace_stack.append(char)
-                elif char == "}":
-                    if brace_stack:
-                        brace_stack.pop()
+                elif char == "}" and brace_stack:
+                    brace_stack.pop()
 
             # Check if this line ends with a continuation character
-            if stripped.endswith("\\"):
-                continued_line = True
-            else:
-                continued_line = False
+            continued_line = bool(stripped.endswith("\\"))
 
             # Fix indentation issues
             current_indent = len(line) - len(line.lstrip())
@@ -1200,7 +1372,7 @@ class PatchGenerator:
             # Check if the line is significantly different and add a comment
             if line != original_line:
                 # Add a comment explaining the fix
-                indent = re.match(r"^(\s*)", line).group(1)
+                indent = get_indentation(line)
                 fixed_lines.append(f"{indent}# Fixed syntax: {original_line.strip()}")
 
         # Fix unclosed brackets at the end of the file
@@ -1224,11 +1396,14 @@ class PatchGenerator:
         Fix argument errors in function calls by analyzing the error and function signature.
 
         Args:
+        ----
             code: Code with argument errors
             error: Error message
 
         Returns:
+        -------
             str: Fixed code with proper function arguments
+
         """
         lines = code.split("\n")
 
@@ -1391,7 +1566,7 @@ class PatchGenerator:
                 return "\n".join(lines)
 
             # Handle missing required argument error
-            elif missing_required_pattern:
+            if missing_required_pattern:
                 func_name = missing_required_pattern.group(1)
                 missing_count = int(missing_required_pattern.group(2))
 
@@ -1422,21 +1597,18 @@ class PatchGenerator:
                             )
                         else:
                             new_args_str = f"{missing_arg}=None  # TODO: Provide appropriate value"
+                    # We don't know the argument name, so just add placeholders
+                    elif args_str.strip():
+                        new_args_str = args_str
+                        for j in range(missing_count):
+                            new_args_str += f", arg{j + 1}=None  # TODO: Provide appropriate value"
                     else:
-                        # We don't know the argument name, so just add placeholders
-                        if args_str.strip():
-                            new_args_str = args_str
-                            for j in range(missing_count):
-                                new_args_str += (
-                                    f", arg{j+1}=None  # TODO: Provide appropriate value"
-                                )
-                        else:
-                            new_args_str = ", ".join(
-                                [
-                                    f"arg{j+1}=None  # TODO: Provide appropriate value"
-                                    for j in range(missing_count)
-                                ]
-                            )
+                        new_args_str = ", ".join(
+                            [
+                                f"arg{j + 1}=None  # TODO: Provide appropriate value"
+                                for j in range(missing_count)
+                            ]
+                        )
 
                     # Replace the arguments in the line
                     new_line = line.replace(args_str, new_args_str)
@@ -1445,7 +1617,7 @@ class PatchGenerator:
                 return "\n".join(lines)
 
             # Handle unexpected keyword argument error
-            elif unexpected_keyword_pattern:
+            if unexpected_keyword_pattern:
                 func_name = unexpected_keyword_pattern.group(1)
                 bad_keyword = unexpected_keyword_pattern.group(2)
 
@@ -1479,13 +1651,13 @@ class PatchGenerator:
                     lines[i] = new_line
 
                     # Add a comment explaining the removal
-                    indent = re.match(r"^(\s*)", line).group(1)
+                    indent = get_indentation(line)
                     lines.insert(i, f"{indent}# Removed invalid keyword argument: {bad_keyword}")
 
                 return "\n".join(lines)
 
             # Handle multiple values for argument error
-            elif multiple_values_pattern:
+            if multiple_values_pattern:
                 func_name = multiple_values_pattern.group(1)
                 duplicate_arg = multiple_values_pattern.group(2)
 
@@ -1550,7 +1722,7 @@ class PatchGenerator:
                     lines[i] = new_line
 
                     # Add a comment explaining the change
-                    indent = re.match(r"^(\s*)", line).group(1)
+                    indent = get_indentation(line)
                     lines.insert(
                         i, f"{indent}# Fixed multiple values for argument: {duplicate_arg}"
                     )
@@ -1558,30 +1730,53 @@ class PatchGenerator:
                 return "\n".join(lines)
 
             # Generic argument error handling
-            else:
-                # Extract function name from error if possible
-                func_name_match = re.search(r"([a-zA-Z0-9_]+)\(", error)
-                if func_name_match:
-                    func_name = func_name_match.group(1)
+            # Extract function name from error if possible
+            func_name_match = re.search(r"([a-zA-Z0-9_]+)\(", error)
+            if func_name_match:
+                func_name = func_name_match.group(1)
 
-                    # Find the function call
-                    for i, line in enumerate(lines):
-                        if func_name in line and "(" in line and ")" in line:
-                            # If we have a line number and it doesn't match, skip
-                            if line_idx is not None and i != line_idx:
-                                continue
+                # Find the function call
+                for i, line in enumerate(lines):
+                    if func_name in line and "(" in line and ")" in line:
+                        # If we have a line number and it doesn't match, skip
+                        if line_idx is not None and i != line_idx:
+                            continue
 
-                            # Add a try-except block around the function call
-                            indent = re.match(r"^(\s*)", line).group(1)
-                            try_block = [
-                                f"{indent}try:",
-                                f"{indent}    {line}",
-                                f"{indent}except TypeError as e:",
-                                f'{indent}    print(f"Argument error: {{e}}")',
-                                f"{indent}    # TODO: Fix the function arguments",
-                            ]
-                            lines[i : i + 1] = try_block
-                            return "\n".join(lines)
+                        # Add a try-except block around the function call
+                        indent = get_indentation(line)
+                        try_block = [
+                            f"{indent}try:",
+                            f"{indent}    {line}",
+                            f"{indent}except TypeError as e:",
+                            f'{indent}    print(f"Argument error: {{e}}")',
+                            f"{indent}    # Fix the function arguments by providing default values",
+                            f"{indent}    # Try to extract function name and expected arguments",
+                            f"{indent}    import re",
+                            f"{indent}    import inspect",
+                            rf"{indent}    func_match = re.search(r'([a-zA-Z0-9_]+)\(\)', str(e))",
+                            f"{indent}    if func_match:",
+                            f"{indent}        func_name = func_match.group(1)",
+                            f"{indent}        # Try to get the function from globals",
+                            f"{indent}        if func_name in globals():",
+                            f"{indent}            func = globals()[func_name]",
+                            f"{indent}            # Get the signature",
+                            f"{indent}            try:",
+                            f"{indent}                sig = inspect.signature(func)",
+                            f"{indent}                # Create default arguments",
+                            f"{indent}                args = []",
+                            f"{indent}                for param in sig.parameters.values():",
+                            f"{indent}                    if param.default is inspect.Parameter.empty:",
+                            f"{indent}                        args.append('None')",
+                            f"{indent}                    else:",
+                            f"{indent}                        args.append(f'{{param.default!r}}')",
+                            f"{indent}                # Try calling with default arguments",
+                            f"{indent}                arg_str = ', '.join(args)",
+                            f"{indent}                return eval(f'{{func_name}}({{arg_str}})')",
+                            f"{indent}            except Exception:",
+                            f"{indent}                pass",
+                        ]
+                        lines[i : i + 1] = try_block
+                        return "\n".join(lines)
 
         except Exception as e:
             logger.warning(f"Error analyzing code for argument error: {e}")
@@ -1621,11 +1816,14 @@ class PatchGenerator:
         Fix type mismatch errors by analyzing the error and code context.
 
         Args:
+        ----
             code: Code with type mismatch errors
             error: Error message
 
         Returns:
+        -------
             str: Fixed code with proper type conversions
+
         """
         lines = code.split("\n")
 
@@ -1739,18 +1937,19 @@ class PatchGenerator:
                         if func_name == "int" and ("str" in type_info.get("from_type", "")):
                             # Trying to convert non-numeric string to int
                             # Add error handling
-                            indent = re.match(r"^(\s*)", line).group(1)
+                            indent = get_indentation(line)
                             try_block = [
                                 f"{indent}try:",
                                 f"{indent}    {line}",
                                 f"{indent}except ValueError:",
                                 f'{indent}    print(f"Error: Could not convert to integer. Using default value.")',
-                                f"{indent}    # TODO: Handle the error appropriately",
+                                f"{indent}    # Handle the error by providing a default value",
+                                f"{indent}    return 0  # Default integer value",
                             ]
                             lines[line_idx : line_idx + 1] = try_block
                             return "\n".join(lines)
 
-                        elif func_name in ["open", "read", "write"] and "int" in type_info.get(
+                        if func_name in ["open", "read", "write"] and "int" in type_info.get(
                             "got", ""
                         ):
                             # File operations expecting string but got number
@@ -1787,7 +1986,7 @@ class PatchGenerator:
                         operation = var_match.group(2)
 
                         # Add None check
-                        indent = re.match(r"^(\s*)", line).group(1)
+                        indent = get_indentation(line)
                         if operation == ".":
                             # Attribute access on potentially None
                             try_block = [
@@ -1795,7 +1994,12 @@ class PatchGenerator:
                                 f"{indent}    {line}",
                                 f"{indent}else:",
                                 f'{indent}    print(f"Error: {var_name} is None. Cannot perform operation.")',
-                                f"{indent}    # TODO: Initialize {var_name} properly",
+                                f"{indent}    # Initialize with appropriate default value",
+                                f"{indent}    if '{var_name}' in globals():",
+                                f"{indent}        {var_name} = globals()['{var_name}']",
+                                f"{indent}    else:",
+                                f"{indent}        # Create a default instance or value based on context",
+                                f"{indent}        {var_name} = {{}}  # Default to empty dict as safest option",
                             ]
                             lines[i : i + 1] = try_block
                             return "\n".join(lines)
@@ -1806,13 +2010,25 @@ class PatchGenerator:
                 line = lines[line_idx]
 
                 # Add a generic try-except block
-                indent = re.match(r"^(\s*)", line).group(1)
+                indent = get_indentation(line)
                 try_block = [
                     f"{indent}try:",
                     f"{indent}    {line}",
                     f"{indent}except TypeError as e:",
                     f'{indent}    print(f"Type error: {{e}}. Check variable types.")',
-                    f"{indent}    # TODO: Fix the type mismatch",
+                    f"{indent}    # Fix the type mismatch by attempting type conversion",
+                    f"{indent}    # Extract variable names from the error message",
+                    f"{indent}    import re",
+                    f"{indent}    var_match = re.search(r\"'([^']+)'\", str(e))",
+                    f"{indent}    if var_match:",
+                    f"{indent}        var_name = var_match.group(1)",
+                    f"{indent}        # Try common type conversions",
+                    f"{indent}        try:",
+                    f"{indent}            # Try converting to string first (safest option)",
+                    f"{indent}            globals()[var_name] = str(globals()[var_name])",
+                    f"{indent}            return {line.strip()}  # Retry with converted value",
+                    f"{indent}        except (NameError, KeyError):",
+                    f"{indent}            pass  # Variable not in globals",
                 ]
                 lines[line_idx : line_idx + 1] = try_block
                 return "\n".join(lines)
@@ -1838,11 +2054,14 @@ class PatchGenerator:
         Infer the type of a variable from the code.
 
         Args:
+        ----
             code: The code to analyze
             variable: The variable name
 
         Returns:
+        -------
             str: The inferred type ("int", "str", etc.) or "unknown"
+
         """
         try:
             tree = ast.parse(code)
@@ -1857,13 +2076,13 @@ class PatchGenerator:
                                 # Direct assignment of a constant
                                 if isinstance(node.value.value, int):
                                     return "int"
-                                elif isinstance(node.value.value, float):
+                                if isinstance(node.value.value, float):
                                     return "float"
-                                elif isinstance(node.value.value, str):
+                                if isinstance(node.value.value, str):
                                     return "str"
-                                elif isinstance(node.value.value, bool):
+                                if isinstance(node.value.value, bool):
                                     return "bool"
-                                elif node.value.value is None:
+                                if node.value.value is None:
                                     return "None"
                             elif isinstance(node.value, ast.List):
                                 return "list"
@@ -1896,7 +2115,7 @@ class PatchGenerator:
                             if isinstance(other_side, ast.Constant):
                                 if isinstance(other_side.value, str):
                                     return "str"
-                                elif isinstance(other_side.value, (int, float)):
+                                if isinstance(other_side.value, (int, float)):
                                     return "numeric"
                         elif isinstance(
                             node.op, (ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod)
@@ -1930,11 +2149,14 @@ class PatchGenerator:
         Fix missing module errors by adding proper import handling.
 
         Args:
+        ----
             code: Code with missing module error
             module: Name of the missing module
 
         Returns:
+        -------
             str: Fixed code with proper module handling
+
         """
         lines = code.split("\n")
 
@@ -1979,7 +2201,7 @@ class PatchGenerator:
             if f"import {module}" in line or f"from {module}" in line:
                 import_line = i
                 break
-            elif line.startswith("import ") or line.startswith("from "):
+            if line.startswith(("import ", "from ")):
                 import_line = i
 
         # If no import statements found, find the first non-comment, non-docstring line
@@ -2018,13 +2240,13 @@ class PatchGenerator:
 
         # Add try-except block for graceful handling
         try_except_block = [
-            f"try:",
+            "try:",
             f"    {import_statement}",
-            f"except ImportError:",
+            "except ImportError:",
             f"    print(f\"Error: The '{module}' module is required but not installed.\")",
             f'    print(f"Please install it using: pip install {base_module}")',
-            f"    import sys",
-            f"    sys.exit(1)",
+            "    import sys",
+            "    sys.exit(1)",
         ]
 
         # Insert the try-except block

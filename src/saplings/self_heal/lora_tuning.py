@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 """
 LoRA fine-tuning module for Saplings.
 
 This module provides the LoRA fine-tuning pipeline for continual improvement of models.
 """
+
 
 import json
 import logging
@@ -11,16 +14,46 @@ import signal
 import sys
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, cast
 
 # Try to import APScheduler for scheduling
 try:
-    from apscheduler.schedulers.background import BackgroundScheduler
-    from apscheduler.triggers.cron import CronTrigger
+    from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore
+    from apscheduler.triggers.cron import CronTrigger  # type: ignore
 
     _HAS_SCHEDULER_DEPS = True
 except ImportError:
     _HAS_SCHEDULER_DEPS = False
+
+    # Define placeholder classes for type checking
+    class BackgroundScheduler:
+        """Placeholder for BackgroundScheduler when not installed."""
+
+        running = False
+
+        def __init__(self, *args, **kwargs):
+            raise ImportError(
+                "APScheduler not installed. Install with 'pip install saplings[lora]'"
+            )
+
+        def start(self):
+            pass
+
+        def shutdown(self):
+            pass
+
+        def add_job(self, *args, **kwargs):
+            pass
+
+    class CronTrigger:
+        """Placeholder for CronTrigger when not installed."""
+
+        @staticmethod
+        def from_crontab(crontab):
+            raise ImportError(
+                "APScheduler not installed. Install with 'pip install saplings[lora]'"
+            )
+
     logger = logging.getLogger(__name__)
     logger.warning(
         "APScheduler not found. Install it with 'pip install apscheduler' "
@@ -29,21 +62,137 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Try to import optional dependencies
+# Type checking imports
+if TYPE_CHECKING:
+    # Define types for PEFT
+    # Use Protocol to define interfaces without requiring imports
+    from typing import List, Protocol
+
+    import pandas as pd
+    import torch
+    from datasets import Dataset
+
+    class PeftLoraConfig(Protocol):
+        """Protocol for PEFT LoraConfig."""
+
+        def __init__(
+            self,
+            r: int,
+            lora_alpha: int,
+            lora_dropout: float,
+            bias: str,
+            task_type: Any,
+            target_modules: List[str] | None,
+        ) -> None: ...
+
+    class PeftModel(Protocol):
+        """Protocol for PEFT PeftModel."""
+
+        @staticmethod
+        def from_pretrained(
+            model: Any,
+            model_id: str,
+            device_map: str,
+        ) -> Any: ...
+
+        def save_pretrained(self, save_directory: str) -> None: ...
+
+    class TaskType(Protocol):
+        """Protocol for PEFT TaskType."""
+
+        CAUSAL_LM: Any
+
+    def get_peft_model(model: Any, peft_config: Any) -> Any: ...
+    def prepare_model_for_kbit_training(model: Any) -> Any: ...
+
+    # Transformers types
+    from transformers.data.data_collator import DataCollatorForLanguageModeling
+    from transformers.models.auto.modeling_auto import AutoModelForCausalLM
+    from transformers.models.auto.tokenization_auto import AutoTokenizer
+    from transformers.trainer import Trainer
+    from transformers.training_args import TrainingArguments
+    from transformers.utils.quantization_config import BitsAndBytesConfig
+
+# Runtime imports
 try:
     import pandas as pd
     import torch
     from datasets import Dataset
-    from peft import LoraConfig as PeftLoraConfig
-    from peft import PeftModel, TaskType, get_peft_model, prepare_model_for_kbit_training
-    from transformers import (
-        AutoModelForCausalLM,
-        AutoTokenizer,
-        BitsAndBytesConfig,
-        DataCollatorForLanguageModeling,
-        Trainer,
-        TrainingArguments,
-    )
+
+    # Import peft with proper error handling
+    try:
+        from peft import LoraConfig as PeftLoraConfig  # type: ignore
+        from peft import (  # type: ignore
+            PeftModel,
+            TaskType,
+            get_peft_model,
+            prepare_model_for_kbit_training,
+        )
+
+        PEFT_AVAILABLE = True
+    except ImportError:
+        PEFT_AVAILABLE = False
+
+        # Define placeholder classes that match the Protocol interfaces
+        class _PeftLoraConfig:
+            """Placeholder for PeftLoraConfig when not installed."""
+
+            def __init__(
+                self,
+                r=8,
+                lora_alpha=16,
+                lora_dropout=0.05,
+                bias="none",
+                task_type=None,
+                target_modules=None,
+            ):
+                raise ImportError(
+                    "PEFT is not installed. Install with 'pip install saplings[lora]'"
+                )
+
+        class _PeftModel:
+            """Placeholder for PeftModel when not installed."""
+
+            @staticmethod
+            def from_pretrained(model, model_id, device_map="auto"):
+                raise ImportError(
+                    "PEFT is not installed. Install with 'pip install saplings[lora]'"
+                )
+
+            def save_pretrained(self, save_directory):
+                raise ImportError(
+                    "PEFT is not installed. Install with 'pip install saplings[lora]'"
+                )
+
+        class _TaskType:
+            """Placeholder TaskType class."""
+
+            CAUSAL_LM = None
+
+        def _get_peft_model(model, peft_config):
+            """Placeholder for get_peft_model when not installed."""
+            raise ImportError("PEFT is not installed. Install with 'pip install saplings[lora]'")
+
+        def _prepare_model_for_kbit_training(model):
+            """Placeholder for prepare_model_for_kbit_training when not installed."""
+            raise ImportError("PEFT is not installed. Install with 'pip install saplings[lora]'")
+
+        # Assign placeholders
+        PeftLoraConfig = _PeftLoraConfig
+        PeftModel = _PeftModel
+        TaskType = _TaskType
+        get_peft_model = _get_peft_model
+        prepare_model_for_kbit_training = _prepare_model_for_kbit_training
+
+    # Import transformers with proper module paths
+    from transformers.data.data_collator import DataCollatorForLanguageModeling
+    from transformers.models.auto.modeling_auto import AutoModelForCausalLM
+    from transformers.models.auto.tokenization_auto import AutoTokenizer
+    from transformers.trainer import Trainer
+    from transformers.training_args import TrainingArguments
+
+    # BitsAndBytesConfig is used in the code when loading models with quantization
+    from transformers.utils.quantization_config import BitsAndBytesConfig  # noqa: F401
 
     _HAS_LORA_DEPS = True
 except ImportError:
@@ -64,7 +213,7 @@ class LoRaConfig:
     lora_dropout: float = 0.05
     bias: str = "none"
     task_type: str = "CAUSAL_LM"
-    target_modules: List[str] = None
+    target_modules: list[str] | None = None
     learning_rate: float = 5e-5
     num_train_epochs: int = 3
     batch_size: int = 4
@@ -85,14 +234,14 @@ class TrainingMetrics:
     train_runtime: float
     train_samples_per_second: float
     epoch: float
-    timestamp: str = None
+    timestamp: str | None = None
 
     def __post_init__(self):
         """Initialize timestamp."""
         if self.timestamp is None:
             self.timestamp = datetime.now().isoformat()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert metrics to a dictionary."""
         return {
             "train_loss": self.train_loss,
@@ -115,25 +264,28 @@ class LoRaTrainer:
         self,
         model_name: str,
         output_dir: str,
-        config: Optional[LoRaConfig] = None,
+        config: LoRaConfig | None = None,
         gasa_tune: bool = False,
-    ):
+    ) -> None:
         """
         Initialize the LoRA trainer.
 
         Args:
+        ----
             model_name: Name of the base model to fine-tune
             output_dir: Directory to save the fine-tuned model
             config: LoRA configuration
             gasa_tune: Whether to tune specifically for GASA
+
         """
         # Check if LoRA dependencies are installed
         if not _HAS_LORA_DEPS:
-            raise ImportError(
+            msg = (
                 "LoRA fine-tuning dependencies not found. "
                 "Install them with 'pip install saplings[lora]' or "
                 "'poetry install --extras lora'."
             )
+            raise ImportError(msg)
 
         self.model_name = model_name
         self.output_dir = output_dir
@@ -148,14 +300,17 @@ class LoRaTrainer:
         Load data from a JSONL file.
 
         Args:
+        ----
             data_path: Path to the JSONL file
 
         Returns:
+        -------
             Any: Loaded dataset (Dataset type when dependencies are installed)
+
         """
         # Load the data
         pairs = []
-        with open(data_path, "r") as f:
+        with open(data_path) as f:
             for line in f:
                 pair = json.loads(line.strip())
                 pairs.append(pair)
@@ -186,10 +341,13 @@ class LoRaTrainer:
         Preprocess the dataset for training.
 
         Args:
+        ----
             dataset: Dataset to preprocess
 
         Returns:
+        -------
             Any: Preprocessed dataset (Dataset type when dependencies are installed)
+
         """
         # Load the tokenizer
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
@@ -233,10 +391,13 @@ class LoRaTrainer:
         Train the model using LoRA.
 
         Args:
+        ----
             data_path: Path to the training data
 
         Returns:
+        -------
             TrainingMetrics: Metrics from training
+
         """
         # Load and preprocess the data
         dataset = self.load_data(data_path)
@@ -258,17 +419,28 @@ class LoRaTrainer:
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         tokenizer.pad_token = tokenizer.eos_token
 
+        # Check if PEFT is available
+        if not PEFT_AVAILABLE:
+            msg = (
+                "PEFT library not found. "
+                "Install it with 'pip install saplings[lora]' or "
+                "'poetry install --extras lora'."
+            )
+            raise ImportError(msg)
+
         # Prepare the model for training
         model = prepare_model_for_kbit_training(model)
 
         # Configure LoRA
         if self.gasa_tune:
             # For GASA tuning, we need to include attention modules
-            target_modules = self.config.target_modules + ["k_proj", "o_proj"]
+            base_modules = self.config.target_modules or []
+            target_modules = [*base_modules, "k_proj", "o_proj"]
         else:
             target_modules = self.config.target_modules
 
-        peft_config = PeftLoraConfig(
+        # Cast PeftLoraConfig to Any to avoid Protocol instantiation issues
+        peft_config = cast("Any", PeftLoraConfig)(
             r=self.config.r,
             lora_alpha=self.config.lora_alpha,
             lora_dropout=self.config.lora_dropout,
@@ -281,23 +453,32 @@ class LoRaTrainer:
         model = get_peft_model(model, peft_config=peft_config)
 
         # Set up training arguments
-        training_args = TrainingArguments(
-            output_dir=self.output_dir,
-            learning_rate=self.config.learning_rate,
-            num_train_epochs=self.config.num_train_epochs,
-            per_device_train_batch_size=self.config.batch_size,
-            per_device_eval_batch_size=self.config.batch_size,
-            gradient_accumulation_steps=self.config.gradient_accumulation_steps,
-            evaluation_strategy="epoch",
-            save_strategy="epoch",
-            logging_dir=os.path.join(self.output_dir, "logs"),
-            logging_steps=10,
-            save_total_limit=2,
-            load_best_model_at_end=True,
-            metric_for_best_model="eval_loss",
-            greater_is_better=False,
-            report_to="none",
-        )
+        # Create a dictionary of arguments first
+        args_dict = {
+            "output_dir": self.output_dir,
+            "learning_rate": self.config.learning_rate,
+            "num_train_epochs": self.config.num_train_epochs,
+            "per_device_train_batch_size": self.config.batch_size,
+            "per_device_eval_batch_size": self.config.batch_size,
+            "gradient_accumulation_steps": self.config.gradient_accumulation_steps,
+            "save_strategy": "epoch",
+            "logging_dir": os.path.join(self.output_dir, "logs"),
+            "logging_steps": 10,
+            "save_total_limit": 2,
+            "load_best_model_at_end": True,
+            "metric_for_best_model": "eval_loss",
+            "greater_is_better": False,
+            "report_to": "none",
+        }
+
+        # Add evaluation_strategy if it exists in the TrainingArguments class
+        if hasattr(TrainingArguments, "evaluation_strategy"):
+            args_dict["evaluation_strategy"] = "epoch"
+        elif hasattr(TrainingArguments, "eval_strategy"):
+            args_dict["eval_strategy"] = "epoch"
+
+        # Create the TrainingArguments object
+        training_args = TrainingArguments(**args_dict)
 
         # Create the data collator
         data_collator = DataCollatorForLanguageModeling(
@@ -306,8 +487,9 @@ class LoRaTrainer:
         )
 
         # Create the trainer
+        # Cast model to Any to avoid type checking issues with PeftModel
         trainer = Trainer(
-            model=model,
+            model=cast("Any", model),
             args=training_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
@@ -349,7 +531,9 @@ class LoRaTrainer:
         Save the fine-tuned model.
 
         Args:
+        ----
             model: Fine-tuned model to save (PeftModel type when dependencies are installed)
+
         """
         model.save_pretrained(self.output_dir)
 
@@ -360,12 +544,14 @@ class LoRaTrainer:
 
         logger.info(f"Model saved to {self.output_dir}")
 
-    def load_model(self) -> Any:
+    def load_model(self):
         """
         Load a fine-tuned model.
 
-        Returns:
+        Returns
+        -------
             Any: Loaded model (PeftModel type when dependencies are installed)
+
         """
         # Load the base model
         base_model = AutoModelForCausalLM.from_pretrained(
@@ -374,8 +560,18 @@ class LoRaTrainer:
             device_map="auto",
         )
 
+        # Check if PEFT is available
+        if not PEFT_AVAILABLE:
+            msg = (
+                "PEFT library not found. "
+                "Install it with 'pip install saplings[lora]' or "
+                "'poetry install --extras lora'."
+            )
+            raise ImportError(msg)
+
         # Load the PEFT model
-        model = PeftModel.from_pretrained(
+        # Cast PeftModel to Any to avoid Protocol instantiation issues
+        model = cast("Any", PeftModel).from_pretrained(
             base_model,
             self.output_dir,
             device_map="auto",
@@ -390,8 +586,10 @@ class LoRaTrainer:
         Schedule nightly training using APScheduler.
 
         Args:
+        ----
             data_path: Path to the training data
             cron_expression: Cron expression for scheduling (default: midnight every day)
+
         """
         if not _HAS_SCHEDULER_DEPS:
             logger.warning(
@@ -424,7 +622,7 @@ class LoRaTrainer:
                         + "\n"
                     )
             except Exception as e:
-                logger.error(f"Error in scheduled training: {e}")
+                logger.exception(f"Error in scheduled training: {e}")
 
         # Add the job to the scheduler with the specified cron expression
         scheduler.add_job(
@@ -440,7 +638,8 @@ class LoRaTrainer:
             scheduler.start()
 
             # Register signal handlers for clean shutdown
-            def shutdown_scheduler(signum, frame):
+            def shutdown_scheduler(_signum, _frame):
+                """Signal handler for clean shutdown of scheduler."""
                 logger.info("Shutting down scheduler...")
                 scheduler.shutdown()
                 sys.exit(0)
@@ -452,15 +651,18 @@ class LoRaTrainer:
         logger.info(f"Cron expression: {cron_expression}")
         logger.info("Training will run automatically according to the schedule.")
 
-    def evaluate_model(self, test_data_path: str) -> Dict[str, float]:
+    def evaluate_model(self, test_data_path: str) -> dict[str, float]:
         """
         Evaluate a fine-tuned model.
 
         Args:
+        ----
             test_data_path: Path to the test data
 
         Returns:
+        -------
             Dict[str, float]: Evaluation metrics
+
         """
         # Load the model
         model = self.load_model()
@@ -479,14 +681,18 @@ class LoRaTrainer:
             mlm=False,
         )
 
+        # Create a dictionary of arguments
+        args_dict = {
+            "output_dir": self.output_dir,
+            "per_device_eval_batch_size": self.config.batch_size,
+            "report_to": "none",
+        }
+
         # Create the trainer
+        # Cast model to Any to avoid type checking issues with PeftModel
         trainer = Trainer(
-            model=model,
-            args=TrainingArguments(
-                output_dir=self.output_dir,
-                per_device_eval_batch_size=self.config.batch_size,
-                report_to="none",
-            ),
+            model=cast("Any", model),
+            args=TrainingArguments(**args_dict),
             data_collator=data_collator,
         )
 

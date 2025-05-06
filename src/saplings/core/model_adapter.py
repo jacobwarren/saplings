@@ -1,157 +1,37 @@
+from __future__ import annotations
+
 """
 Model adapter module for Saplings.
 
-This module defines the abstract base class for LLM adapters and the URI specification
-for model addressing.
+This module provides a unified interface for interacting with different LLM providers.
+It includes a model registry to ensure only one instance of a model with the same
+configuration is created, which helps reduce memory usage and improve performance.
 """
 
+
+import logging
+import weakref
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel, Field
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+logger = logging.getLogger(__name__)
+
+# Type variable for LLM subclasses
+T = TypeVar("T", bound="LLM")
+
+# Flag to enable model registry
+ENABLE_MODEL_REGISTRY = True
+
+# Dictionary to store model instances by URI if needed
+_model_instances: dict[str, weakref.ReferenceType[Any]] = {}
+
 # Import message types
-try:
-    from saplings.core.message import (
-        ContentType,
-        FunctionCall,
-        FunctionDefinition,
-        Message,
-        MessageContent,
-        MessageRole,
-    )
-except ImportError:
-    # For backward compatibility
-    pass
-
-
-class ModelURI(BaseModel):
-    """
-    Model URI specification for addressing models.
-
-    Format: provider://model_name/version?param1=value1&param2=value2
-
-    Examples:
-    - openai://gpt-4/latest
-    - anthropic://claude-3-opus/latest?temperature=0.7
-    - huggingface://meta-llama/Llama-3-70b-instruct/latest
-    - local://mistral-7b/gguf?quantization=q4_k_m
-    """
-
-    provider: str = Field(
-        ..., description="Model provider (e.g., 'openai', 'anthropic', 'huggingface')"
-    )
-    model_name: str = Field(..., description="Name of the model")
-    version: str = Field("latest", description="Model version")
-    parameters: Dict[str, Any] = Field(default_factory=dict, description="Additional parameters")
-
-    @classmethod
-    def parse(cls, uri_string: str) -> "ModelURI":
-        """
-        Parse a URI string into a ModelURI object.
-
-        Args:
-            uri_string: The URI string to parse
-
-        Returns:
-            ModelURI: The parsed ModelURI object
-
-        Raises:
-            ValueError: If the URI string is invalid
-        """
-        if "://" not in uri_string:
-            raise ValueError(f"Invalid model URI: {uri_string}. Must contain '://'")
-
-        # Split the URI into its components
-        provider_part, rest = uri_string.split("://", 1)
-
-        # Handle parameters
-        parameters = {}
-        if "?" in rest:
-            path_part, params_part = rest.split("?", 1)
-            param_pairs = params_part.split("&")
-            for pair in param_pairs:
-                if "=" in pair:
-                    key, value = pair.split("=", 1)
-                    parameters[key] = value
-        else:
-            path_part = rest
-
-        # Handle path components
-        path_components = path_part.split("/")
-        if len(path_components) < 1:
-            raise ValueError(f"Invalid model URI: {uri_string}. Must contain model name")
-
-        # Check if we have a version at the end
-        if len(path_components) > 1 and not any(c == "" for c in path_components):
-            # We need to handle several cases:
-            # 1. provider://model/version - Simple model with version
-            # 2. provider://namespace/model-name - Complex model name without version
-            # 3. provider://namespace/model-name/version - Complex model name with version
-
-            # For Hugging Face models with organization prefixes (e.g., "Qwen/Qwen3-30B-A3B")
-            # we want to keep the full path as the model name
-            if len(path_components) >= 2 and provider_part.lower() in ["vllm", "huggingface"]:
-                # Check if the last component looks like a version (e.g., "v1.0", "latest")
-                last_component = path_components[-1].lower()
-                if last_component in ["latest", "main"] or (
-                    last_component.startswith("v") and any(c.isdigit() for c in last_component)
-                ):
-                    # This is likely a version
-                    version = path_components[-1]
-                    model_name = "/".join(path_components[:-1])
-                else:
-                    # This is likely part of the model name
-                    model_name = "/".join(path_components)
-                    version = "latest"
-            # Check if this is a URI from test_parse_with_complex_model_name
-            elif uri_string == "provider://namespace/model-name":
-                model_name = "namespace/model-name"
-                version = "latest"
-            # Check if this is a URI from test_parse_with_complex_model_name_and_parameters
-            elif uri_string.startswith("provider://namespace/model-name?"):
-                model_name = "namespace/model-name"
-                version = "latest"
-            # Check if this is a URI from test_parse_with_complex_model_name_and_version
-            elif uri_string == "provider://namespace/model-name/version":
-                model_name = "namespace/model-name"
-                version = "version"
-            # Check if this is a URI from test_parse_with_complex_model_name_version_and_parameters
-            elif uri_string.startswith("provider://namespace/model-name/version?"):
-                model_name = "namespace/model-name"
-                version = "version"
-            # Simple model with version
-            elif len(path_components) == 2:
-                model_name = path_components[0]
-                version = path_components[1]
-            # Complex model name with version
-            else:
-                version = path_components[-1]
-                model_name = "/".join(path_components[:-1])
-        else:
-            # No version, everything is the model name
-            model_name = path_part
-            version = "latest"
-
-        return cls(
-            provider=provider_part, model_name=model_name, version=version, parameters=parameters
-        )
-
-    def __str__(self) -> str:
-        """
-        Convert the ModelURI object to a string.
-
-        Returns:
-            str: The string representation of the ModelURI
-        """
-        uri = f"{self.provider}://{self.model_name}"
-        if self.version != "latest":
-            uri += f"/{self.version}"
-        if self.parameters:
-            params_str = "&".join(f"{k}={v}" for k, v in self.parameters.items())
-            uri += f"?{params_str}"
-        return uri
 
 
 class ModelRole(str, Enum):
@@ -185,11 +65,11 @@ class ModelMetadata(BaseModel):
     name: str = Field(..., description="Name of the model")
     provider: str = Field(..., description="Provider of the model")
     version: str = Field(..., description="Version of the model")
-    description: Optional[str] = Field(None, description="Description of the model")
-    capabilities: List[ModelCapability] = Field(
+    description: str | None = Field(None, description="Description of the model")
+    capabilities: list[ModelCapability] = Field(
         default_factory=list, description="Capabilities of the model"
     )
-    roles: List[ModelRole] = Field(
+    roles: list[ModelRole] = Field(
         default_factory=list, description="Roles that the model can play"
     )
     context_window: int = Field(..., description="Context window size in tokens")
@@ -201,29 +81,32 @@ class ModelMetadata(BaseModel):
 class LLMResponse(BaseModel):
     """Response from an LLM."""
 
-    text: Optional[str] = Field(None, description="Generated text")
-    model_uri: str = Field(..., description="URI of the model used")
-    usage: Dict[str, int] = Field(
+    text: str | None = Field(None, description="Generated text")
+    provider: str = Field(..., description="Provider of the model")
+    model_name: str = Field(..., description="Name of the model")
+    usage: dict[str, int] = Field(
         default_factory=dict,
         description="Token usage statistics (prompt_tokens, completion_tokens, total_tokens)",
     )
-    metadata: Dict[str, Any] = Field(
+    metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata about the response"
     )
-    function_call: Optional[Dict[str, Any]] = Field(
+    function_call: dict[str, Any] | None = Field(
         None, description="Function call information if the model decided to call a function"
     )
-    tool_calls: Optional[List[Dict[str, Any]]] = Field(
+    tool_calls: list[dict[str, Any]] | None = Field(
         None, description="Tool call information if the model decided to call tools"
     )
 
     @property
-    def content(self) -> Optional[str]:
+    def content(self):
         """
         Get the content of the response.
 
-        Returns:
+        Returns
+        -------
             Optional[str]: The content of the response
+
         """
         return self.text
 
@@ -235,139 +118,431 @@ class LLM(ABC):
     This class defines the interface that all LLM adapters must implement.
     """
 
+    provider: str
+    model_name: str
+
     @abstractmethod
-    def __init__(self, model_uri: Union[str, ModelURI], **kwargs):
+    def __init__(self, provider: str, model_name: str, **kwargs) -> None:
         """
         Initialize the LLM adapter.
 
         Args:
-            model_uri: URI of the model to use
-            **kwargs: Additional arguments for the adapter
-        """
-        pass
-
-    @classmethod
-    def from_uri(cls, uri: Union[str, ModelURI], **kwargs) -> "LLM":
-        """
-        Create an LLM instance from a URI.
-
-        Args:
-            uri: URI of the model to use
+        ----
+            provider: The model provider (e.g., 'vllm', 'openai', 'anthropic')
+            model_name: The model name
             **kwargs: Additional arguments for the adapter
 
-        Returns:
-            LLM: An instance of the appropriate LLM adapter
-
-        Raises:
-            ValueError: If the provider is not supported
-            ImportError: If the required dependencies are not installed
         """
-        # Parse the URI if it's a string
-        if isinstance(uri, str):
-            model_uri = ModelURI.parse(uri)
-        else:
-            model_uri = uri
-
-        # Get the provider
-        provider = model_uri.provider.lower()
-
-        # Try to find a plugin for this provider
-        from saplings.core.plugin import PluginType, get_plugin_registry
-
-        registry = get_plugin_registry()
-
-        # Look for a plugin with the provider name
-        adapter_class = registry.get_plugin(PluginType.MODEL_ADAPTER, provider)
-
-        if adapter_class is not None:
-            return adapter_class(model_uri, **kwargs)
-
-        # Handle built-in providers
-        if provider == "vllm":
-            try:
-                from saplings.adapters.vllm_adapter import VLLMAdapter
-
-                return VLLMAdapter(model_uri, **kwargs)
-            except ImportError:
-                raise ImportError("vLLM not installed. Please install it with: pip install vllm")
-        elif provider == "openai":
-            try:
-                from saplings.adapters.openai_adapter import OpenAIAdapter
-
-                return OpenAIAdapter(model_uri, **kwargs)
-            except ImportError:
-                raise ImportError(
-                    "OpenAI not installed. Please install it with: pip install openai"
-                )
-        elif provider == "anthropic":
-            try:
-                from saplings.adapters.anthropic_adapter import AnthropicAdapter
-
-                return AnthropicAdapter(model_uri, **kwargs)
-            except ImportError:
-                raise ImportError(
-                    "Anthropic not installed. Please install it with: pip install anthropic"
-                )
-        elif provider == "huggingface":
-            try:
-                from saplings.adapters.huggingface_adapter import HuggingFaceAdapter
-
-                return HuggingFaceAdapter(model_uri, **kwargs)
-            except ImportError:
-                raise ImportError(
-                    "Hugging Face not installed. Please install it with: pip install transformers"
-                )
-        else:
-            raise ValueError(f"Unsupported model provider: {provider}")
+        self.provider = provider
+        self.model_name = model_name
 
     @classmethod
-    def create(cls, provider: str, model: str, **kwargs) -> "LLM":
+    def create(cls, provider: str, model_name: str, **kwargs) -> "LLM":
         """
         Create an LLM instance with a provider and model name.
 
-        This is a more intuitive alternative to the URI-based approach.
-
         Args:
+        ----
             provider: The model provider (e.g., 'vllm', 'openai', 'anthropic', 'huggingface')
-            model: The model name
+            model_name: The model name
             **kwargs: Additional parameters for the model
 
         Returns:
+        -------
             LLM: An instance of the appropriate LLM adapter
 
         Raises:
+        ------
             ValueError: If the provider is not supported
             ImportError: If the required dependencies are not installed
+
         """
-        # Convert parameters to a URI format
-        parameters_str = ""
-        if kwargs:
-            parameters_str = "?" + "&".join(f"{k}={v}" for k, v in kwargs.items())
+        # Import here to avoid circular imports
+        from saplings.core.model_registry import ModelRegistry, create_model_key, get_model_registry
 
-        # Create a URI string
-        uri_string = f"{provider}://{model}{parameters_str}"
+        # Create a model key for the registry
+        model_key = create_model_key(provider, model_name, **kwargs)
 
-        # Use the from_uri method to create the model
-        return cls.from_uri(uri_string)
+        # Check if model registry is enabled
+        if ENABLE_MODEL_REGISTRY:
+            try:
+                # Check if the model already exists in the registry
+                model_registry = get_model_registry()
+                # Ensure we have a valid ModelRegistry instance
+                if model_registry is not None and isinstance(model_registry, ModelRegistry):
+                    existing_model = model_registry.get(model_key)
+                    if existing_model is not None:
+                        # Return the existing model instance
+                        logger.debug(
+                            f"Using existing model instance from registry: {provider}/{model_name}"
+                        )
+                        return existing_model
+                else:
+                    logger.warning(
+                        "Model registry not available or invalid type. Using fallback cache."
+                    )
+            except Exception as e:
+                logger.warning(f"Error accessing model registry: {e}. Using fallback cache.")
+        else:
+            # Create a cache key string
+            cache_key = f"{provider}:{model_name}"
+            if kwargs:
+                params_str = ":".join(f"{k}={v}" for k, v in sorted(kwargs.items()))
+                cache_key += f":{params_str}"
+
+            # Use the simple dictionary-based cache as fallback
+            if cache_key in _model_instances:
+                existing_model = _model_instances[cache_key]()
+                if existing_model is not None:
+                    logger.debug(f"Using existing model instance from cache: {cache_key}")
+                    return existing_model
+
+        # Try to find a plugin for this provider
+        from saplings.core.model_registry import ModelRegistry, get_model_registry
+        from saplings.core.plugin import PluginType, get_plugin_registry
+
+        plugin_registry = get_plugin_registry()
+        try:
+            model_registry = get_model_registry()
+            if not isinstance(model_registry, ModelRegistry):
+                logger.warning(
+                    "Model registry is not a valid ModelRegistry instance. Creating a new one."
+                )
+                model_registry = ModelRegistry()
+        except Exception as e:
+            logger.warning(f"Error getting model registry: {e}. Creating a new one.")
+            model_registry = ModelRegistry()
+
+        # Look for a plugin with the provider name
+        adapter_class = plugin_registry.get_plugin(PluginType.MODEL_ADAPTER, provider.lower())
+
+        if adapter_class is not None:
+            try:
+                # Create the adapter instance
+                # Check if the adapter class is a ModelAdapterPlugin
+                from saplings.core.plugin import ModelAdapterPlugin
+
+                # Create the plugin instance
+                plugin_instance = adapter_class()
+
+                # Check if it's a ModelAdapterPlugin
+                if isinstance(plugin_instance, ModelAdapterPlugin):
+                    # Use the create_adapter method
+                    model_instance = plugin_instance.create_adapter(provider, model_name, **kwargs)
+                else:
+                    # Try to instantiate directly
+                    model_instance = adapter_class()
+
+                # Verify it's an LLM instance
+                if not isinstance(model_instance, LLM):
+                    logger.warning(
+                        f"Plugin {adapter_class.__name__} does not return an LLM instance. Skipping."
+                    )
+                    # Continue to built-in providers
+                else:
+                    # Register the model instance in the registry
+                    if (
+                        ENABLE_MODEL_REGISTRY
+                        and model_registry is not None
+                        and isinstance(model_registry, ModelRegistry)
+                    ):
+                        try:
+                            model_registry.register(model_key, model_instance)
+                        except Exception as e:
+                            logger.warning(
+                                f"Error registering model in registry: {e}. Using fallback cache."
+                            )
+                            _model_instances[cache_key] = weakref.ref(model_instance)
+                    else:
+                        # Use the simple dictionary-based cache as fallback
+                        _model_instances[cache_key] = weakref.ref(model_instance)
+
+                    return model_instance
+            except Exception as e:
+                logger.warning(
+                    f"Failed to create model instance from plugin {adapter_class.__name__}: {e}"
+                )
+                # Continue to built-in providers
+
+        # Handle built-in providers
+        if provider.lower() == "vllm":
+            # First check if vLLM is available at the module level
+            try:
+                import vllm
+
+                # Just try to import it to check if it's available
+                vllm_available = True
+                # Log the vLLM version if available
+                logger.debug(f"vLLM version: {getattr(vllm, '__version__', 'unknown')}")
+            except ImportError:
+                vllm_available = False
+
+            if not vllm_available:
+                # Try to use the fallback adapter if available
+                try:
+                    from saplings.adapters.vllm_fallback_adapter import VLLMFallbackAdapter
+
+                    # Log the fallback
+                    logger.warning("vLLM not installed. Falling back to VLLMFallbackAdapter.")
+
+                    # Create the fallback adapter
+                    model_instance = VLLMFallbackAdapter(provider, model_name, **kwargs)
+
+                    # Register in registry or cache
+                    if (
+                        ENABLE_MODEL_REGISTRY
+                        and model_registry is not None
+                        and isinstance(model_registry, ModelRegistry)
+                    ):
+                        try:
+                            model_registry.register(model_key, model_instance)
+                        except Exception as e:
+                            logger.warning(
+                                f"Error registering model in registry: {e}. Using fallback cache."
+                            )
+                            _model_instances[cache_key] = weakref.ref(model_instance)
+                    else:
+                        _model_instances[cache_key] = weakref.ref(model_instance)
+
+                    return model_instance
+                except ImportError:
+                    # If fallback adapter is not available, raise the original error
+                    msg = "vLLM not installed. Please install it with: pip install vllm"
+                    raise ImportError(msg)
+
+            # If vLLM is available, try to create the adapter
+            try:
+                from saplings.adapters.vllm_adapter import VLLMAdapter
+
+                try:
+                    # Try to create the VLLMAdapter
+                    model_instance = VLLMAdapter(provider, model_name, **kwargs)
+
+                    # Register the model instance in the registry
+                    if (
+                        ENABLE_MODEL_REGISTRY
+                        and model_registry is not None
+                        and isinstance(model_registry, ModelRegistry)
+                    ):
+                        try:
+                            model_registry.register(model_key, model_instance)
+                        except Exception as e:
+                            logger.warning(
+                                f"Error registering model in registry: {e}. Using fallback cache."
+                            )
+                            _model_instances[cache_key] = weakref.ref(model_instance)
+                    else:
+                        # Use the simple dictionary-based cache as fallback
+                        _model_instances[cache_key] = weakref.ref(model_instance)
+
+                    return model_instance
+                except RuntimeError as e:
+                    # Check if the error is related to Triton
+                    if "triton" in str(e).lower() or "failed to be inspected" in str(e).lower():
+                        # Import the fallback adapter
+                        from saplings.adapters.vllm_fallback_adapter import VLLMFallbackAdapter
+
+                        # Log the fallback
+                        logger.warning(
+                            f"vLLM initialization failed due to Triton issues: {e}. "
+                            f"Falling back to VLLMFallbackAdapter."
+                        )
+
+                        # Create the fallback adapter
+                        model_instance = VLLMFallbackAdapter(provider, model_name, **kwargs)
+
+                        # Register the model instance in the registry
+                        if (
+                            ENABLE_MODEL_REGISTRY
+                            and model_registry is not None
+                            and isinstance(model_registry, ModelRegistry)
+                        ):
+                            try:
+                                model_registry.register(model_key, model_instance)
+                            except Exception as e:
+                                logger.warning(
+                                    f"Error registering model in registry: {e}. Using fallback cache."
+                                )
+                                _model_instances[cache_key] = weakref.ref(model_instance)
+                        else:
+                            # Use the simple dictionary-based cache as fallback
+                            _model_instances[cache_key] = weakref.ref(model_instance)
+
+                        return model_instance
+                    # Re-raise other errors
+                    raise
+            except ImportError as e:
+                # This should not happen since we already checked if vLLM is available
+                # But just in case, try to use the fallback adapter
+                try:
+                    from saplings.adapters.vllm_fallback_adapter import VLLMFallbackAdapter
+
+                    # Log the fallback
+                    logger.warning(
+                        f"Error importing VLLMAdapter: {e}. Falling back to VLLMFallbackAdapter."
+                    )
+
+                    # Create the fallback adapter
+                    model_instance = VLLMFallbackAdapter(provider, model_name, **kwargs)
+
+                    # Register in registry or cache
+                    if (
+                        ENABLE_MODEL_REGISTRY
+                        and model_registry is not None
+                        and isinstance(model_registry, ModelRegistry)
+                    ):
+                        try:
+                            model_registry.register(model_key, model_instance)
+                        except Exception as e:
+                            logger.warning(
+                                f"Error registering model in registry: {e}. Using fallback cache."
+                            )
+                            _model_instances[cache_key] = weakref.ref(model_instance)
+                    else:
+                        _model_instances[cache_key] = weakref.ref(model_instance)
+
+                    return model_instance
+                except ImportError:
+                    # If fallback adapter is not available, raise the original error
+                    msg = "vLLM not installed. Please install it with: pip install vllm"
+                    raise ImportError(msg)
+        elif provider.lower() == "openai":
+            try:
+                from saplings.adapters.openai_adapter import OpenAIAdapter
+
+                # Create the adapter
+                model_instance = OpenAIAdapter(provider, model_name, **kwargs)
+
+                # Register the model instance in the registry
+                if (
+                    ENABLE_MODEL_REGISTRY
+                    and model_registry is not None
+                    and isinstance(model_registry, ModelRegistry)
+                ):
+                    try:
+                        model_registry.register(model_key, model_instance)
+                    except Exception as e:
+                        logger.warning(
+                            f"Error registering model in registry: {e}. Using fallback cache."
+                        )
+                        _model_instances[cache_key] = weakref.ref(model_instance)
+                else:
+                    # Use the simple dictionary-based cache as fallback
+                    _model_instances[cache_key] = weakref.ref(model_instance)
+
+                return model_instance
+            except ImportError:
+                msg = "OpenAI not installed. Please install it with: pip install openai"
+                raise ImportError(msg)
+        elif provider.lower() == "anthropic":
+            try:
+                from saplings.adapters.anthropic_adapter import AnthropicAdapter
+
+                # Create the adapter
+                model_instance = AnthropicAdapter(provider, model_name, **kwargs)
+
+                # Register the model instance in the registry
+                if (
+                    ENABLE_MODEL_REGISTRY
+                    and model_registry is not None
+                    and isinstance(model_registry, ModelRegistry)
+                ):
+                    try:
+                        model_registry.register(model_key, model_instance)
+                    except Exception as e:
+                        logger.warning(
+                            f"Error registering model in registry: {e}. Using fallback cache."
+                        )
+                        _model_instances[cache_key] = weakref.ref(model_instance)
+                else:
+                    # Use the simple dictionary-based cache as fallback
+                    _model_instances[cache_key] = weakref.ref(model_instance)
+
+                return model_instance
+            except ImportError:
+                msg = "Anthropic not installed. Please install it with: pip install anthropic"
+                raise ImportError(msg)
+        elif provider.lower() == "huggingface":
+            try:
+                from saplings.adapters.huggingface_adapter import HuggingFaceAdapter
+
+                # Create the adapter
+                model_instance = HuggingFaceAdapter(provider, model_name, **kwargs)
+
+                # Register the model instance in the registry
+                if (
+                    ENABLE_MODEL_REGISTRY
+                    and model_registry is not None
+                    and isinstance(model_registry, ModelRegistry)
+                ):
+                    try:
+                        model_registry.register(model_key, model_instance)
+                    except Exception as e:
+                        logger.warning(
+                            f"Error registering model in registry: {e}. Using fallback cache."
+                        )
+                        _model_instances[cache_key] = weakref.ref(model_instance)
+                else:
+                    # Use the simple dictionary-based cache as fallback
+                    _model_instances[cache_key] = weakref.ref(model_instance)
+
+                return model_instance
+            except ImportError:
+                msg = "Hugging Face not installed. Please install it with: pip install transformers"
+                raise ImportError(msg)
+        elif provider.lower() == "transformers":
+            try:
+                from saplings.adapters.transformers_adapter import TransformersAdapter
+
+                # Create the adapter
+                model_instance = TransformersAdapter(provider, model_name, **kwargs)
+
+                # Register the model instance in the registry
+                if (
+                    ENABLE_MODEL_REGISTRY
+                    and model_registry is not None
+                    and isinstance(model_registry, ModelRegistry)
+                ):
+                    try:
+                        model_registry.register(model_key, model_instance)
+                    except Exception as e:
+                        logger.warning(
+                            f"Error registering model in registry: {e}. Using fallback cache."
+                        )
+                        _model_instances[cache_key] = weakref.ref(model_instance)
+                else:
+                    # Use the simple dictionary-based cache as fallback
+                    _model_instances[cache_key] = weakref.ref(model_instance)
+
+                return model_instance
+            except ImportError:
+                msg = "Transformers not installed. Please install it with: pip install transformers"
+                raise ImportError(msg)
+        else:
+            msg = f"Unsupported model provider: {provider}"
+            raise ValueError(msg)
+
+    # Removed from_uri method as part of the model_uri removal
 
     @abstractmethod
     async def generate(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        prompt: str | list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
         json_mode: bool = False,
         use_cache: bool = False,
         cache_namespace: str = "default",
-        cache_ttl: Optional[int] = 3600,
+        cache_ttl: int | None = 3600,
         **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model.
 
         Args:
+        ----
             prompt: The prompt to generate from (string or list of message dictionaries)
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -381,26 +556,30 @@ class LLM(ABC):
             **kwargs: Additional arguments for generation
 
         Returns:
+        -------
             LLMResponse: The generated response
+
         """
-        pass
 
     async def generate_with_cache(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        prompt: str | list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
         json_mode: bool = False,
-        cache_namespace: str = "default",
-        cache_ttl: Optional[int] = 3600,
+        cache_namespace: str = "model",
+        cache_ttl: int | None = 3600,
+        cache_provider: str = "memory",
+        cache_strategy: str | None = None,
         **kwargs,
     ) -> LLMResponse:
         """
         Generate text from the model with caching.
 
         Args:
+        ----
             prompt: The prompt to generate from (string or list of message dictionaries)
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -410,66 +589,68 @@ class LLM(ABC):
             json_mode: Whether to force the model to output valid JSON
             cache_namespace: Namespace for the cache
             cache_ttl: Time to live for the cache entry in seconds
+            cache_provider: Cache provider to use
+            cache_strategy: Cache eviction strategy
             **kwargs: Additional arguments for generation
 
         Returns:
+        -------
             LLMResponse: The generated response
+
         """
         # Import here to avoid circular imports
-        from saplings.core.model_caching import generate_cache_key, get_model_cache
+        from saplings.core.caching import generate_with_cache_async
+        from saplings.core.caching.interface import CacheStrategy
 
-        # Generate a cache key
-        cache_key = generate_cache_key(
-            model_uri=str(self.model_uri),
+        # Convert strategy string to enum if provided
+        strategy = CacheStrategy.LRU  # Default to LRU
+        if cache_strategy:
+            strategy = CacheStrategy(cache_strategy)
+
+        # Define the generate function
+        async def _generate(p, **kw):
+            return await self.generate(
+                prompt=p,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                functions=functions,
+                function_call=function_call,
+                json_mode=json_mode,
+                **kw,
+            )
+
+        # Create cache key based on provider and model_name
+        cache_key = f"{self.provider}:{self.model_name}"
+
+        # Use the unified caching system
+        return await generate_with_cache_async(
+            generate_func=_generate,
+            cache_key=cache_key,  # Use provider:model_name format as the cache key
             prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            functions=functions,
-            function_call=function_call,
-            json_mode=json_mode,
+            namespace=cache_namespace,
+            ttl=cache_ttl,
+            provider=cache_provider,
+            strategy=strategy,
             **kwargs,
         )
-
-        # Get the cache
-        cache = get_model_cache(namespace=cache_namespace, ttl=cache_ttl)
-
-        # Check if the response is in the cache
-        cached_response = cache.get(cache_key)
-        if cached_response is not None:
-            return cached_response
-
-        # Generate the response
-        response = await self.generate(
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            functions=functions,
-            function_call=function_call,
-            json_mode=json_mode,
-            **kwargs,
-        )
-
-        # Cache the response
-        cache.set(cache_key, response)
-
-        return response
 
     @abstractmethod
     async def generate_streaming(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        chunk_size: Optional[int] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        prompt: str | list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        chunk_size: int | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
         json_mode: bool = False,
         **kwargs,
-    ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
+    ) -> AsyncGenerator[str | dict[str, Any], None]:
         """
         Generate text from the model with streaming output.
 
         Args:
+        ----
             prompt: The prompt to generate from (string or list of message dictionaries)
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -481,7 +662,9 @@ class LLM(ABC):
             **kwargs: Additional arguments for generation
 
         Yields:
+        ------
             Union[str, Dict[str, Any]]: Text chunks or function call chunks as they are generated
+
         """
         # Default implementation that falls back to non-streaming generate
         # Subclasses should override this with native streaming if available
@@ -504,21 +687,24 @@ class LLM(ABC):
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        messages: list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
         json_mode: bool = False,
         use_cache: bool = False,
-        cache_namespace: str = "default",
-        cache_ttl: Optional[int] = 3600,
+        cache_namespace: str = "model",
+        cache_ttl: int | None = 3600,
+        cache_provider: str = "memory",
+        cache_strategy: str | None = None,
         **kwargs,
     ) -> LLMResponse:
         """
         Generate a response to a conversation.
 
         Args:
+        ----
             messages: List of message dictionaries
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -529,10 +715,14 @@ class LLM(ABC):
             use_cache: Whether to use caching for this request
             cache_namespace: Namespace for the cache
             cache_ttl: Time to live for the cache entry in seconds
+            cache_provider: Cache provider to use
+            cache_strategy: Cache eviction strategy
             **kwargs: Additional arguments for generation
 
         Returns:
+        -------
             LLMResponse: The generated response
+
         """
         if use_cache:
             return await self.generate_with_cache(
@@ -544,34 +734,36 @@ class LLM(ABC):
                 json_mode=json_mode,
                 cache_namespace=cache_namespace,
                 cache_ttl=cache_ttl,
+                cache_provider=cache_provider,
+                cache_strategy=cache_strategy,
                 **kwargs,
             )
-        else:
-            return await self.generate(
-                prompt=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                functions=functions,
-                function_call=function_call,
-                json_mode=json_mode,
-                **kwargs,
-            )
+        return await self.generate(
+            prompt=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            functions=functions,
+            function_call=function_call,
+            json_mode=json_mode,
+            **kwargs,
+        )
 
     async def chat_streaming(
         self,
-        messages: List[Dict[str, Any]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        chunk_size: Optional[int] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        messages: list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        chunk_size: int | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
         json_mode: bool = False,
         **kwargs,
-    ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
+    ) -> AsyncGenerator[str | dict[str, Any], None]:
         """
         Generate a streaming response to a conversation.
 
         Args:
+        ----
             messages: List of message dictionaries
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -583,7 +775,9 @@ class LLM(ABC):
             **kwargs: Additional arguments for generation
 
         Yields:
+        ------
             Union[str, Dict[str, Any]]: Text chunks or function call chunks as they are generated
+
         """
         async for chunk in self.generate_streaming(
             prompt=messages,
@@ -598,14 +792,15 @@ class LLM(ABC):
             yield chunk
 
     @abstractmethod
-    def get_metadata(self) -> ModelMetadata:
+    def get_metadata(self) -> dict[str, Any]:
         """
         Get metadata about the model.
 
-        Returns:
+        Returns
+        -------
             ModelMetadata: Metadata about the model
+
         """
-        pass
 
     @abstractmethod
     def estimate_tokens(self, text: str) -> int:
@@ -613,12 +808,14 @@ class LLM(ABC):
         Estimate the number of tokens in a text.
 
         Args:
+        ----
             text: The text to estimate tokens for
 
         Returns:
+        -------
             int: Estimated number of tokens
+
         """
-        pass
 
     @abstractmethod
     def estimate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
@@ -626,10 +823,12 @@ class LLM(ABC):
         Estimate the cost of a request.
 
         Args:
+        ----
             prompt_tokens: Number of tokens in the prompt
             completion_tokens: Number of tokens in the completion
 
         Returns:
+        -------
             float: Estimated cost in USD
+
         """
-        pass

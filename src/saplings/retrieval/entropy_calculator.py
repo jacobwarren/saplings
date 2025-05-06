@@ -1,21 +1,26 @@
+from __future__ import annotations
+
 """
 Entropy calculator module for Saplings.
 
 This module provides the entropy-based termination logic for the cascade retriever.
 """
 
+
 import json
 import logging
 import math
-from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
+import scipy.sparse as sp
 from sklearn.feature_extraction.text import CountVectorizer
 
-from saplings.memory.document import Document
 from saplings.retrieval.config import EntropyConfig, RetrievalConfig
+
+if TYPE_CHECKING:
+    from saplings.memory.document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -30,17 +35,26 @@ class EntropyCalculator:
 
     def __init__(
         self,
-        config: Optional[Union[RetrievalConfig, EntropyConfig]] = None,
-    ):
+        config: RetrievalConfig | EntropyConfig | None = None,
+    ) -> None:
         """
         Initialize the entropy calculator.
 
         Args:
+        ----
             config: Retrieval or entropy configuration
+
         """
         # Extract entropy config from RetrievalConfig if needed
         if config is None:
-            self.config = EntropyConfig()
+            self.config = EntropyConfig(
+                threshold=0.1,
+                max_iterations=3,
+                min_documents=5,
+                max_documents=50,
+                use_normalized_entropy=True,
+                window_size=3,
+            )
         elif isinstance(config, RetrievalConfig):
             self.config = config.entropy
         else:
@@ -54,17 +68,20 @@ class EntropyCalculator:
         )
 
         # Initialize history for tracking entropy changes
-        self.entropy_history: List[float] = []
+        self.entropy_history: list[float] = []
 
-    def calculate_entropy(self, documents: List[Document]) -> float:
+    def calculate_entropy(self, documents: list[Document]) -> float:
         """
         Calculate the information entropy of a set of documents.
 
         Args:
+        ----
             documents: Documents to calculate entropy for
 
         Returns:
+        -------
             float: Entropy value
+
         """
         if not documents:
             return 0.0
@@ -74,12 +91,25 @@ class EntropyCalculator:
 
         # Calculate term frequencies
         try:
+            # Get term counts
             term_counts = self.vectorizer.fit_transform(contents)
-            term_freqs = term_counts.sum(axis=0).A1
+
+            # Convert to dense array for term frequencies
+            # Handle different matrix types
+            if sp.issparse(term_counts):
+                # For sparse matrices (what CountVectorizer typically returns)
+                term_counts_array = term_counts.toarray()  # type: ignore
+            else:
+                # If it's already a dense array
+                term_counts_array = np.array(term_counts)
+
+            term_freqs = np.sum(term_counts_array, axis=0)
 
             # Calculate probability distribution
             total_terms = term_freqs.sum()
-            if total_terms == 0:
+            # Index for total terms
+            TOTAL_TERMS_INDEX = 0
+            if total_terms == TOTAL_TERMS_INDEX:
                 return 0.0
 
             probabilities = term_freqs / total_terms
@@ -93,24 +123,29 @@ class EntropyCalculator:
             # Normalize if configured
             if self.config.use_normalized_entropy:
                 max_entropy = math.log2(len(probabilities))
-                if max_entropy > 0:
+                # Threshold for max entropy
+                MAX_ENTROPY_THRESHOLD = 0
+                if max_entropy > MAX_ENTROPY_THRESHOLD:
                     entropy /= max_entropy
 
             return float(entropy)
 
         except Exception as e:
-            logger.error(f"Error calculating entropy: {e}")
+            logger.exception(f"Error calculating entropy: {e}")
             return 0.0
 
-    def calculate_entropy_change(self, documents: List[Document]) -> float:
+    def calculate_entropy_change(self, documents: list[Document]) -> float:
         """
         Calculate the change in entropy compared to previous iterations.
 
         Args:
+        ----
             documents: Current set of documents
 
         Returns:
+        -------
             float: Entropy change (negative means decreasing entropy)
+
         """
         current_entropy = self.calculate_entropy(documents)
 
@@ -131,16 +166,19 @@ class EntropyCalculator:
 
         return entropy_change
 
-    def should_terminate(self, documents: List[Document], iteration: int) -> bool:
+    def should_terminate(self, documents: list[Document], iteration: int) -> bool:
         """
         Determine if the retrieval process should terminate.
 
         Args:
+        ----
             documents: Current set of documents
             iteration: Current iteration number
 
         Returns:
+        -------
             bool: True if retrieval should terminate, False otherwise
+
         """
         # Check minimum number of documents
         if len(documents) < self.config.min_documents:
@@ -158,12 +196,9 @@ class EntropyCalculator:
         entropy_change = self.calculate_entropy_change(documents)
 
         # Check if entropy change is below threshold
-        if abs(entropy_change) < self.config.threshold:
-            return True
+        return abs(entropy_change) < self.config.threshold
 
-        return False
-
-    def reset(self) -> None:
+    def reset(self):
         """Reset the entropy calculator state."""
         self.entropy_history.clear()
 
@@ -172,7 +207,9 @@ class EntropyCalculator:
         Save the entropy calculator configuration to disk.
 
         Args:
+        ----
             directory: Directory to save to
+
         """
         directory_path = Path(directory)
         directory_path.mkdir(parents=True, exist_ok=True)
@@ -188,14 +225,16 @@ class EntropyCalculator:
         Load the entropy calculator configuration from disk.
 
         Args:
+        ----
             directory: Directory to load from
+
         """
         directory_path = Path(directory)
 
         # Load config
         config_path = directory_path / "config.json"
         if config_path.exists():
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 config_data = json.load(f)
                 self.config = EntropyConfig(**config_data)
 

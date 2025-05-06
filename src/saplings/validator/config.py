@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Configuration module for the Validator.
 
@@ -5,7 +7,7 @@ This module defines the configuration classes for the Validator module.
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -26,7 +28,7 @@ class ValidatorConfig(BaseModel):
     fail_fast: bool = Field(False, description="Whether to stop validation on first failure")
 
     # Plugin settings
-    plugin_dirs: List[str] = Field(
+    plugin_dirs: list[str] = Field(
         default_factory=list, description="Directories to search for validator plugins"
     )
     use_entry_points: bool = Field(
@@ -40,36 +42,52 @@ class ValidatorConfig(BaseModel):
     )
 
     # Timeout settings
-    timeout_seconds: Optional[float] = Field(None, description="Timeout for validation in seconds")
+    timeout_seconds: float | None = Field(None, description="Timeout for validation in seconds")
 
     # Budget settings
     enforce_budget: bool = Field(False, description="Whether to enforce budget constraints")
     max_validations_per_session: int = Field(
         100, description="Maximum number of validations per session"
     )
-    max_validations_per_day: Optional[int] = Field(
+    max_validations_per_day: int | None = Field(
         None, description="Maximum number of validations per day"
     )
 
     @classmethod
-    def default(cls) -> "ValidatorConfig":
+    def default(cls):
         """
         Create a default configuration.
 
-        Returns:
+        Returns
+        -------
             ValidatorConfig: Default configuration
+
         """
-        return cls()
+        return cls(
+            enabled=True,
+            fail_fast=False,
+            plugin_dirs=[],
+            use_entry_points=True,
+            parallel_validation=True,
+            max_parallel_validators=10,
+            timeout_seconds=None,
+            enforce_budget=False,
+            max_validations_per_session=100,
+            max_validations_per_day=None,
+        )
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any]) -> "ValidatorConfig":
+    def from_dict(cls, config_dict: dict[str, Any]) -> "ValidatorConfig":
         """
         Create a configuration from a dictionary.
 
         Args:
+        ----
             config_dict: Configuration dictionary
 
         Returns:
+        -------
             ValidatorConfig: Configuration
+
         """
         return cls(**config_dict)

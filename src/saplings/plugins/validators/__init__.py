@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 """Validator plugins for Saplings."""
+
 
 from saplings.core.plugin import register_plugin
 from saplings.plugins.validators.code_validator import CodeValidator

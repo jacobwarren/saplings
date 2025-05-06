@@ -1,15 +1,15 @@
+from __future__ import annotations
+
 """
 Function registry module for Saplings.
 
 This module provides a registry for functions that can be called by models.
 """
 
-import inspect
-import json
-import logging
-from typing import Any, Callable, Dict, List, Optional, Set, Type, Union, get_type_hints
 
-from pydantic import BaseModel, Field, create_model
+import inspect
+import logging
+from typing import Any, Callable, Union, get_type_hints
 
 logger = logging.getLogger(__name__)
 
@@ -17,23 +17,18 @@ logger = logging.getLogger(__name__)
 class FunctionRegistry:
     """Registry for functions that can be called by models."""
 
-    _instance = None
-
-    def __new__(cls):
-        """Create a singleton instance."""
-        if cls._instance is None:
-            cls._instance = super(FunctionRegistry, cls).__new__(cls)
-            cls._instance._functions = {}
-            cls._instance._function_groups = {}
-        return cls._instance
+    def __init__(self) -> None:
+        """Initialize the function registry."""
+        self._functions = {}
+        self._function_groups = {}
 
     def register(
         self,
-        func: Optional[Callable] = None,
+        func: Callable | None = None,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        group: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
+        group: str | None = None,
     ) -> Callable:
         """
         Register a function with the registry.
@@ -53,13 +48,16 @@ class FunctionRegistry:
         ```
 
         Args:
+        ----
             func: The function to register
             name: Name of the function (defaults to function name)
             description: Description of the function
             group: Group to add the function to
 
         Returns:
+        -------
             Callable: The registered function
+
         """
 
         def decorator(f: Callable) -> Callable:
@@ -106,10 +104,13 @@ class FunctionRegistry:
         Unregister a function from the registry.
 
         Args:
+        ----
             name: Name of the function to unregister
 
         Returns:
+        -------
             bool: True if the function was unregistered, False otherwise
+
         """
         if name in self._functions:
             # Remove from groups
@@ -123,27 +124,33 @@ class FunctionRegistry:
             return True
         return False
 
-    def get_function(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_function(self, name: str) -> dict[str, Any] | None:
         """
         Get a function from the registry.
 
         Args:
+        ----
             name: Name of the function
 
         Returns:
+        -------
             Optional[Dict[str, Any]]: The function info or None if not found
+
         """
         return self._functions.get(name)
 
-    def get_function_definition(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_function_definition(self, name: str) -> dict[str, Any] | None:
         """
         Get a function definition for use with LLMs.
 
         Args:
+        ----
             name: Name of the function
 
         Returns:
+        -------
             Optional[Dict[str, Any]]: The function definition or None if not found
+
         """
         func_info = self._functions.get(name)
         if func_info:
@@ -158,36 +165,44 @@ class FunctionRegistry:
             }
         return None
 
-    def get_all_functions(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_functions(self) -> dict[str, dict[str, Any]]:
         """
         Get all registered functions.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Dict[str, Any]]: Dictionary of function info
+
         """
         return self._functions
 
-    def get_group(self, group: str) -> List[str]:
+    def get_group(self, group: str) -> list[str]:
         """
         Get all functions in a group.
 
         Args:
+        ----
             group: Name of the group
 
         Returns:
+        -------
             List[str]: List of function names in the group
+
         """
         return list(self._function_groups.get(group, set()))
 
-    def get_group_definitions(self, group: str) -> List[Dict[str, Any]]:
+    def get_group_definitions(self, group: str) -> list[dict[str, Any]]:
         """
         Get function definitions for all functions in a group.
 
         Args:
+        ----
             group: Name of the group
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of function definitions
+
         """
         functions = []
         for name in self.get_group(group):
@@ -196,39 +211,47 @@ class FunctionRegistry:
                 functions.append(func_def)
         return functions
 
-    def call_function(self, name: str, arguments: Dict[str, Any]) -> Any:
+    def call_function(self, name: str, arguments: dict[str, Any]) -> Any:
         """
         Call a registered function.
 
         Args:
+        ----
             name: Name of the function to call
             arguments: Arguments to pass to the function
 
         Returns:
+        -------
             Any: The result of the function call
 
         Raises:
+        ------
             ValueError: If the function is not registered
             TypeError: If the arguments are invalid
+
         """
         func_info = self._functions.get(name)
         if not func_info:
-            raise ValueError(f"Function not registered: {name}")
+            msg = f"Function not registered: {name}"
+            raise ValueError(msg)
 
         func = func_info["function"]
 
         # Call the function
         return func(**arguments)
 
-    def _get_function_parameters(self, func: Callable) -> Dict[str, Any]:
+    def _get_function_parameters(self, func: Callable) -> dict[str, Any]:
         """
         Get the parameters of a function.
 
         Args:
+        ----
             func: The function to inspect
 
         Returns:
+        -------
             Dict[str, Any]: Dictionary of parameter info
+
         """
         params = {}
         sig = inspect.signature(func)
@@ -255,15 +278,18 @@ class FunctionRegistry:
 
         return params
 
-    def _get_required_parameters(self, func: Callable) -> List[str]:
+    def _get_required_parameters(self, func: Callable) -> list[str]:
         """
         Get the required parameters of a function.
 
         Args:
+        ----
             func: The function to inspect
 
         Returns:
+        -------
             List[str]: List of required parameter names
+
         """
         required = []
         sig = inspect.signature(func)
@@ -287,11 +313,14 @@ class FunctionRegistry:
         Get the description of a parameter from the function's docstring.
 
         Args:
+        ----
             func: The function to inspect
             param_name: Name of the parameter
 
         Returns:
+        -------
             str: Description of the parameter
+
         """
         if not func.__doc__:
             return f"Parameter {param_name}"
@@ -317,19 +346,22 @@ class FunctionRegistry:
         return f"Parameter {param_name}"
 
     def _create_parameter_info(
-        self, name: str, param_type: Type, default_value: Any, description: str
-    ) -> Dict[str, Any]:
+        self, name: str, param_type: type, default_value: Any, description: str
+    ) -> dict[str, Any]:
         """
         Create parameter info for a function parameter.
 
         Args:
+        ----
             name: Name of the parameter
             param_type: Type of the parameter
             default_value: Default value of the parameter
             description: Description of the parameter
 
         Returns:
+        -------
             Dict[str, Any]: Parameter info
+
         """
         # Handle basic types
         if param_type == str:
@@ -340,9 +372,9 @@ class FunctionRegistry:
             param_info = {"type": "number", "description": description}
         elif param_type == bool:
             param_info = {"type": "boolean", "description": description}
-        elif param_type == list or param_type == List:
+        elif param_type == list:
             param_info = {"type": "array", "description": description}
-        elif param_type == dict or param_type == Dict:
+        elif param_type == dict:
             param_info = {"type": "object", "description": description}
         else:
             # Default to string for complex types
@@ -358,39 +390,67 @@ class FunctionRegistry:
             if hasattr(param_type, "__args__"):
                 args = param_type.__args__
                 if all(isinstance(arg, str) for arg in args):
-                    param_info["enum"] = list(args)
+                    param_info = {
+                        **param_info,
+                        "type": "string",
+                        "enum": [str(arg) for arg in args],
+                    }
 
         return param_info
 
 
-# Create a singleton instance
-function_registry = FunctionRegistry()
-
-
 def register_function(
-    func: Optional[Callable] = None,
+    func: Callable | None = None,
     *,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    group: Optional[str] = None,
+    name: str | None = None,
+    description: str | None = None,
+    group: str | None = None,
 ) -> Callable:
     """
     Register a function with the registry.
 
     This is a convenience function that calls FunctionRegistry.register.
+    It gets the registry instance from the DI container.
 
     Args:
+    ----
         func: The function to register
         name: Name of the function (defaults to function name)
         description: Description of the function
         group: Group to add the function to
 
     Returns:
+    -------
         Callable: The registered function
+
     """
-    return function_registry.register(
+    from saplings.di import container
+
+    registry = container.resolve(FunctionRegistry)
+    return registry.register(
         func,
         name=name,
         description=description,
         group=group,
     )
+
+
+def get_function_registry():
+    """
+    Get the function registry instance.
+
+    This function is maintained for backward compatibility.
+    New code should use constructor injection via the DI container.
+
+    Returns
+    -------
+        FunctionRegistry: Function registry instance from the DI container
+
+    """
+    from saplings.di import container
+
+    return container.resolve(FunctionRegistry)
+
+
+# Create a global function registry instance for backward compatibility
+function_registry = FunctionRegistry()

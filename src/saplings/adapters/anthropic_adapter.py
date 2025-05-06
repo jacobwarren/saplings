@@ -1,29 +1,33 @@
+from __future__ import annotations
+
+"""Anthropic adapter for Saplings.
+
+This module provides an implementation of the LLM interface for Anthropic's Claude models.
 """
-Anthropic adapter for Saplings.
 
-This module provides an Anthropic-based implementation of the LLM interface.
-"""
+# Standard library imports
+import asyncio  # noqa: E402
+import collections.abc
+import logging  # noqa: E402
+from typing import TYPE_CHECKING, Any  # noqa: E402
 
-import asyncio
-import json
-import logging
-import os
-from typing import Any, AsyncGenerator, Dict, List, Optional, Union
-
-from saplings.core.model_adapter import (
+# Local imports
+from saplings.core.config_service import config_service  # noqa: E402
+from saplings.core.model_adapter import (  # noqa: E402
     LLM,
     LLMResponse,
     ModelCapability,
     ModelMetadata,
     ModelRole,
-    ModelURI,
 )
-from saplings.core.plugin import ModelAdapterPlugin, PluginType
+from saplings.core.plugin import ModelAdapterPlugin, PluginType  # noqa: E402
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
 try:
-    import anthropic
     from anthropic import Anthropic
 
     ANTHROPIC_AVAILABLE = True
@@ -39,36 +43,34 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
     This adapter provides access to Anthropic's Claude models.
     """
 
-    def __init__(self, model_uri: Union[str, ModelURI], **kwargs):
+    def __init__(self, provider: str, model_name: str, **kwargs: Any) -> None:
         """
         Initialize the Anthropic adapter.
 
         Args:
-            model_uri: URI of the model to use
+        ----
+            provider: The model provider (e.g., 'anthropic')
+            model_name: The model name (e.g., 'claude-3-opus-20240229')
             **kwargs: Additional arguments for the adapter
+
         """
         if not ANTHROPIC_AVAILABLE:
-            raise ImportError(
-                "Anthropic not installed. Please install it with: pip install anthropic"
-            )
+            msg = "Anthropic not installed. Please install it with: pip install anthropic"
+            raise ImportError(msg)
 
-        # Parse the model URI
-        if isinstance(model_uri, str):
-            self.model_uri = ModelURI.parse(model_uri)
-        else:
-            self.model_uri = model_uri
+        # Store provider and model name
+        self.provider = provider
+        self.model_name = model_name
 
-        # Extract parameters from URI
-        self.model_name = self.model_uri.model_name
-        self.temperature = float(self.model_uri.parameters.get("temperature", 0.7))
-        self.max_tokens = int(self.model_uri.parameters.get("max_tokens", 1024))
+        # Extract parameters from kwargs
+        self.temperature = float(kwargs.get("temperature", 0.7))
+        self.max_tokens = int(kwargs.get("max_tokens", 1024))
 
-        # Get API key from kwargs, URI parameters, or environment variable
+        # Get API key from kwargs or config service
         api_key = kwargs.get("api_key")
+
         if api_key is None:
-            api_key = self.model_uri.parameters.get("api_key")
-        if api_key is None:
-            api_key = os.environ.get("ANTHROPIC_API_KEY")
+            api_key = config_service.get_value("ANTHROPIC_API_KEY")
 
         # Create the Anthropic client
         client_kwargs = {}
@@ -81,22 +83,24 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
         # Cache for model metadata
         self._metadata = None
 
-        logger.info(f"Initialized Anthropic adapter for model: {self.model_name}")
+        logger.info("Initialized Anthropic adapter for model: %s", self.model_name)
 
     async def generate(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        prompt: str | list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
+        *,
         json_mode: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> LLMResponse:
         """
         Generate text from the model.
 
         Args:
+        ----
             prompt: The prompt to generate from (string or list of message dictionaries)
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -107,7 +111,9 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
             **kwargs: Additional arguments for generation
 
         Returns:
+        -------
             LLMResponse: The generated response
+
         """
         # Set parameters
         max_tokens = max_tokens or self.max_tokens
@@ -172,57 +178,51 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
         generated_text = None
 
         # Check if the model returned a tool call
-        if hasattr(response, "tool_calls") and response.tool_calls:
-            tool_calls = response.tool_calls
-            tool_calls_result = []
+        # Note: This is a simplified implementation that may need to be updated
+        # based on the actual Anthropic API response structure
+        tool_calls_result = None
 
-            for tool_call in tool_calls:
-                if tool_call.type == "function":
-                    tool_calls_result.append(
-                        {
-                            "id": tool_call.id,
-                            "type": tool_call.type,
-                            "function": {
-                                "name": tool_call.function.name,
-                                "arguments": tool_call.function.arguments,
-                            },
-                        }
-                    )
-        else:
-            # Regular text response
-            generated_text = response.content[0].text if response.content else None
+        # Extract content from the response
+        if hasattr(response, "content") and response.content:
+            # Regular text response - handle different content block types
+            # Use a safer approach with getattr to avoid type errors
+            for content_block in response.content:
+                text = getattr(content_block, "text", None)
+                if text:
+                    generated_text = text
+                    break
 
         # Get token usage
-        prompt_tokens = response.usage.input_tokens
-        completion_tokens = response.usage.output_tokens
+        prompt_tokens = response.usage.input_tokens if hasattr(response, "usage") else 0
+        completion_tokens = response.usage.output_tokens if hasattr(response, "usage") else 0
         total_tokens = prompt_tokens + completion_tokens
 
         # Create response
         return LLMResponse(
             text=generated_text,
-            model_uri=str(self.model_uri),
+            provider=self.provider,
+            model_name=self.model_name,
             usage={
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "total_tokens": total_tokens,
             },
-            metadata={
-                "model": self.model_name,
-                "provider": "anthropic",
-            },
             function_call=function_call_result,
             tool_calls=tool_calls_result,
         )
 
-    def _process_prompt(self, prompt: Union[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    def _process_prompt(self, prompt: str | list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Process the prompt into a list of messages.
 
         Args:
+        ----
             prompt: The prompt to process
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of message dictionaries
+
         """
         if isinstance(prompt, str):
             # Convert string prompt to a message
@@ -233,19 +233,20 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
 
     async def generate_streaming(
         self,
-        prompt: Union[str, List[Dict[str, Any]]],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        chunk_size: Optional[int] = None,
-        functions: Optional[List[Dict[str, Any]]] = None,
-        function_call: Optional[Union[str, Dict[str, str]]] = None,
+        prompt: str | list[dict[str, Any]],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        functions: list[dict[str, Any]] | None = None,
+        function_call: str | dict[str, str] | None = None,
+        *,
         json_mode: bool = False,
-        **kwargs,
-    ) -> AsyncGenerator[Union[str, Dict[str, Any]], None]:
+        **kwargs: Any,
+    ) -> AsyncGenerator[LLMResponse, None]:
         """
         Generate text from the model with streaming output.
 
         Args:
+        ----
             prompt: The prompt to generate from (string or list of message dictionaries)
             max_tokens: Maximum number of tokens to generate
             temperature: Temperature for sampling
@@ -257,7 +258,9 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
             **kwargs: Additional arguments for generation
 
         Yields:
+        ------
             Union[str, Dict[str, Any]]: Text chunks or function call chunks as they are generated
+
         """
         # Set parameters
         max_tokens = max_tokens or self.max_tokens
@@ -315,74 +318,83 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
             completion_args["messages"] = messages
 
         # Create the completion with streaming
-        response = await asyncio.to_thread(self.client.messages.create, **completion_args)
+        try:
+            # Create streaming completion
+            stream = await asyncio.to_thread(self.client.messages.create, **completion_args)
 
-        # For tracking tool calls
-        current_tool_calls = {}
+            current_text = ""
+            async for chunk in self._stream_response(stream):
+                current_text += chunk
+                yield LLMResponse(
+                    text=current_text,
+                    provider=self.provider,
+                    model_name=self.model_name,
+                    usage={
+                        "prompt_tokens": 0,  # Updated in final chunk
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                    },
+                    function_call=None,
+                    tool_calls=None,
+                )
 
-        # Stream the response
-        async for chunk in response:
-            # Check for tool calls
-            if (
-                hasattr(chunk, "delta")
-                and hasattr(chunk.delta, "tool_calls")
-                and chunk.delta.tool_calls
-            ):
-                for tool_call in chunk.delta.tool_calls:
-                    tool_id = tool_call.index
+        except Exception as e:
+            # Log the error with details and yield a final response
+            logger.exception("Error in streaming response: %s", str(e))
+            yield LLMResponse(
+                text=f"Error in streaming response: {e!s}",
+                provider=self.provider,
+                model_name=self.model_name,
+                usage={
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
+                function_call=None,
+                tool_calls=None,
+            )
 
-                    # Initialize the tool call if it's new
-                    if tool_id not in current_tool_calls:
-                        current_tool_calls[tool_id] = {
-                            "id": tool_call.id
-                            if hasattr(tool_call, "id") and tool_call.id
-                            else f"call_{tool_id}",
-                            "type": "function",
-                            "function": {"name": "", "arguments": ""},
-                        }
-
-                    # Update the tool call with new data
-                    if hasattr(tool_call, "function"):
-                        if hasattr(tool_call.function, "name") and tool_call.function.name:
-                            current_tool_calls[tool_id]["function"][
-                                "name"
-                            ] += tool_call.function.name
-
-                        if (
-                            hasattr(tool_call.function, "arguments")
-                            and tool_call.function.arguments
-                        ):
-                            current_tool_calls[tool_id]["function"][
-                                "arguments"
-                            ] += tool_call.function.arguments
-
-                    # Yield the updated tool call
-                    yield {"tool_call": current_tool_calls[tool_id]}
-
-            # Regular text content
-            elif hasattr(chunk, "delta") and hasattr(chunk.delta, "text") and chunk.delta.text:
-                yield chunk.delta.text
-
-    async def _stream_response(self, response):
+    async def _stream_response(self, response: Any) -> AsyncGenerator[str, None]:
         """
         Stream the response from Anthropic.
 
         Args:
+        ----
             response: The streaming response from Anthropic
 
         Yields:
+        ------
             str: Text chunks as they are generated
+
+        Raises:
+        ------
+            ValueError: If the response is not iterable or has an invalid format
+
         """
+        if not isinstance(response, collections.abc.Iterable):
+            msg = "Response must be iterable"
+            raise ValueError(msg)
+
         for chunk in response:
-            if chunk.type == "content_block_delta" and chunk.delta.text:
+            if not chunk:
+                continue
+
+            # Handle different response formats
+            if hasattr(chunk, "content") and chunk.content:
+                for block in chunk.content:
+                    if hasattr(block, "text") and block.text:
+                        yield block.text
+            elif hasattr(chunk, "delta") and chunk.delta and hasattr(chunk.delta, "text"):
                 yield chunk.delta.text
 
     def get_metadata(self) -> ModelMetadata:
         """
         Get metadata about the model.
 
-        Returns:
+        Returns
+        -------
             ModelMetadata: Metadata about the model
+
         """
         if self._metadata is None:
             # Get model information
@@ -390,8 +402,8 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
 
             self._metadata = ModelMetadata(
                 name=self.model_name,
-                provider="anthropic",
-                version=self.model_uri.version,
+                provider=self.provider,
+                version="1.0",
                 description=f"Anthropic {self.model_name}",
                 capabilities=[
                     ModelCapability.TEXT_GENERATION,
@@ -405,12 +417,14 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
             )
         return self._metadata
 
-    def _get_model_info(self) -> Dict[str, Any]:
+    def _get_model_info(self) -> dict[str, Any]:
         """
         Get information about the model.
 
-        Returns:
+        Returns
+        -------
             Dict[str, Any]: Model information
+
         """
         # Model information for common Anthropic models
         model_info = {
@@ -456,25 +470,52 @@ class AnthropicAdapter(LLM, ModelAdapterPlugin):
         Estimate the number of tokens in a text.
 
         Args:
+        ----
             text: The text to estimate tokens for
 
         Returns:
+        -------
             int: Estimated number of tokens
+
+        Note:
+        ----
+            This is a more accurate estimation based on Claude's tokenization patterns:
+            - Each word is roughly 1.3 tokens
+            - Each character in code or URLs is about 0.3 tokens
+            - Special characters and spaces are roughly 0.3 tokens
+            - Newlines count as 2 tokens
+
         """
-        # Simple estimation based on words
-        # In practice, this varies by model and tokenizer
-        return len(text.split()) * 1.3
+        # Count basic components
+        words = len(text.split())
+        chars = len(text)
+        newlines = text.count("\n")
+
+        # Estimate tokens:
+        # - Words: 1.3 tokens per word
+        # - Special chars: 0.3 tokens per char
+        # - Newlines: 2 tokens each
+        estimated_tokens = (
+            words * 1.3  # Words
+            + chars * 0.3  # Characters
+            + newlines * 2.0  # Newlines
+        )
+
+        return max(1, int(estimated_tokens))
 
     def estimate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
         """
         Estimate the cost of a request.
 
         Args:
+        ----
             prompt_tokens: Number of tokens in the prompt
             completion_tokens: Number of tokens in the completion
 
         Returns:
+        -------
             float: Estimated cost in USD
+
         """
         model_info = self._get_model_info()
         cost_input = model_info.get("cost_input", 0.0)

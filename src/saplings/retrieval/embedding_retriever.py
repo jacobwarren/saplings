@@ -1,20 +1,24 @@
+from __future__ import annotations
+
 """
 Embedding retriever module for Saplings.
 
 This module provides the embedding-based retriever for semantic search.
 """
 
+
 import json
 import logging
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from saplings.memory.document import Document
-from saplings.memory.memory_store import MemoryStore
 from saplings.retrieval.config import EmbeddingConfig, RetrievalConfig
+
+if TYPE_CHECKING:
+    from saplings.memory.document import Document
+    from saplings.memory.memory_store import MemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -31,20 +35,29 @@ class EmbeddingRetriever:
     def __init__(
         self,
         memory_store: MemoryStore,
-        config: Optional[Union[RetrievalConfig, EmbeddingConfig]] = None,
-    ):
+        config: RetrievalConfig | EmbeddingConfig | None = None,
+    ) -> None:
         """
         Initialize the embedding retriever.
 
         Args:
+        ----
             memory_store: Memory store containing the documents
             config: Retrieval or embedding configuration
+
         """
         self.memory_store = memory_store
 
         # Extract embedding config from RetrievalConfig if needed
         if config is None:
-            self.config = EmbeddingConfig()
+            self.config = EmbeddingConfig(
+                model_name="all-MiniLM-L6-v2",
+                embedding_dimension=384,
+                batch_size=32,
+                similarity_top_k=20,
+                similarity_cutoff=0.7,
+                use_existing_embeddings=True,
+            )
         elif isinstance(config, RetrievalConfig):
             self.config = config.embedding
         else:
@@ -53,7 +66,7 @@ class EmbeddingRetriever:
         # Initialize embedding model
         self._initialize_embedding_model()
 
-    def _initialize_embedding_model(self) -> None:
+    def _initialize_embedding_model(self):
         """Initialize the embedding model."""
         try:
             from sentence_transformers import SentenceTransformer
@@ -72,16 +85,24 @@ class EmbeddingRetriever:
         Embed a query string.
 
         Args:
+        ----
             query: Query string
 
         Returns:
+        -------
             np.ndarray: Query embedding
+
         """
         if self.model is None:
-            raise ValueError("Embedding model not initialized")
+            msg = "Embedding model not initialized"
+            raise ValueError(msg)
 
         # Encode the query
         embedding = self.model.encode(query, show_progress_bar=False)
+
+        # Convert to numpy array if needed
+        if not isinstance(embedding, np.ndarray):
+            embedding = np.array(embedding, dtype=np.float32)
 
         # Normalize the embedding
         norm = np.linalg.norm(embedding)
@@ -90,18 +111,22 @@ class EmbeddingRetriever:
 
         return embedding
 
-    def embed_documents(self, documents: List[Document]) -> Dict[str, np.ndarray]:
+    def embed_documents(self, documents: list[Document]) -> dict[str, np.ndarray]:
         """
         Embed a list of documents.
 
         Args:
+        ----
             documents: Documents to embed
 
         Returns:
+        -------
             Dict[str, np.ndarray]: Dictionary mapping document IDs to embeddings
+
         """
         if self.model is None:
-            raise ValueError("Embedding model not initialized")
+            msg = "Embedding model not initialized"
+            raise ValueError(msg)
 
         # Filter documents that already have embeddings if configured
         docs_to_embed = []
@@ -123,15 +148,23 @@ class EmbeddingRetriever:
                 texts = [doc.content for doc in batch]
                 batch_embeddings = self.model.encode(texts, show_progress_bar=False)
 
-                # Normalize embeddings
-                for j, embedding in enumerate(batch_embeddings):
-                    norm = np.linalg.norm(embedding)
-                    if norm > 0:
-                        batch_embeddings[j] = embedding / norm
+                # Process and store embeddings
+                for j, doc in enumerate(batch):
+                    # Get the embedding
+                    embedding = batch_embeddings[j]
 
-                # Store embeddings
-                for j, embedding in enumerate(batch_embeddings):
-                    doc = batch[j]
+                    # Convert to numpy array if needed
+                    if not isinstance(embedding, np.ndarray):
+                        embedding = np.array(embedding, dtype=np.float32)
+
+                    # Normalize the embedding
+                    norm = np.linalg.norm(embedding)
+                    # Threshold for norm
+                    NORM_THRESHOLD = 0
+                    if norm > NORM_THRESHOLD:
+                        embedding = embedding / norm
+
+                    # Store the normalized embedding
                     embeddings[doc.id] = embedding
 
         return embeddings
@@ -139,19 +172,22 @@ class EmbeddingRetriever:
     def retrieve(
         self,
         query: str,
-        documents: List[Document],
-        k: Optional[int] = None,
-    ) -> List[Tuple[Document, float]]:
+        documents: list[Document],
+        k: int | None = None,
+    ) -> list[tuple[Document, float]]:
         """
         Retrieve documents similar to the query using embeddings.
 
         Args:
+        ----
             query: Query string
             documents: Documents to search (typically from TF-IDF retriever)
             k: Number of documents to retrieve (if None, uses config.similarity_top_k)
 
         Returns:
+        -------
             List[Tuple[Document, float]]: List of (document, similarity_score) tuples
+
         """
         if not documents:
             return []
@@ -191,7 +227,9 @@ class EmbeddingRetriever:
         Save the embedding retriever configuration to disk.
 
         Args:
+        ----
             directory: Directory to save to
+
         """
         directory_path = Path(directory)
         directory_path.mkdir(parents=True, exist_ok=True)
@@ -207,14 +245,16 @@ class EmbeddingRetriever:
         Load the embedding retriever configuration from disk.
 
         Args:
+        ----
             directory: Directory to load from
+
         """
         directory_path = Path(directory)
 
         # Load config
         config_path = directory_path / "config.json"
         if config_path.exists():
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 config_data = json.load(f)
                 self.config = EmbeddingConfig(**config_data)
 

@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 """
 Configuration module for the Judge.
 
 This module defines the configuration classes for the Judge module.
 """
 
+
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -38,7 +41,7 @@ class RubricItem(BaseModel):
     dimension: ScoringDimension = Field(..., description="Dimension to score")
     weight: float = Field(1.0, description="Weight of this dimension in the overall score")
     description: str = Field("", description="Description of what this dimension measures")
-    criteria: Dict[str, str] = Field(
+    criteria: dict[str, str] = Field(
         default_factory=dict, description="Criteria for different score levels"
     )
 
@@ -48,15 +51,17 @@ class Rubric(BaseModel):
 
     name: str = Field(..., description="Name of the rubric")
     description: str = Field("", description="Description of the rubric")
-    items: List[RubricItem] = Field(default_factory=list, description="Items in the rubric")
+    items: list[RubricItem] = Field(default_factory=list, description="Items in the rubric")
 
     @classmethod
-    def default(cls) -> "Rubric":
+    def default(cls):
         """
         Create a default rubric.
 
-        Returns:
+        Returns
+        -------
             Rubric: Default rubric
+
         """
         return cls(
             name="Default Rubric",
@@ -124,33 +129,47 @@ class JudgeConfig(BaseModel):
 
     # Budget settings
     enforce_budget: bool = Field(True, description="Whether to enforce budget constraints")
-    max_tokens_per_judgment: Optional[int] = Field(None, description="Maximum tokens per judgment")
-    max_cost_per_judgment: Optional[float] = Field(
+    max_tokens_per_judgment: int | None = Field(None, description="Maximum tokens per judgment")
+    max_cost_per_judgment: float | None = Field(
         None, description="Maximum cost per judgment in USD"
     )
 
     # Model settings
-    model_uri: Optional[str] = Field(None, description="URI of the model to use for judgment")
+    model_uri: str | None = Field(None, description="URI of the model to use for judgment")
 
     @classmethod
-    def default(cls) -> "JudgeConfig":
+    def default(cls):
         """
         Create a default configuration.
 
-        Returns:
+        Returns
+        -------
             JudgeConfig: Default configuration
+
         """
-        return cls()
+        return cls(
+            threshold=0.7,
+            critique_format=CritiqueFormat.STRUCTURED,
+            include_scores=True,
+            include_suggestions=True,
+            enforce_budget=True,
+            max_tokens_per_judgment=None,
+            max_cost_per_judgment=None,
+            model_uri=None,
+        )
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any]) -> "JudgeConfig":
+    def from_dict(cls, config_dict: dict[str, Any]) -> "JudgeConfig":
         """
         Create a configuration from a dictionary.
 
         Args:
+        ----
             config_dict: Configuration dictionary
 
         Returns:
+        -------
             JudgeConfig: Configuration
+
         """
         return cls(**config_dict)

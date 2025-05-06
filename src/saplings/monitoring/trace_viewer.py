@@ -1,23 +1,27 @@
+from __future__ import annotations
+
 """
 TraceViewer module for Saplings monitoring.
 
 This module provides the TraceViewer interface for exploring and visualizing traces.
 """
 
+
 import json
 import logging
 import os
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 from saplings.monitoring.config import MonitoringConfig, VisualizationFormat
-from saplings.monitoring.trace import Span, SpanContext, TraceManager
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from saplings.monitoring.trace import TraceManager
 
 logger = logging.getLogger(__name__)
 
 try:
-    import plotly.express as px
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 
@@ -40,15 +44,17 @@ class TraceViewer:
 
     def __init__(
         self,
-        trace_manager: Optional[TraceManager] = None,
-        config: Optional[MonitoringConfig] = None,
-    ):
+        trace_manager: TraceManager | None = None,
+        config: MonitoringConfig | None = None,
+    ) -> None:
         """
         Initialize the TraceViewer.
 
         Args:
+        ----
             trace_manager: Trace manager to use
             config: Monitoring configuration
+
         """
         self.trace_manager = trace_manager
         self.config = config or MonitoringConfig()
@@ -65,27 +71,34 @@ class TraceViewer:
     def view_trace(
         self,
         trace_id: str,
-        output_path: Optional[str] = None,
-        format: Optional[VisualizationFormat] = None,
+        output_path: str | None = None,
+        format: VisualizationFormat | None = None,
         show: bool = False,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         View a trace.
 
         Args:
+        ----
             trace_id: ID of the trace to view
             output_path: Path to save the visualization
             format: Format of the visualization
             show: Whether to show the visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         if not PLOTLY_AVAILABLE:
             logger.warning("Plotly not installed. Cannot visualize trace.")
             return None
 
         # Get the trace
+        if not self.trace_manager:
+            logger.error("Trace manager not provided, cannot get trace")
+            return None
+
         trace = self.trace_manager.get_trace(trace_id)
         if not trace:
             logger.error(f"Trace {trace_id} not found")
@@ -106,28 +119,35 @@ class TraceViewer:
 
     def view_traces(
         self,
-        trace_ids: List[str],
-        output_path: Optional[str] = None,
-        format: Optional[VisualizationFormat] = None,
+        trace_ids: list[str],
+        output_path: str | None = None,
+        format: VisualizationFormat | None = None,
         show: bool = False,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         View multiple traces.
 
         Args:
+        ----
             trace_ids: IDs of the traces to view
             output_path: Path to save the visualization
             format: Format of the visualization
             show: Whether to show the visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         if not PLOTLY_AVAILABLE:
             logger.warning("Plotly not installed. Cannot visualize traces.")
             return None
 
         # Get the traces
+        if not self.trace_manager:
+            logger.error("Trace manager not provided, cannot get traces")
+            return None
+
         traces = []
         for trace_id in trace_ids:
             trace = self.trace_manager.get_trace(trace_id)
@@ -157,14 +177,15 @@ class TraceViewer:
         self,
         trace_id: str,
         span_id: str,
-        output_path: Optional[str] = None,
-        format: Optional[VisualizationFormat] = None,
+        output_path: str | None = None,
+        format: VisualizationFormat | None = None,
         show: bool = False,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         View a specific span within a trace.
 
         Args:
+        ----
             trace_id: ID of the trace
             span_id: ID of the span to view
             output_path: Path to save the visualization
@@ -172,13 +193,19 @@ class TraceViewer:
             show: Whether to show the visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         if not PLOTLY_AVAILABLE:
             logger.warning("Plotly not installed. Cannot visualize span.")
             return None
 
         # Get the trace
+        if not self.trace_manager:
+            logger.error("Trace manager not provided, cannot get trace")
+            return None
+
         trace = self.trace_manager.get_trace(trace_id)
         if not trace:
             logger.error(f"Trace {trace_id} not found")
@@ -211,23 +238,30 @@ class TraceViewer:
     def search_traces(
         self,
         query: str,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         max_results: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Search for traces matching a query.
 
         Args:
+        ----
             query: Search query
             start_time: Start time for the search
             end_time: End time for the search
             max_results: Maximum number of results to return
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of matching traces
+
         """
         # Get all traces
+        if not self.trace_manager:
+            logger.error("Trace manager not provided, cannot list traces")
+            return []
+
         all_traces = self.trace_manager.list_traces(start_time, end_time)
 
         # Filter traces by query
@@ -243,23 +277,30 @@ class TraceViewer:
     def filter_traces_by_component(
         self,
         component: str,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         max_results: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Filter traces by component.
 
         Args:
+        ----
             component: Component name to filter by
             start_time: Start time for the filter
             end_time: End time for the filter
             max_results: Maximum number of results to return
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of matching traces
+
         """
         # Get all traces
+        if not self.trace_manager:
+            logger.error("Trace manager not provided, cannot list traces")
+            return []
+
         all_traces = self.trace_manager.list_traces(start_time, end_time)
 
         # Filter traces by component
@@ -282,14 +323,21 @@ class TraceViewer:
         Export a trace to a file.
 
         Args:
+        ----
             trace_id: ID of the trace to export
             output_path: Path to save the trace
             format: Format of the export
 
         Returns:
+        -------
             bool: Whether the export was successful
+
         """
         # Get the trace
+        if not self.trace_manager:
+            logger.error("Trace manager not provided, cannot get trace")
+            return False
+
         trace = self.trace_manager.get_trace(trace_id)
         if not trace:
             logger.error(f"Trace {trace_id} not found")
@@ -301,7 +349,7 @@ class TraceViewer:
             with open(output_path, "w") as f:
                 f.write(data)
             return True
-        elif format in [VisualizationFormat.HTML, VisualizationFormat.PNG, VisualizationFormat.SVG]:
+        if format in [VisualizationFormat.HTML, VisualizationFormat.PNG, VisualizationFormat.SVG]:
             if not PLOTLY_AVAILABLE:
                 logger.error("Plotly not installed. Cannot export trace as visualization.")
                 return False
@@ -309,19 +357,21 @@ class TraceViewer:
             fig = self._create_trace_visualization(trace)
             self._save_visualization(fig, output_path, format)
             return True
-        else:
-            logger.error(f"Unsupported export format: {format}")
-            return False
+        logger.error(f"Unsupported export format: {format}")
+        return False
 
     def _create_trace_visualization(self, trace: Any) -> Any:
         """
         Create a visualization for a trace.
 
         Args:
+        ----
             trace: Trace to visualize
 
         Returns:
+        -------
             Any: Visualization object
+
         """
         # Create a timeline visualization
         fig = make_subplots(
@@ -334,7 +384,7 @@ class TraceViewer:
         # Add spans to the timeline
         spans = sorted(trace.spans, key=lambda s: s.start_time)
 
-        for i, span in enumerate(spans):
+        for _i, span in enumerate(spans):
             # Calculate duration
             duration = (span.end_time - span.start_time).total_seconds() * 1000  # ms
 
@@ -346,9 +396,9 @@ class TraceViewer:
                     orientation="h",
                     name=span.name,
                     hovertext=f"{span.name}<br>Duration: {duration:.2f} ms<br>Status: {span.status}",
-                    marker=dict(
-                        color=self._get_color_for_span(span),
-                    ),
+                    marker={
+                        "color": self._get_color_for_span(span),
+                    },
                 ),
                 row=1,
                 col=1,
@@ -366,15 +416,18 @@ class TraceViewer:
 
         return fig
 
-    def _create_traces_comparison(self, traces: List[Any]) -> Any:
+    def _create_traces_comparison(self, traces: list[Any]) -> Any:
         """
         Create a comparison visualization for multiple traces.
 
         Args:
+        ----
             traces: Traces to compare
 
         Returns:
+        -------
             Any: Visualization object
+
         """
         # Create a comparison visualization
         fig = make_subplots(
@@ -401,9 +454,9 @@ class TraceViewer:
                         orientation="h",
                         name=span.name,
                         hovertext=f"{span.name}<br>Duration: {duration:.2f} ms<br>Status: {span.status}",
-                        marker=dict(
-                            color=self._get_color_for_span(span),
-                        ),
+                        marker={
+                            "color": self._get_color_for_span(span),
+                        },
                     ),
                     row=i + 1,
                     col=1,
@@ -428,11 +481,14 @@ class TraceViewer:
         Create a visualization for a specific span.
 
         Args:
+        ----
             span: Span to visualize
             trace: Trace containing the span
 
         Returns:
+        -------
             Any: Visualization object
+
         """
         # Create a detailed span visualization
         fig = make_subplots(
@@ -454,9 +510,9 @@ class TraceViewer:
                 orientation="h",
                 name=span.name,
                 hovertext=f"{span.name}<br>Duration: {duration:.2f} ms<br>Status: {span.status}",
-                marker=dict(
-                    color=self._get_color_for_span(span),
-                ),
+                marker={
+                    "color": self._get_color_for_span(span),
+                },
             ),
             row=1,
             col=1,
@@ -476,9 +532,9 @@ class TraceViewer:
                     orientation="h",
                     name=child.name,
                     hovertext=f"{child.name}<br>Duration: {child_duration:.2f} ms<br>Status: {child.status}",
-                    marker=dict(
-                        color=self._get_color_for_span(child),
-                    ),
+                    marker={
+                        "color": self._get_color_for_span(child),
+                    },
                 ),
                 row=1,
                 col=1,
@@ -508,16 +564,16 @@ class TraceViewer:
         # Add table to the figure
         fig.add_trace(
             go.Table(
-                header=dict(
-                    values=headers,
-                    fill_color="paleturquoise",
-                    align="left",
-                ),
-                cells=dict(
-                    values=list(zip(*details)),
-                    fill_color="lavender",
-                    align="left",
-                ),
+                header={
+                    "values": headers,
+                    "fill_color": "paleturquoise",
+                    "align": "left",
+                },
+                cells={
+                    "values": list(zip(*details)),
+                    "fill_color": "lavender",
+                    "align": "left",
+                },
             ),
             row=2,
             col=1,
@@ -540,15 +596,17 @@ class TraceViewer:
         self,
         fig: Any,
         output_path: str,
-        format: Optional[VisualizationFormat] = None,
+        format: VisualizationFormat | None = None,
     ) -> None:
         """
         Save a visualization to disk.
 
         Args:
+        ----
             fig: Visualization to save
             output_path: Path to save the visualization
             format: Format of the visualization
+
         """
         # Use default format if not specified
         format = format or self.config.visualization_format
@@ -559,9 +617,7 @@ class TraceViewer:
         # Save the visualization
         if format == VisualizationFormat.HTML:
             fig.write_html(output_path)
-        elif format == VisualizationFormat.PNG:
-            fig.write_image(output_path)
-        elif format == VisualizationFormat.SVG:
+        elif format in (VisualizationFormat.PNG, VisualizationFormat.SVG):
             fig.write_image(output_path)
         elif format == VisualizationFormat.JSON:
             with open(output_path, "w") as f:
@@ -578,30 +634,35 @@ class TraceViewer:
         Get a color for a span based on its status.
 
         Args:
+        ----
             span: Span to get color for
 
         Returns:
+        -------
             str: Color for the span
+
         """
         if span.status == "OK":
             return "rgba(0, 128, 0, 0.7)"  # Green
-        elif span.status == "ERROR":
+        if span.status == "ERROR":
             return "rgba(255, 0, 0, 0.7)"  # Red
-        elif span.status == "WARNING":
+        if span.status == "WARNING":
             return "rgba(255, 165, 0, 0.7)"  # Orange
-        else:
-            return "rgba(0, 0, 255, 0.7)"  # Blue
+        return "rgba(0, 0, 255, 0.7)"  # Blue
 
     def _matches_query(self, trace: Any, query: str) -> bool:
         """
         Check if a trace matches a search query.
 
         Args:
+        ----
             trace: Trace to check
             query: Search query
 
         Returns:
+        -------
             bool: Whether the trace matches the query
+
         """
         # Check trace ID
         if query.lower() in trace.trace_id.lower():
@@ -624,11 +685,14 @@ class TraceViewer:
         Check if a trace contains a specific component.
 
         Args:
+        ----
             trace: Trace to check
             component: Component name to check for
 
         Returns:
+        -------
             bool: Whether the trace contains the component
+
         """
         # Check if any span has the component attribute
         for span in trace.spans:
@@ -639,15 +703,18 @@ class TraceViewer:
 
         return False
 
-    def _trace_to_dict(self, trace: Any) -> Dict[str, Any]:
+    def _trace_to_dict(self, trace: Any) -> dict[str, Any]:
         """
         Convert a trace to a dictionary.
 
         Args:
+        ----
             trace: Trace to convert
 
         Returns:
+        -------
             Dict[str, Any]: Dictionary representation of the trace
+
         """
         # Convert spans to dictionaries
         spans = []

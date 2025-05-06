@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Orchestration module for Saplings.
 
@@ -6,6 +8,7 @@ This module provides multi-agent orchestration capabilities for Saplings, includ
 - Debate and contract-net negotiation strategies
 - Integration with executor and planner
 """
+
 
 from saplings.orchestration.config import (
     AgentNode,
@@ -18,7 +21,7 @@ from saplings.orchestration.graph_runner import GraphRunner
 __all__ = [
     "AgentNode",
     "CommunicationChannel",
-    "GraphRunnerConfig",
     "GraphRunner",
+    "GraphRunnerConfig",
     "NegotiationStrategy",
 ]

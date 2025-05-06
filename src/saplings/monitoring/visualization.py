@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Visualization module for Saplings monitoring.
 
@@ -5,18 +7,20 @@ This module provides visualization components for monitoring data,
 including GASA heatmap and performance visualizations.
 """
 
+
 import json
 import logging
 import os
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from saplings.gasa.config import GASAConfig
-from saplings.gasa.mask_builder import MaskBuilder, MaskType
+from saplings.gasa.config import FallbackStrategy, GASAConfig, MaskStrategy
 from saplings.monitoring.config import MonitoringConfig, VisualizationFormat
+
+if TYPE_CHECKING:
+    from saplings.gasa.mask_builder import MaskType
 
 
 # Define MaskFormat enum locally to avoid import issues
@@ -31,8 +35,8 @@ class MaskFormat(str, Enum):
 logger = logging.getLogger(__name__)
 
 try:
-    import matplotlib.colors as mcolors
     import matplotlib.pyplot as plt
+    from matplotlib import ticker
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
@@ -43,7 +47,6 @@ except ImportError:
     )
 
 try:
-    import plotly.express as px
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 
@@ -66,38 +69,65 @@ class GASAHeatmap:
 
     def __init__(
         self,
-        config: Optional[MonitoringConfig] = None,
-        gasa_config: Optional[GASAConfig] = None,
-    ):
+        config: MonitoringConfig | None = None,
+        gasa_config: GASAConfig | None = None,
+    ) -> None:
         """
         Initialize the GASA heatmap visualizer.
 
         Args:
+        ----
             config: Monitoring configuration
             gasa_config: GASA configuration
+
         """
         self.config = config or MonitoringConfig()
-        self.gasa_config = gasa_config or GASAConfig()
+        self.gasa_config = gasa_config or GASAConfig(
+            enabled=True,
+            max_hops=2,
+            mask_strategy=MaskStrategy.BINARY,
+            fallback_strategy=FallbackStrategy.BLOCK_DIAGONAL,
+            global_tokens=["[CLS]", "[SEP]", "<s>", "</s>", "[SUM]"],
+            summary_token="[SUM]",
+            add_summary_token=True,
+            block_size=512,
+            overlap=64,
+            soft_mask_temperature=0.1,
+            cache_masks=True,
+            cache_dir=None,
+            visualize=False,
+            visualization_dir=None,
+            enable_shadow_model=False,
+            shadow_model_name="Qwen/Qwen3-1.8B",
+            shadow_model_device="cpu",
+            shadow_model_cache_dir=None,
+            enable_prompt_composer=False,
+            focus_tags=True,
+            core_tag="[CORE_CTX]",
+            near_tag="[NEAR_CTX]",
+            summary_tag="[SUMMARY_CTX]",
+        )
 
         # Create output directory if it doesn't exist
         os.makedirs(self.config.visualization_output_dir, exist_ok=True)
 
     def visualize_mask(
         self,
-        mask: Union[np.ndarray, List[Dict[str, Any]]],
+        mask: np.ndarray | list[dict[str, Any]],
         format: MaskFormat,
         mask_type: MaskType,
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
-        token_labels: Optional[List[str]] = None,
-        highlight_tokens: Optional[List[int]] = None,
+        token_labels: list[str] | None = None,
+        highlight_tokens: list[int] | None = None,
         interactive: bool = True,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Visualize a GASA attention mask.
 
         Args:
+        ----
             mask: Attention mask
             format: Format of the mask
             mask_type: Type of attention mask
@@ -109,7 +139,9 @@ class GASAHeatmap:
             interactive: Whether to create an interactive visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         if interactive and PLOTLY_AVAILABLE:
             return self._visualize_mask_interactive(
@@ -122,7 +154,7 @@ class GASAHeatmap:
                 token_labels=token_labels,
                 highlight_tokens=highlight_tokens,
             )
-        elif MATPLOTLIB_AVAILABLE:
+        if MATPLOTLIB_AVAILABLE:
             return self._visualize_mask_static(
                 mask=mask,
                 format=format,
@@ -133,22 +165,22 @@ class GASAHeatmap:
                 token_labels=token_labels,
                 highlight_tokens=highlight_tokens,
             )
-        else:
-            logger.warning("Neither Plotly nor Matplotlib is installed. Cannot visualize mask.")
-            return None
+        logger.warning("Neither Plotly nor Matplotlib is installed. Cannot visualize mask.")
+        return None
 
     def visualize_mask_comparison(
         self,
-        masks: List[Tuple[Union[np.ndarray, List[Dict[str, Any]]], MaskFormat, MaskType, str]],
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        masks: list[tuple[np.ndarray | list[dict[str, Any]], MaskFormat, MaskType, str]],
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
         interactive: bool = True,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Visualize a comparison of multiple attention masks.
 
         Args:
+        ----
             masks: List of (mask, format, type, label) tuples
             output_path: Path to save the visualization
             title: Title for the visualization
@@ -156,7 +188,9 @@ class GASAHeatmap:
             interactive: Whether to create an interactive visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         if interactive and PLOTLY_AVAILABLE:
             return self._visualize_mask_comparison_interactive(
@@ -165,33 +199,33 @@ class GASAHeatmap:
                 title=title,
                 show=show,
             )
-        elif MATPLOTLIB_AVAILABLE:
+        if MATPLOTLIB_AVAILABLE:
             return self._visualize_mask_comparison_static(
                 masks=masks,
                 output_path=output_path,
                 title=title,
                 show=show,
             )
-        else:
-            logger.warning(
-                "Neither Plotly nor Matplotlib is installed. Cannot visualize mask comparison."
-            )
-            return None
+        logger.warning(
+            "Neither Plotly nor Matplotlib is installed. Cannot visualize mask comparison."
+        )
+        return None
 
     def visualize_mask_sparsity(
         self,
-        mask: Union[np.ndarray, List[Dict[str, Any]]],
+        mask: np.ndarray | list[dict[str, Any]],
         format: MaskFormat,
         mask_type: MaskType,
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
         interactive: bool = True,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Visualize the sparsity of an attention mask.
 
         Args:
+        ----
             mask: Attention mask
             format: Format of the mask
             mask_type: Type of attention mask
@@ -201,7 +235,9 @@ class GASAHeatmap:
             interactive: Whether to create an interactive visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         # Convert mask to dense format
         dense_mask = self._convert_to_dense(mask, format)
@@ -249,7 +285,7 @@ class GASAHeatmap:
 
             return fig
 
-        elif MATPLOTLIB_AVAILABLE:
+        if MATPLOTLIB_AVAILABLE:
             # Create figure
             fig, ax = plt.subplots(figsize=(7, 5))
 
@@ -288,27 +324,27 @@ class GASAHeatmap:
 
             return fig
 
-        else:
-            logger.warning(
-                "Neither Plotly nor Matplotlib is installed. Cannot visualize mask sparsity."
-            )
-            return None
+        logger.warning(
+            "Neither Plotly nor Matplotlib is installed. Cannot visualize mask sparsity."
+        )
+        return None
 
     def _visualize_mask_interactive(
         self,
-        mask: Union[np.ndarray, List[Dict[str, Any]]],
+        mask: np.ndarray | list[dict[str, Any]],
         format: MaskFormat,
         mask_type: MaskType,
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
-        token_labels: Optional[List[str]] = None,
-        highlight_tokens: Optional[List[int]] = None,
-    ) -> Optional[Any]:
+        token_labels: list[str] | None = None,
+        highlight_tokens: list[int] | None = None,
+    ) -> Any | None:
         """
         Create an interactive visualization of an attention mask.
 
         Args:
+        ----
             mask: Attention mask
             format: Format of the mask
             mask_type: Type of attention mask
@@ -319,7 +355,9 @@ class GASAHeatmap:
             highlight_tokens: Indices of tokens to highlight
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         # Convert mask to dense format
         dense_mask = self._convert_to_dense(mask, format)
@@ -349,7 +387,7 @@ class GASAHeatmap:
                     x1=dense_mask.shape[1] - 0.5,
                     y0=idx,
                     y1=idx,
-                    line=dict(color="red", width=2, dash="dash"),
+                    line={"color": "red", "width": 2, "dash": "dash"},
                 )
 
                 # Add vertical line
@@ -359,7 +397,7 @@ class GASAHeatmap:
                     x1=idx,
                     y0=-0.5,
                     y1=dense_mask.shape[0] - 0.5,
-                    line=dict(color="red", width=2, dash="dash"),
+                    line={"color": "red", "width": 2, "dash": "dash"},
                 )
 
         # Update layout
@@ -383,19 +421,20 @@ class GASAHeatmap:
 
     def _visualize_mask_static(
         self,
-        mask: Union[np.ndarray, List[Dict[str, Any]]],
+        mask: np.ndarray | list[dict[str, Any]],
         format: MaskFormat,
         mask_type: MaskType,
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
-        token_labels: Optional[List[str]] = None,
-        highlight_tokens: Optional[List[int]] = None,
-    ) -> Optional[Any]:
+        token_labels: list[str] | None = None,
+        highlight_tokens: list[int] | None = None,
+    ) -> Any | None:
         """
         Create a static visualization of an attention mask.
 
         Args:
+        ----
             mask: Attention mask
             format: Format of the mask
             mask_type: Type of attention mask
@@ -406,7 +445,9 @@ class GASAHeatmap:
             highlight_tokens: Indices of tokens to highlight
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         # Convert mask to dense format
         dense_mask = self._convert_to_dense(mask, format)
@@ -421,7 +462,7 @@ class GASAHeatmap:
             ax.set_title(f"Attention Mask ({mask_type.value})")
 
         # Create colormap
-        cmap = plt.cm.Blues
+        cmap = "Blues"  # Use string name instead of attribute access
 
         # Plot mask
         im = ax.imshow(dense_mask, cmap=cmap, interpolation="nearest")
@@ -479,22 +520,25 @@ class GASAHeatmap:
 
     def _visualize_mask_comparison_interactive(
         self,
-        masks: List[Tuple[Union[np.ndarray, List[Dict[str, Any]]], MaskFormat, MaskType, str]],
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        masks: list[tuple[np.ndarray | list[dict[str, Any]], MaskFormat, MaskType, str]],
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Create an interactive visualization comparing multiple attention masks.
 
         Args:
+        ----
             masks: List of (mask, format, type, label) tuples
             output_path: Path to save the visualization
             title: Title for the visualization
             show: Whether to show the visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         # Create figure
         n_masks = len(masks)
@@ -505,7 +549,7 @@ class GASAHeatmap:
         )
 
         # Add each mask
-        for i, (mask, format, mask_type, _) in enumerate(masks):
+        for i, (mask, format, _mask_type, _) in enumerate(masks):
             # Convert mask to dense format
             dense_mask = self._convert_to_dense(mask, format)
 
@@ -539,22 +583,25 @@ class GASAHeatmap:
 
     def _visualize_mask_comparison_static(
         self,
-        masks: List[Tuple[Union[np.ndarray, List[Dict[str, Any]]], MaskFormat, MaskType, str]],
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        masks: list[tuple[np.ndarray | list[dict[str, Any]], MaskFormat, MaskType, str]],
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Create a static visualization comparing multiple attention masks.
 
         Args:
+        ----
             masks: List of (mask, format, type, label) tuples
             output_path: Path to save the visualization
             title: Title for the visualization
             show: Whether to show the visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         # Create figure
         n_masks = len(masks)
@@ -564,17 +611,16 @@ class GASAHeatmap:
         if title:
             fig.suptitle(title, fontsize=16)
 
-        # Convert to single axis if only one mask
-        if n_masks == 1:
+            # Convert to single axis if only one mask\1# Index for n masks\1N_MASKS_INDEX = 1\1if n_masks == N_MASKS_INDEX:
             axes = [axes]
 
         # Plot each mask
-        for i, (mask, format, mask_type, label) in enumerate(masks):
+        for i, (mask, format, _mask_type, label) in enumerate(masks):
             # Convert mask to dense format
             dense_mask = self._convert_to_dense(mask, format)
 
             # Plot mask
-            im = axes[i].imshow(dense_mask, cmap=plt.cm.Blues, interpolation="nearest")
+            im = axes[i].imshow(dense_mask, cmap="Blues", interpolation="nearest")
 
             # Set title
             axes[i].set_title(label)
@@ -602,22 +648,25 @@ class GASAHeatmap:
 
     def _convert_to_dense(
         self,
-        mask: Union[np.ndarray, List[Dict[str, Any]]],
+        mask: np.ndarray | list[dict[str, Any]],
         format: MaskFormat,
     ) -> np.ndarray:
         """
         Convert a mask to dense format.
 
         Args:
+        ----
             mask: Mask to convert
             format: Format of the mask
 
         Returns:
+        -------
             np.ndarray: Dense mask
+
         """
         if format == MaskFormat.DENSE:
             return np.array(mask)
-        elif format == MaskFormat.SPARSE_TENSOR:
+        if format == MaskFormat.SPARSE_TENSOR:
             # Convert sparse tensor format to dense
             # Assuming mask is a list of dictionaries with 'i', 'j', and 'v' keys
             indices = [(item["i"], item["j"]) for item in mask]
@@ -635,8 +684,8 @@ class GASAHeatmap:
                 dense_mask[i, j] = v
 
             return dense_mask
-        else:
-            raise ValueError(f"Unsupported mask format: {format}")
+        msg = f"Unsupported mask format: {format}"
+        raise ValueError(msg)
 
     def _save_visualization(
         self,
@@ -648,9 +697,11 @@ class GASAHeatmap:
         Save a visualization to disk.
 
         Args:
+        ----
             fig: Visualization to save
             output_path: Path to save the visualization
             format: Format of the visualization
+
         """
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -660,9 +711,7 @@ class GASAHeatmap:
             # Plotly figure
             if format == VisualizationFormat.HTML:
                 fig.write_html(output_path)
-            elif format == VisualizationFormat.PNG:
-                fig.write_image(output_path)
-            elif format == VisualizationFormat.SVG:
+            elif format in (VisualizationFormat.PNG, VisualizationFormat.SVG):
                 fig.write_image(output_path)
             elif format == VisualizationFormat.JSON:
                 with open(output_path, "w") as f:
@@ -690,13 +739,15 @@ class PerformanceVisualizer:
 
     def __init__(
         self,
-        config: Optional[MonitoringConfig] = None,
-    ):
+        config: MonitoringConfig | None = None,
+    ) -> None:
         """
         Initialize the performance visualizer.
 
         Args:
+        ----
             config: Monitoring configuration
+
         """
         self.config = config or MonitoringConfig()
 
@@ -705,16 +756,17 @@ class PerformanceVisualizer:
 
     def visualize_latency(
         self,
-        latencies: Dict[str, List[float]],
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        latencies: dict[str, list[float]],
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
         interactive: bool = True,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Visualize latency metrics.
 
         Args:
+        ----
             latencies: Dictionary mapping component names to latency lists (in ms)
             output_path: Path to save the visualization
             title: Title for the visualization
@@ -722,7 +774,9 @@ class PerformanceVisualizer:
             interactive: Whether to create an interactive visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         if interactive and PLOTLY_AVAILABLE:
             # Create figure
@@ -758,16 +812,17 @@ class PerformanceVisualizer:
 
             return fig
 
-        elif MATPLOTLIB_AVAILABLE:
+        if MATPLOTLIB_AVAILABLE:
             # Create figure
             fig, ax = plt.subplots(figsize=(10, 6))
 
             # Create box plot
+            components = list(latencies.keys())
             ax.boxplot(
-                [latencies[component] for component in latencies],
-                labels=list(latencies.keys()),
+                [latencies[component] for component in components],
                 showfliers=True,
             )
+            ax.set_xticklabels(components)
 
             # Set title and labels
             if title:
@@ -794,22 +849,22 @@ class PerformanceVisualizer:
 
             return fig
 
-        else:
-            logger.warning("Neither Plotly nor Matplotlib is installed. Cannot visualize latency.")
-            return None
+        logger.warning("Neither Plotly nor Matplotlib is installed. Cannot visualize latency.")
+        return None
 
     def visualize_throughput(
         self,
-        throughputs: Dict[str, List[float]],
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        throughputs: dict[str, list[float]],
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
         interactive: bool = True,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Visualize throughput metrics.
 
         Args:
+        ----
             throughputs: Dictionary mapping component names to throughput lists (in requests/sec)
             output_path: Path to save the visualization
             title: Title for the visualization
@@ -817,7 +872,9 @@ class PerformanceVisualizer:
             interactive: Whether to create an interactive visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         if interactive and PLOTLY_AVAILABLE:
             # Create figure
@@ -830,7 +887,7 @@ class PerformanceVisualizer:
                         y=[np.mean(values)],
                         x=[component],
                         name=component,
-                        error_y=dict(type="data", array=[np.std(values)], visible=True),
+                        error_y={"type": "data", "array": [np.std(values)], "visible": True},
                     )
                 )
 
@@ -852,7 +909,7 @@ class PerformanceVisualizer:
 
             return fig
 
-        elif MATPLOTLIB_AVAILABLE:
+        if MATPLOTLIB_AVAILABLE:
             # Create figure
             fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -862,7 +919,7 @@ class PerformanceVisualizer:
             stds = [np.std(throughputs[component]) for component in components]
 
             # Create bar chart
-            bars = ax.bar(components, means, yerr=stds, capsize=10)
+            ax.bar(components, means, yerr=stds, capsize=10)
 
             # Set title and labels
             if title:
@@ -889,24 +946,22 @@ class PerformanceVisualizer:
 
             return fig
 
-        else:
-            logger.warning(
-                "Neither Plotly nor Matplotlib is installed. Cannot visualize throughput."
-            )
-            return None
+        logger.warning("Neither Plotly nor Matplotlib is installed. Cannot visualize throughput.")
+        return None
 
     def visualize_error_rate(
         self,
-        error_rates: Dict[str, List[float]],
-        output_path: Optional[str] = None,
-        title: Optional[str] = None,
+        error_rates: dict[str, list[float]],
+        output_path: str | None = None,
+        title: str | None = None,
         show: bool = False,
         interactive: bool = True,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Visualize error rate metrics.
 
         Args:
+        ----
             error_rates: Dictionary mapping component names to error rate lists (as fractions)
             output_path: Path to save the visualization
             title: Title for the visualization
@@ -914,7 +969,9 @@ class PerformanceVisualizer:
             interactive: Whether to create an interactive visualization
 
         Returns:
+        -------
             Optional[Any]: Visualization object if available
+
         """
         if interactive and PLOTLY_AVAILABLE:
             # Create figure
@@ -936,10 +993,10 @@ class PerformanceVisualizer:
                 yaxis_title="Error Rate",
                 height=600,
                 width=800,
-                yaxis=dict(
-                    tickformat=".1%",
-                    range=[0, max([max(rates) for rates in error_rates.values()]) * 1.1],
-                ),
+                yaxis={
+                    "tickformat": ".1%",
+                    "range": [0, max([max(rates) for rates in error_rates.values()]) * 1.1],
+                },
             )
 
             # Save figure
@@ -952,7 +1009,7 @@ class PerformanceVisualizer:
 
             return fig
 
-        elif MATPLOTLIB_AVAILABLE:
+        if MATPLOTLIB_AVAILABLE:
             # Create figure
             fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -970,7 +1027,7 @@ class PerformanceVisualizer:
             ax.set_xlabel("Sample")
 
             # Format y-axis as percentage
-            ax.yaxis.set_major_formatter(plt.matplotlib.ticker.PercentFormatter(1.0))
+            ax.yaxis.set_major_formatter(ticker.PercentFormatter(1.0))
 
             # Add legend
             ax.legend()
@@ -989,11 +1046,8 @@ class PerformanceVisualizer:
 
             return fig
 
-        else:
-            logger.warning(
-                "Neither Plotly nor Matplotlib is installed. Cannot visualize error rate."
-            )
-            return None
+        logger.warning("Neither Plotly nor Matplotlib is installed. Cannot visualize error rate.")
+        return None
 
     def _save_visualization(
         self,
@@ -1005,9 +1059,11 @@ class PerformanceVisualizer:
         Save a visualization to disk.
 
         Args:
+        ----
             fig: Visualization to save
             output_path: Path to save the visualization
             format: Format of the visualization
+
         """
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -1017,9 +1073,7 @@ class PerformanceVisualizer:
             # Plotly figure
             if format == VisualizationFormat.HTML:
                 fig.write_html(output_path)
-            elif format == VisualizationFormat.PNG:
-                fig.write_image(output_path)
-            elif format == VisualizationFormat.SVG:
+            elif format in (VisualizationFormat.PNG, VisualizationFormat.SVG):
                 fig.write_image(output_path)
             elif format == VisualizationFormat.JSON:
                 with open(output_path, "w") as f:

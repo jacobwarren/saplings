@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 """
 Configuration module for the orchestration system.
 
 This module defines the configuration classes for the orchestration system.
 """
 
+
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -26,35 +29,36 @@ class AgentNode(BaseModel):
     name: str = Field(..., description="Human-readable name for the agent")
     role: str = Field(..., description="Role of the agent (e.g., 'planner', 'executor')")
     description: str = Field(..., description="Description of the agent's purpose")
-    capabilities: List[str] = Field(default_factory=list, description="List of agent capabilities")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    capabilities: list[str] = Field(default_factory=list, description="List of agent capabilities")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     # Fields for model specification
-    provider: Optional[str] = Field(
+    provider: str | None = Field(
         None, description="Model provider (e.g., 'vllm', 'openai', 'anthropic')"
     )
-    model: Optional[str] = Field(None, description="Model name")
-    model_parameters: Dict[str, Any] = Field(
+    model: str | None = Field(None, description="Model name")
+    model_parameters: dict[str, Any] = Field(
         default_factory=dict, description="Additional model parameters"
     )
 
     # Fields for component integration
-    memory_store: Optional[Any] = Field(default=None, description="Memory store for this agent")
-    retriever: Optional[Any] = Field(default=None, description="Retriever for this agent")
+    memory_store: Any | None = Field(default=None, description="Memory store for this agent")
+    retriever: Any | None = Field(default=None, description="Retriever for this agent")
     enable_gasa: bool = Field(default=False, description="Whether to enable GASA for this agent")
-    gasa_config: Optional[Dict[str, Any]] = Field(
+    gasa_config: dict[str, Any] | None = Field(
         default=None, description="GASA configuration for this agent"
     )
 
     # Field for agent composition
-    agent: Optional[Any] = Field(default=None, description="Base Agent instance for this node")
+    agent: Any | None = Field(default=None, description="Base Agent instance for this node")
 
     @field_validator("id")
     @classmethod
     def validate_id(cls, v: str) -> str:
         """Validate the agent ID."""
         if not v:
-            raise ValueError("Agent ID cannot be empty")
+            msg = "Agent ID cannot be empty"
+            raise ValueError(msg)
         return v
 
 
@@ -65,14 +69,15 @@ class CommunicationChannel(BaseModel):
     target_id: str = Field(..., description="ID of the target agent")
     channel_type: str = Field(..., description="Type of channel (e.g., 'task', 'result')")
     description: str = Field(..., description="Description of the channel's purpose")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     @field_validator("source_id", "target_id")
     @classmethod
     def validate_agent_ids(cls, v: str) -> str:
         """Validate the agent IDs."""
         if not v:
-            raise ValueError("Agent ID cannot be empty")
+            msg = "Agent ID cannot be empty"
+            raise ValueError(msg)
         return v
 
 
@@ -105,13 +110,13 @@ class GraphRunnerConfig(BaseModel):
         default=True,
         description="Whether to log agent interactions",
     )
-    metadata: Dict[str, Any] = Field(
+    metadata: dict[str, Any] = Field(
         default_factory=dict,
         description="Additional metadata",
     )
 
     # Memory and retrieval
-    memory_store: Optional[Any] = Field(
+    memory_store: Any | None = Field(
         default=None,
         description="Shared memory store for all agents",
     )
@@ -121,11 +126,11 @@ class GraphRunnerConfig(BaseModel):
         default=False,
         description="Whether to enable monitoring and tracing",
     )
-    trace_manager: Optional[Any] = Field(
+    trace_manager: Any | None = Field(
         default=None,
         description="Trace manager for monitoring agent interactions",
     )
-    blame_graph: Optional[Any] = Field(
+    blame_graph: Any | None = Field(
         default=None,
         description="Blame graph for identifying performance bottlenecks",
     )
@@ -135,7 +140,7 @@ class GraphRunnerConfig(BaseModel):
         default=False,
         description="Whether to enable validation of agent outputs",
     )
-    judge: Optional[Any] = Field(
+    judge: Any | None = Field(
         default=None,
         description="Judge agent for validating outputs",
     )
@@ -145,10 +150,14 @@ class GraphRunnerConfig(BaseModel):
         default=False,
         description="Whether to enable self-healing capabilities",
     )
-    success_pair_collector: Optional[Any] = Field(
+    success_pair_collector: Any | None = Field(
         default=None,
         description="Collector for successful error-fix pairs",
     )
+
+
+# Define OrchestrationConfig as an alias for GraphRunnerConfig for backward compatibility
+OrchestrationConfig = GraphRunnerConfig
 
 
 # Rebuild the models to resolve circular references

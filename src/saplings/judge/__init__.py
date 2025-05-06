@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Judge module for Saplings.
 
@@ -8,13 +10,16 @@ This module provides the judge functionality for Saplings, including:
 - Budget enforcement
 """
 
-from saplings.judge.config import CritiqueFormat, JudgeConfig, ScoringDimension
+
+from saplings.judge.config import CritiqueFormat, JudgeConfig, Rubric, RubricItem, ScoringDimension
 from saplings.judge.judge_agent import JudgeAgent, JudgeResult
 
 __all__ = [
-    "JudgeAgent",
-    "JudgeResult",
-    "JudgeConfig",
     "CritiqueFormat",
+    "JudgeAgent",
+    "JudgeConfig",
+    "JudgeResult",
+    "Rubric",
+    "RubricItem",
     "ScoringDimension",
 ]

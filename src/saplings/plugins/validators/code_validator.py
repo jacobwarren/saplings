@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 CodeValidator plugin for Saplings.
 
@@ -5,13 +7,15 @@ This module provides a validator for code outputs, checking for syntax errors,
 security issues, and code quality.
 """
 
+
 import ast
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from saplings.core.plugin import PluginType
-from saplings.validator.validator import RuntimeValidator, ValidationResult, ValidationStatus
+from saplings.validator.result import ValidationResult, ValidationStatus
+from saplings.validator.validator import RuntimeValidator
 
 logger = logging.getLogger(__name__)
 
@@ -48,17 +52,20 @@ class CodeValidator(RuntimeValidator):
         """Type of the plugin."""
         return PluginType.VALIDATOR
 
-    async def validate_output(self, output: str, prompt: str, **kwargs) -> ValidationResult:
+    async def validate_output(self, output: str, _prompt: str, **_kwargs) -> ValidationResult:
         """
         Validate a code output.
 
         Args:
+        ----
             output: Output to validate
-            prompt: Prompt that generated the output
-            **kwargs: Additional validation parameters
+            _prompt: Prompt that generated the output (unused)
+            **_kwargs: Additional validation parameters (unused)
 
         Returns:
+        -------
             ValidationResult: Validation result
+
         """
         # Extract code blocks from the output
         code_blocks = self._extract_code_blocks(output)
@@ -103,15 +110,18 @@ class CodeValidator(RuntimeValidator):
             metadata={"code_blocks_found": len(code_blocks)},
         )
 
-    def _extract_code_blocks(self, text: str) -> List[Tuple[str, str]]:
+    def _extract_code_blocks(self, text: str) -> list[tuple[str, str]]:
         """
         Extract code blocks from text.
 
         Args:
+        ----
             text: Text to extract code blocks from
 
         Returns:
+        -------
             List[Tuple[str, str]]: List of (language, code) tuples
+
         """
         # Match Markdown code blocks
         pattern = r"```(\w*)\n(.*?)```"
@@ -131,16 +141,19 @@ class CodeValidator(RuntimeValidator):
 
         return result
 
-    def _check_code_block(self, code: str, language: str) -> List[Dict[str, Any]]:
+    def _check_code_block(self, code: str, language: str) -> list[dict[str, Any]]:
         """
         Check a code block for issues.
 
         Args:
+        ----
             code: Code to check
             language: Programming language
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of issues found
+
         """
         issues = []
 
@@ -173,15 +186,18 @@ class CodeValidator(RuntimeValidator):
 
         return issues
 
-    def _check_security_issues(self, code: str) -> List[Dict[str, Any]]:
+    def _check_security_issues(self, code: str) -> list[dict[str, Any]]:
         """
         Check code for security issues.
 
         Args:
+        ----
             code: Code to check
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of security issues found
+
         """
         issues = []
 
@@ -227,15 +243,18 @@ class CodeValidator(RuntimeValidator):
 
         return issues
 
-    def _check_code_quality(self, code: str) -> List[Dict[str, Any]]:
+    def _check_code_quality(self, code: str) -> list[dict[str, Any]]:
         """
         Check code for quality issues.
 
         Args:
+        ----
             code: Code to check
 
         Returns:
+        -------
             List[Dict[str, Any]]: List of quality issues found
+
         """
         issues = []
 
@@ -246,7 +265,7 @@ class CodeValidator(RuntimeValidator):
                 issues.append(
                     {
                         "type": "quality_issue",
-                        "message": f"Line {i+1} is too long ({len(line)} > 100 characters)",
+                        "message": f"Line {i + 1} is too long ({len(line)} > 100 characters)",
                         "line": i + 1,
                         "severity": "low",
                     }
@@ -259,7 +278,7 @@ class CodeValidator(RuntimeValidator):
                 issues.append(
                     {
                         "type": "quality_issue",
-                        "message": f"TODO comment found on line {i+1}",
+                        "message": f"TODO comment found on line {i + 1}",
                         "line": i + 1,
                         "severity": "low",
                     }

@@ -19,6 +19,7 @@ Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 ## Development Workflow
 
 1. Create a new branch for your feature or bugfix:
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -28,16 +29,19 @@ Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 3. Add tests for your changes
 
 4. Run the tests to ensure everything passes:
+
    ```bash
    poetry run pytest
    ```
 
 5. Commit your changes with a descriptive commit message:
+
    ```bash
    git commit -m "Add feature: your feature description"
    ```
 
 6. Push your branch to your fork:
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -51,6 +55,47 @@ Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 - Write docstrings for all public modules, functions, classes, and methods
 - Keep lines under 100 characters
 - Use meaningful variable and function names
+
+## Code Quality Tools
+
+We use pre-commit hooks to maintain code quality and consistency. These hooks run automatically before each commit when installed.
+
+### Setup
+
+1. Install pre-commit in your environment:
+
+   ```bash
+   pip install pre-commit
+   pre-commit install
+   ```
+
+2. The hooks will now run automatically on each commit.
+
+### Included Checks
+
+- **Ruff**: Linting and formatting (replaces flake8 and black)
+- **Ruff Import Sorting**: Handles import ordering (replaces isort)
+- **Mypy**: Type checking
+- **Cyclomatic Complexity**: Checks for overly complex code using our custom script
+- **Basic Checks**: Trailing whitespace, file endings, YAML/TOML validation, etc.
+
+### Running Checks Manually
+
+Run all checks on all files (do this before submitting a PR):
+
+```bash
+pre-commit run --all-files
+```
+
+Run a specific check:
+
+```bash
+pre-commit run <hook-id> --all-files
+```
+
+### CI Integration
+
+Our CI pipeline uses the same pre-commit hooks, ensuring consistency between local development and CI checks.
 
 ## Testing
 
