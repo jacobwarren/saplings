@@ -1,6 +1,3 @@
-# Pre-commit hooks temporarily simplified for development
-# Full checks will be re-enabled when the codebase is more stable
-
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
@@ -10,37 +7,38 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
       - id: check-toml
-# Commented out stricter checks until the codebase is more stable
-#  - repo: https://github.com/astral-sh/ruff-pre-commit
-#    rev: v0.4.0
-#    hooks:
-#      # Linting with auto-fixes where possible
-#      - id: ruff
-#        args: ["--fix", "--exit-non-zero-on-fix"]
-#      # Formatting (replaces Black)
-#      - id: ruff-format
-#      # Import sorting (replaces isort)
-#      - id: ruff
-#        args: ["--select=I", "--fix"]
-#        name: ruff-isort
-#
-#  - repo: https://github.com/pre-commit/mirrors-mypy
-#    rev: v1.10.0
-#    hooks:
-#      - id: mypy
-#        args:
-#          - "--strict"
-#          - "--config-file"
-#          - "pyproject.toml"
-#        additional_dependencies: [types-requests]
-#
-#  # Custom hook for cyclomatic complexity using our cc_check.py script
-#  - repo: local
-#    hooks:
-#      - id: cyclomatic-complexity
-#        name: cyclomatic-complexity
-#        entry: python scripts/cc_check.py
-#        language: python
-#        pass_filenames: false
-#        always_run: true
-#        additional_dependencies: [radon>=6.0.0]
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.0
+    hooks:
+      # Linting with auto-fixes where possible
+      - id: ruff
+        args: ["--fix", "--exit-non-zero-on-fix"]
+      # Formatting (replaces Black)
+      - id: ruff-format
+      # Import sorting (replaces isort)
+      - id: ruff
+        args: ["--select=I", "--fix"]
+        name: ruff-isort
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        args:
+          - "--strict"
+          - "--config-file"
+          - "pyproject.toml"
+        additional_dependencies: [types-requests]
+
+  # Custom hook for cyclomatic complexity using our cc_check.py script
+  - repo: local
+    hooks:
+      - id: cyclomatic-complexity
+        name: cyclomatic-complexity
+        entry: python scripts/cc_check.py
+        language: python
+        pass_filenames: false
+        always_run: true
+        additional_dependencies: [radon>=6.0.0]
