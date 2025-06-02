@@ -560,66 +560,12 @@ pytest --cov=saplings --cov-report=html
 - **[Examples](EXAMPLES.md)** - Practical examples and use cases
 - **[Developer Guide](DEVELOPER_GUIDE.md)** - Best practices and advanced topics
 - **[GASA Guide](GASA_GUIDE.md)** - Complete Graph-Aligned Sparse Attention documentation
+- **[Service Builders Guide](SERVICE_BUILDERS_GUIDE.md)** - Complete service builder documentation
+- **[Performance Optimization](PERFORMANCE_OPTIMIZATION_GUIDE.md)** - Optimization strategies
 
 ### Quick Reference
 
 #### Core Builder Classes
 
 - **`AgentBuilder`**: Primary builder for creating Agent instances
-- **`AgentFacadeBuilder`**: Advanced builder for service-oriented facade (beta)
-- **`Agent`**: Main agent class with convenience constructors
-- **`AgentConfig`**: Configuration class with factory methods
-
-#### Builder Methods
-
-The `AgentBuilder` provides fluent configuration methods:
-
-- **Provider/Model**: `.with_provider()`, `.with_model_name()`, `.with_api_key()`
-- **Memory**: `.with_memory_path()`, `.with_retrieval_max_documents()`
-- **Tools**: `.with_tools()`, `.with_custom_tools()`, `.with_tool_factory_enabled()`
-- **GASA**: `.with_gasa_enabled()`, `.with_gasa_max_hops()`, `.with_gasa_strategy()`
-- **Planning**: `.with_planner_budget_strategy()`, `.with_planner_total_budget()`
-- **Monitoring**: `.with_monitoring_enabled()`, `.with_self_healing_enabled()`
-- **Multi-modal**: `.with_supported_modalities()`
-
-#### Tools
-
-- **`PythonInterpreterTool`**: Execute Python code safely
-- **`DuckDuckGoSearchTool`**: Web search functionality
-- **`WikipediaSearchTool`**: Wikipedia search and retrieval
-- **`VisitWebpageTool`**: Web page content extraction
-- **`UserInputTool`**: Interactive user input
-- **`FinalAnswerTool`**: Provide final responses
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Development Setup
-
-```bash
-# Clone and install for development
-git clone https://github.com/jacobwarren/saplings
-cd saplings
-poetry install --extras dev
-
-# Run pre-commit hooks
-pre-commit install
-
-# Run tests
-pytest
-```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🔗 Links
-
-- **Documentation**: [https://github.com/jacobwarren/saplings/docs](https://github.com/jacobwarren/saplings/docs)
-- **Repository**: [https://github.com/jacobwarren/saplings](https://github.com/jacobwarren/saplings)
-- **Issues**: [https://github.com/jacobwarren/saplings/issues](https://github.com/jacobwarren/saplings/issues)
-
-## 🙏 Acknowledgments
-
-Built with love for the AI community. Special thanks to all contributors and the open-source libraries that make this possible.
+- **`

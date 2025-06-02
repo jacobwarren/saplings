@@ -80,6 +80,10 @@ The entire documentation suite was validated against the actual codebase impleme
 - **Corrected**: `from saplings.plugins.memory_stores import SecureMemoryStore` (actual location)
 - **Verified**: All imports point to public APIs, not internal implementation details
 
+### New Documentation Added
+- **GASA_GUIDE.md**: Comprehensive documentation for Graph-Aligned Sparse Attention, covering all aspects of this major feature including configuration, usage patterns, fallback strategies, and optimization
+- **SERVICE_BUILDERS_GUIDE.md**: Complete documentation for all 12 service builders, their interactions, dependencies, and usage patterns including AgentFacadeBuilder orchestration
+
 ## Specific Class/Feature Corrections
 
 ### Security Classes
@@ -103,14 +107,18 @@ The entire documentation suite was validated against the actual codebase impleme
 
 ## Validation Results
 
-### ✅ Validated as Accurate
-
-1. **Core Agent System**: All `Agent`, `AgentBuilder`, `AgentConfig` documentation verified
-2. **Memory System**: `MemoryStore`, `Document`, `DocumentMetadata` classes exist as documented  
-3. **Tool System**: Tool creation and validation APIs exist as documented
-4. **GASA System**: All GASA classes and configuration options verified
-5. **Builder Pattern**: AgentBuilder API accurately documented
-6. **Security Features**: Actual security features (sanitization, validation) correctly documented
+### ✅ Validated and Accurate
+1. **README.md** - Core information accurate, uses correct builder patterns
+2. **API_REFERENCE.md** - All documented classes and methods exist in codebase
+3. **EXAMPLES.md** - All examples use correct import paths and APIs
+4. **DEVELOPER_GUIDE.md** - Best practices align with actual architecture
+5. **GETTING_STARTED.md** - Tutorial uses correct APIs and builder patterns
+6. **CONFIGURATION_GUIDE.md** - All configuration options verified against codebase
+7. **ERROR_HANDLING_GUIDE.md** - Error handling patterns match actual implementation
+8. **MONITORING_OBSERVABILITY_GUIDE.md** - Monitoring features verified
+9. **PERFORMANCE_OPTIMIZATION_GUIDE.md** - Optimization strategies match codebase
+10. **GASA_GUIDE.md** - Comprehensive GASA documentation based on actual implementation
+11. **SERVICE_BUILDERS_GUIDE.md** - Complete service builder documentation with interactions
 
 ### ❌ Removed as Non-Existent
 
@@ -150,6 +158,7 @@ from saplings.api.security import Sanitizer, redact, sanitize
 | CLI_INTERFACE_GUIDE.md | 🚫 Replaced | N/A - No CLI exists |
 | TESTING_GUIDE.md | 🔧 Fixed | 100% accurate |
 | GASA_GUIDE.md | ✅ Verified | 100% accurate |
+| SERVICE_BUILDERS_GUIDE.md | ✅ Verified | 100% accurate |
 
 ## Key Takeaways
 
