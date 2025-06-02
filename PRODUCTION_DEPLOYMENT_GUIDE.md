@@ -1,120 +1,113 @@
 # Production Deployment Guide
 
-This guide covers deploying Saplings applications to production environments with Docker, Kubernetes, and cloud platforms, including scaling, monitoring, and operational best practices.
+This guide covers deploying Saplings applications in production environments, including containerization, scaling strategies, and operational best practices.
 
 ## Table of Contents
 
-- [Deployment Architecture](#deployment-architecture)
-- [Docker Deployment](#docker-deployment)
-- [Kubernetes Deployment](#kubernetes-deployment)
-- [Cloud Platform Deployment](#cloud-platform-deployment)
+- [Production Architecture](#production-architecture)
+- [Containerization](#containerization)
 - [Environment Configuration](#environment-configuration)
+- [Security Considerations](#security-considerations)
+- [Monitoring & Observability](#monitoring--observability)
 - [Scaling Strategies](#scaling-strategies)
-- [Health Checks & Monitoring](#health-checks--monitoring)
-- [Load Balancing](#load-balancing)
-- [Performance Optimization](#performance-optimization)
-- [Security in Production](#security-in-production)
 - [Operational Best Practices](#operational-best-practices)
 
-## Deployment Architecture
+## Production Architecture
 
-### Recommended Production Architecture
+### Application Structure
 
-```mermaid
-graph TB
-    subgraph "Load Balancer"
-        LB[Load Balancer]
-    end
+```python
+# production_app.py
+import os
+import logging
+from saplings import Agent, AgentBuilder, AgentConfig
+from saplings.api.memory import MemoryConfig
+from saplings.api.tool_factory import ToolFactoryConfig, SecurityLevel
+
+# Configure logging for production
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+def create_production_agent():
+    """Create a production-ready agent with secure configuration."""
     
-    subgraph "Application Tier"
-        A1[Agent Instance 1]
-        A2[Agent Instance 2]
-        A3[Agent Instance N]
-    end
+    # Validate required environment variables
+    required_vars = ["OPENAI_API_KEY", "MEMORY_PATH", "OUTPUT_DIR"]
+    for var in required_vars:
+        if not os.getenv(var):
+            raise EnvironmentError(f"Required environment variable {var} not set")
     
-    subgraph "Data Tier"
-        DB[(Vector Database)]
-        MEM[(Memory Store)]
-        CACHE[(Redis Cache)]
-    end
+    # Production configuration
+    config = AgentConfig(
+        provider="openai",
+        model_name="gpt-4o",
+        api_key=os.getenv("OPENAI_API_KEY"),
+        memory_path=os.getenv("MEMORY_PATH", "/app/memory"),
+        output_dir=os.getenv("OUTPUT_DIR", "/app/output"),
+        enable_monitoring=True,
+        enable_gasa=False,  # Disable for production unless needed
+        memory_config=MemoryConfig.secure(),
+        tool_factory_config=ToolFactoryConfig(
+            security_level=SecurityLevel.HIGH,
+            enable_sandboxing=True,
+            timeout_seconds=30
+        )
+    )
     
-    subgraph "External Services"
-        LLM[LLM APIs]
-        MON[Monitoring]
-        LOG[Logging]
-    end
-    
-    LB --> A1
-    LB --> A2
-    LB --> A3
-    
-    A1 --> DB
-    A1 --> MEM
-    A1 --> CACHE
-    A1 --> LLM
-    
-    A2 --> DB
-    A2 --> MEM
-    A2 --> CACHE
-    A2 --> LLM
-    
-    A3 --> DB
-    A3 --> MEM
-    A3 --> CACHE
-    A3 --> LLM
-    
-    A1 --> MON
-    A2 --> MON
-    A3 --> MON
-    
-    A1 --> LOG
-    A2 --> LOG
-    A3 --> LOG
+    return Agent(config)
+
+def main():
+    """Main application entry point."""
+    try:
+        agent = create_production_agent()
+        logging.info("Production agent initialized successfully")
+        
+        # Your application logic here
+        # e.g., web server, task queue consumer, etc.
+        
+    except Exception as e:
+        logging.error(f"Failed to initialize production agent: {e}")
+        raise
+
+if __name__ == "__main__":
+    main()
 ```
 
-### Components Overview
+## Containerization
 
-| Component | Purpose | Scaling | Persistence |
-|-----------|---------|---------|------------|
-| **Agent Instances** | Core application logic | Horizontal | Stateless |
-| **Vector Database** | Document embeddings | Vertical/Horizontal | Persistent |
-| **Memory Store** | Agent memory | Horizontal | Persistent |
-| **Cache Layer** | Performance optimization | Horizontal | Volatile |
-| **Load Balancer** | Traffic distribution | Active/Passive | Configuration |
-
-## Docker Deployment
-
-### Production Dockerfile
+### Dockerfile
 
 ```dockerfile
-# Multi-stage build for optimized production image
+# Multi-stage build for production efficiency
 FROM python:3.11-slim as builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
-    curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment
+# Create and activate virtual environment
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install Python dependencies
+# Copy requirements and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Production stage
-FROM python:3.11-slim as production
+FROM python:3.11-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
-    ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN groupadd -r saplings && useradd -r -g saplings saplings
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash --uid 1000 saplings
 
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
@@ -123,38 +116,30 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Set working directory
 WORKDIR /app
 
+# Create necessary directories
+RUN mkdir -p /app/memory /app/output /app/logs && \
+    chown -R saplings:saplings /app
+
 # Copy application code
 COPY --chown=saplings:saplings . .
-
-# Create necessary directories
-RUN mkdir -p /app/data /app/logs && \
-    chown -R saplings:saplings /app
 
 # Switch to non-root user
 USER saplings
 
-# Environment variables
+# Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD python -c "
-import requests
-import sys
-try:
-    response = requests.get('http://localhost:8000/health', timeout=5)
-    sys.exit(0 if response.status_code == 200 else 1)
-except:
-    sys.exit(1)
-"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import saplings; print('OK')" || exit 1
 
-# Expose port
+# Expose application port
 EXPOSE 8000
 
-# Run application
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120", "main:app"]
+# Default command
+CMD ["python", "production_app.py"]
 ```
 
 ### Docker Compose for Development
@@ -165,229 +150,110 @@ version: '3.8'
 
 services:
   saplings-app:
-    build: .
-    container_name: saplings-app
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MEMORY_PATH=/app/memory
+      - OUTPUT_DIR=/app/output
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./memory:/app/memory
+      - ./output:/app/output
+      - ./logs:/app/logs
     ports:
       - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import saplings; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Add monitoring services
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saplings
-      - ENVIRONMENT=development
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-    depends_on:
-      - redis
-      - postgres
-    networks:
-      - saplings-network
-
-  redis:
-    image: redis:7-alpine
-    container_name: saplings-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - saplings-network
-
-  postgres:
-    image: postgres:15-alpine
-    container_name: saplings-postgres
-    environment:
-      - POSTGRES_DB=saplings
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - saplings-network
-
-  nginx:
-    image: nginx:alpine
-    container_name: saplings-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
-    depends_on:
-      - saplings-app
-    networks:
-      - saplings-network
+      - grafana-storage:/var/lib/grafana
 
 volumes:
-  redis_data:
-  postgres_data:
-
-networks:
-  saplings-network:
-    driver: bridge
+  grafana-storage:
 ```
 
-### Production Docker Compose
+### Kubernetes Deployment
 
 ```yaml
-# docker-compose.prod.yml
-version: '3.8'
-
-services:
-  saplings-app:
-    build:
-      context: .
-      target: production
-    deploy:
-      replicas: 3
-      restart_policy:
-        condition: any
-        delay: 5s
-        max_attempts: 3
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
-          cpus: '1.0'
-          memory: 2G
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=${DATABASE_URL}
-      - ENVIRONMENT=production
-      - LOG_LEVEL=INFO
-    secrets:
-      - api_keys
-      - db_password
-    networks:
-      - saplings-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  redis:
-    image: redis:7-alpine
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          memory: 512M
-    volumes:
-      - redis_data:/data
-    networks:
-      - saplings-network
-
-secrets:
-  api_keys:
-    file: ./secrets/api_keys.txt
-  db_password:
-    file: ./secrets/db_password.txt
-
-volumes:
-  redis_data:
-
-networks:
-  saplings-network:
-    external: true
-```
-
-## Kubernetes Deployment
-
-### Namespace and ConfigMap
-
-```yaml
-# namespace.yaml
+# k8s/namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: saplings
-  labels:
-    name: saplings
+  name: saplings-production
 
 ---
-# configmap.yaml
+# k8s/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: saplings-config
-  namespace: saplings
+  namespace: saplings-production
 data:
-  ENVIRONMENT: "production"
   LOG_LEVEL: "INFO"
-  REDIS_URL: "redis://redis-service:6379"
-  GASA_ENABLED: "true"
-  MONITORING_ENABLED: "true"
-  MAX_WORKERS: "4"
-  TIMEOUT: "120"
-```
+  MEMORY_PATH: "/app/memory"
+  OUTPUT_DIR: "/app/output"
 
-### Secrets Management
-
-```yaml
-# secrets.yaml
+---
+# k8s/secret.yaml
 apiVersion: v1
 kind: Secret
 metadata:
   name: saplings-secrets
-  namespace: saplings
+  namespace: saplings-production
 type: Opaque
 data:
-  # Base64 encoded values
+  # Base64 encoded API keys
   OPENAI_API_KEY: <base64-encoded-key>
-  ANTHROPIC_API_KEY: <base64-encoded-key>
-  DATABASE_URL: <base64-encoded-url>
-  ENCRYPTION_KEY: <base64-encoded-key>
 
 ---
-# Create secrets from command line:
-# kubectl create secret generic saplings-secrets \
-#   --from-literal=OPENAI_API_KEY=your-openai-key \
-#   --from-literal=ANTHROPIC_API_KEY=your-anthropic-key \
-#   --namespace=saplings
-```
-
-### Deployment Configuration
-
-```yaml
-# deployment.yaml
+# k8s/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: saplings-app
-  namespace: saplings
+  namespace: saplings-production
   labels:
-    app: saplings
+    app: saplings-app
 spec:
   replicas: 3
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   selector:
     matchLabels:
-      app: saplings
+      app: saplings-app
   template:
     metadata:
       labels:
-        app: saplings
+        app: saplings-app
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
-      - name: saplings
-        image: saplings:latest
+      - name: saplings-app
+        image: your-registry/saplings-app:latest
         ports:
         - containerPort: 8000
-          name: http
-        env:
-        - name: PORT
-          value: "8000"
         envFrom:
         - configMapRef:
             name: saplings-config
@@ -395,143 +261,441 @@ spec:
             name: saplings-secrets
         resources:
           requests:
-            memory: "2Gi"
-            cpu: "1000m"
+            memory: "512Mi"
+            cpu: "250m"
           limits:
-            memory: "4Gi"
-            cpu: "2000m"
+            memory: "1Gi"
+            cpu: "500m"
         livenessProbe:
           httpGet:
             path: /health
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /ready
             port: 8000
           initialDelaySeconds: 5
           periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 2
         volumeMounts:
-        - name: data-volume
-          mountPath: /app/data
-        - name: logs-volume
-          mountPath: /app/logs
+        - name: memory-storage
+          mountPath: /app/memory
+        - name: output-storage
+          mountPath: /app/output
       volumes:
-      - name: data-volume
+      - name: memory-storage
         persistentVolumeClaim:
-          claimName: saplings-data-pvc
-      - name: logs-volume
-        emptyDir: {}
-      imagePullSecrets:
-      - name: registry-secret
-```
+          claimName: saplings-memory-pvc
+      - name: output-storage
+        persistentVolumeClaim:
+          claimName: saplings-output-pvc
 
-### Service and Ingress
-
-```yaml
-# service.yaml
+---
+# k8s/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: saplings-service
-  namespace: saplings
-  labels:
-    app: saplings
+  namespace: saplings-production
 spec:
   selector:
-    app: saplings
+    app: saplings-app
   ports:
-  - name: http
+  - protocol: TCP
     port: 80
     targetPort: 8000
-    protocol: TCP
   type: ClusterIP
 
 ---
-# ingress.yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: saplings-ingress
-  namespace: saplings
-  annotations:
-    kubernetes.io/ingress.class: nginx
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/rate-limit: "100"
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-spec:
-  tls:
-  - hosts:
-    - api.your-domain.com
-    secretName: saplings-tls
-  rules:
-  - host: api.your-domain.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: saplings-service
-            port:
-              number: 80
-```
-
-### Persistent Volume Claims
-
-```yaml
-# pvc.yaml
+# k8s/pvc.yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: saplings-data-pvc
-  namespace: saplings
+  name: saplings-memory-pvc
+  namespace: saplings-production
 spec:
   accessModes:
     - ReadWriteMany
   resources:
     requests:
-      storage: 100Gi
-  storageClassName: fast-ssd
+      storage: 10Gi
 
 ---
-# For Redis persistence
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: redis-data-pvc
-  namespace: saplings
+  name: saplings-output-pvc
+  namespace: saplings-production
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
-      storage: 20Gi
-  storageClassName: standard
+      storage: 10Gi
 ```
 
-### Horizontal Pod Autoscaler
+## Environment Configuration
+
+### Environment Variables
+
+```bash
+# .env.production
+# API Keys
+OPENAI_API_KEY=sk-your-openai-key
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
+
+# Application Configuration
+LOG_LEVEL=INFO
+MEMORY_PATH=/app/memory
+OUTPUT_DIR=/app/output
+MAX_MEMORY_SIZE=1GB
+MAX_OUTPUT_SIZE=5GB
+
+# Security Configuration
+SECURITY_LEVEL=HIGH
+ENABLE_SANDBOXING=true
+SANDBOX_TIMEOUT=30
+
+# Monitoring Configuration
+ENABLE_MONITORING=true
+METRICS_PORT=9090
+HEALTH_CHECK_PORT=8080
+
+# Database (if using external storage)
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
+```
+
+### Configuration Management
+
+```python
+# config/production.py
+import os
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class ProductionConfig:
+    """Production configuration settings."""
+    
+    # API Configuration
+    openai_api_key: str
+    anthropic_api_key: Optional[str] = None
+    
+    # Application Settings
+    log_level: str = "INFO"
+    memory_path: str = "/app/memory"
+    output_dir: str = "/app/output"
+    max_memory_size: str = "1GB"
+    
+    # Security Settings
+    security_level: str = "HIGH"
+    enable_sandboxing: bool = True
+    sandbox_timeout: int = 30
+    
+    # Performance Settings
+    max_concurrent_requests: int = 10
+    request_timeout: int = 60
+    
+    # Monitoring Settings
+    enable_monitoring: bool = True
+    metrics_port: int = 9090
+    health_check_port: int = 8080
+    
+    @classmethod
+    def from_env(cls) -> 'ProductionConfig':
+        """Load configuration from environment variables."""
+        return cls(
+            openai_api_key=os.environ["OPENAI_API_KEY"],
+            anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY"),
+            log_level=os.environ.get("LOG_LEVEL", "INFO"),
+            memory_path=os.environ.get("MEMORY_PATH", "/app/memory"),
+            output_dir=os.environ.get("OUTPUT_DIR", "/app/output"),
+            max_memory_size=os.environ.get("MAX_MEMORY_SIZE", "1GB"),
+            security_level=os.environ.get("SECURITY_LEVEL", "HIGH"),
+            enable_sandboxing=os.environ.get("ENABLE_SANDBOXING", "true").lower() == "true",
+            sandbox_timeout=int(os.environ.get("SANDBOX_TIMEOUT", "30")),
+            max_concurrent_requests=int(os.environ.get("MAX_CONCURRENT_REQUESTS", "10")),
+            request_timeout=int(os.environ.get("REQUEST_TIMEOUT", "60")),
+            enable_monitoring=os.environ.get("ENABLE_MONITORING", "true").lower() == "true",
+            metrics_port=int(os.environ.get("METRICS_PORT", "9090")),
+            health_check_port=int(os.environ.get("HEALTH_CHECK_PORT", "8080"))
+        )
+
+# Usage
+config = ProductionConfig.from_env()
+```
+
+## Security Considerations
+
+### Secure Agent Configuration
+
+```python
+from saplings.api.tool_factory import SecurityLevel, SandboxType
+from saplings.api.memory import MemoryConfig, PrivacyLevel
+
+def create_secure_production_agent():
+    """Create agent with maximum security for production."""
+    
+    # Secure memory configuration
+    memory_config = MemoryConfig.secure()
+    memory_config.secure_store.privacy_level = PrivacyLevel.HASH_AND_DP
+    memory_config.secure_store.hash_salt = os.environ.get("MEMORY_SALT", "production-salt")
+    
+    # Tool factory security
+    tool_config = ToolFactoryConfig(
+        security_level=SecurityLevel.HIGH,
+        sandbox_type=SandboxType.DOCKER,
+        enable_sandboxing=True,
+        timeout_seconds=10,  # Short timeout for production
+        docker_image="python:3.11-slim"
+    )
+    
+    config = AgentConfig(
+        provider="openai",
+        model_name="gpt-4o",
+        api_key=os.environ["OPENAI_API_KEY"],
+        memory_config=memory_config,
+        tool_factory_config=tool_config,
+        enable_monitoring=True
+    )
+    
+    return Agent(config)
+```
+
+### Network Security
+
+```python
+# network_security.py
+import asyncio
+import aiohttp
+from aiohttp import web
+
+class SecurityMiddleware:
+    """Security middleware for web applications."""
+    
+    async def __call__(self, request, handler):
+        # Add security headers
+        response = await handler(request)
+        
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        
+        return response
+
+# Rate limiting
+class RateLimitMiddleware:
+    """Simple rate limiting middleware."""
+    
+    def __init__(self, max_requests=100, window=60):
+        self.max_requests = max_requests
+        self.window = window
+        self.requests = {}
+    
+    async def __call__(self, request, handler):
+        client_ip = request.remote
+        now = asyncio.get_event_loop().time()
+        
+        # Clean old entries
+        self.requests = {
+            ip: reqs for ip, reqs in self.requests.items()
+            if any(req_time > now - self.window for req_time in reqs)
+        }
+        
+        # Check rate limit
+        if client_ip in self.requests:
+            recent_requests = [
+                req_time for req_time in self.requests[client_ip]
+                if req_time > now - self.window
+            ]
+            if len(recent_requests) >= self.max_requests:
+                raise web.HTTPTooManyRequests()
+            
+            self.requests[client_ip] = recent_requests + [now]
+        else:
+            self.requests[client_ip] = [now]
+        
+        return await handler(request)
+```
+
+## Monitoring & Observability
+
+### Health Checks
+
+```python
+# health.py
+from aiohttp import web
+import json
+import time
+
+class HealthChecker:
+    """Application health checker."""
+    
+    def __init__(self, agent):
+        self.agent = agent
+        self.start_time = time.time()
+    
+    async def health_check(self, request):
+        """Basic health check endpoint."""
+        try:
+            # Check if agent is responsive
+            # Simple check - you might want to add more comprehensive checks
+            status = {
+                "status": "healthy",
+                "timestamp": time.time(),
+                "uptime": time.time() - self.start_time,
+                "version": "1.0.0"
+            }
+            
+            return web.json_response(status)
+        
+        except Exception as e:
+            status = {
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": time.time()
+            }
+            return web.json_response(status, status=503)
+    
+    async def readiness_check(self, request):
+        """Readiness check for Kubernetes."""
+        try:
+            # Check if all dependencies are available
+            # e.g., database connections, external APIs, etc.
+            
+            checks = {
+                "agent_initialized": self.agent is not None,
+                "memory_accessible": True,  # Add actual memory check
+                "api_keys_configured": True  # Add actual API key validation
+            }
+            
+            if all(checks.values()):
+                return web.json_response({"status": "ready", "checks": checks})
+            else:
+                return web.json_response(
+                    {"status": "not_ready", "checks": checks}, 
+                    status=503
+                )
+        
+        except Exception as e:
+            return web.json_response(
+                {"status": "error", "error": str(e)}, 
+                status=503
+            )
+
+# Create health check routes
+def setup_health_routes(app, agent):
+    """Setup health check routes."""
+    health_checker = HealthChecker(agent)
+    
+    app.router.add_get('/health', health_checker.health_check)
+    app.router.add_get('/ready', health_checker.readiness_check)
+```
+
+### Metrics Collection
+
+```python
+# metrics.py
+import time
+import psutil
+from collections import defaultdict
+
+class MetricsCollector:
+    """Collect application metrics."""
+    
+    def __init__(self):
+        self.request_count = defaultdict(int)
+        self.response_times = []
+        self.error_count = defaultdict(int)
+        self.start_time = time.time()
+    
+    def record_request(self, method, path, response_time, status_code):
+        """Record request metrics."""
+        self.request_count[f"{method}_{path}"] += 1
+        self.response_times.append(response_time)
+        
+        if status_code >= 400:
+            self.error_count[status_code] += 1
+    
+    def get_metrics(self):
+        """Get current metrics."""
+        process = psutil.Process()
+        
+        return {
+            "system": {
+                "uptime": time.time() - self.start_time,
+                "cpu_percent": psutil.cpu_percent(),
+                "memory_percent": psutil.virtual_memory().percent,
+                "disk_usage": psutil.disk_usage('/').percent,
+            },
+            "process": {
+                "memory_info": process.memory_info()._asdict(),
+                "cpu_percent": process.cpu_percent(),
+                "num_threads": process.num_threads(),
+            },
+            "application": {
+                "total_requests": sum(self.request_count.values()),
+                "avg_response_time": sum(self.response_times) / len(self.response_times) if self.response_times else 0,
+                "error_rate": sum(self.error_count.values()) / sum(self.request_count.values()) if self.request_count else 0,
+                "request_breakdown": dict(self.request_count),
+                "error_breakdown": dict(self.error_count),
+            }
+        }
+
+# Metrics middleware
+class MetricsMiddleware:
+    """Collect metrics for each request."""
+    
+    def __init__(self, metrics_collector):
+        self.metrics = metrics_collector
+    
+    async def __call__(self, request, handler):
+        start_time = time.time()
+        
+        try:
+            response = await handler(request)
+            response_time = time.time() - start_time
+            
+            self.metrics.record_request(
+                request.method,
+                request.path,
+                response_time,
+                response.status
+            )
+            
+            return response
+        
+        except Exception as e:
+            response_time = time.time() - start_time
+            self.metrics.record_request(
+                request.method,
+                request.path,
+                response_time,
+                500
+            )
+            raise
+```
+
+## Scaling Strategies
+
+### Horizontal Scaling
 
 ```yaml
-# hpa.yaml
+# k8s/hpa.yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: saplings-hpa
-  namespace: saplings
+  namespace: saplings-production
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: saplings-app
   minReplicas: 3
-  maxReplicas: 20
+  maxReplicas: 10
   metrics:
   - type: Resource
     resource:
@@ -549,798 +713,197 @@ spec:
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
-      - type: Percent
-        value: 10
+      - type: Pods
+        value: 2
         periodSeconds: 60
     scaleUp:
       stabilizationWindowSeconds: 60
       policies:
-      - type: Percent
-        value: 50
+      - type: Pods
+        value: 4
         periodSeconds: 60
 ```
 
-## Cloud Platform Deployment
-
-### AWS ECS Deployment
+### Load Balancing
 
 ```yaml
-# ecs-task-definition.json
-{
-  "family": "saplings-app",
-  "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
-  "cpu": "2048",
-  "memory": "4096",
-  "executionRoleArn": "arn:aws:iam::account:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::account:role/ecsTaskRole",
-  "containerDefinitions": [
-    {
-      "name": "saplings",
-      "image": "your-account.dkr.ecr.region.amazonaws.com/saplings:latest",
-      "portMappings": [
-        {
-          "containerPort": 8000,
-          "protocol": "tcp"
-        }
-      ],
-      "environment": [
-        {"name": "ENVIRONMENT", "value": "production"},
-        {"name": "LOG_LEVEL", "value": "INFO"}
-      ],
-      "secrets": [
-        {
-          "name": "OPENAI_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:region:account:secret:saplings/openai-key"
-        }
-      ],
-      "logConfiguration": {
-        "logDriver": "awslogs",
-        "options": {
-          "awslogs-group": "/ecs/saplings",
-          "awslogs-region": "us-west-2",
-          "awslogs-stream-prefix": "ecs"
-        }
-      },
-      "healthCheck": {
-        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
-        "interval": 30,
-        "timeout": 5,
-        "retries": 3,
-        "startPeriod": 30
-      }
-    }
-  ]
-}
-```
-
-### ECS Service Configuration
-
-```yaml
-# ecs-service.yaml
-apiVersion: v1
-kind: ConfigMap
+# k8s/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: ecs-service-config
-data:
-  service.json: |
-    {
-      "serviceName": "saplings-service",
-      "cluster": "saplings-cluster",
-      "taskDefinition": "saplings-app:1",
-      "desiredCount": 3,
-      "launchType": "FARGATE",
-      "networkConfiguration": {
-        "awsvpcConfiguration": {
-          "subnets": ["subnet-12345", "subnet-67890"],
-          "securityGroups": ["sg-abcdef"],
-          "assignPublicIp": "DISABLED"
-        }
-      },
-      "loadBalancers": [
-        {
-          "targetGroupArn": "arn:aws:elasticloadbalancing:region:account:targetgroup/saplings/123456",
-          "containerName": "saplings",
-          "containerPort": 8000
-        }
-      ],
-      "serviceTags": [
-        {"key": "Environment", "value": "production"},
-        {"key": "Application", "value": "saplings"}
-      ]
-    }
-```
-
-### Google Cloud Run Deployment
-
-```yaml
-# cloud-run-service.yaml
-apiVersion: serving.knative.dev/v1
-kind: Service
-metadata:
-  name: saplings-app
-  namespace: default
+  name: saplings-ingress
+  namespace: saplings-production
   annotations:
-    run.googleapis.com/ingress: all
-    run.googleapis.com/execution-environment: gen2
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
-  template:
-    metadata:
-      annotations:
-        autoscaling.knative.dev/minScale: "1"
-        autoscaling.knative.dev/maxScale: "100"
-        run.googleapis.com/cpu-throttling: "false"
-        run.googleapis.com/memory: "4Gi"
-        run.googleapis.com/cpu: "2"
-    spec:
-      containerConcurrency: 10
-      timeoutSeconds: 300
-      containers:
-      - image: gcr.io/project-id/saplings:latest
-        ports:
-        - containerPort: 8000
-        env:
-        - name: ENVIRONMENT
-          value: "production"
-        - name: OPENAI_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: saplings-secrets
-              key: openai-key
-        resources:
-          limits:
-            cpu: "2"
-            memory: "4Gi"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 10
+  tls:
+  - hosts:
+    - saplings.yourdomain.com
+    secretName: saplings-tls
+  rules:
+  - host: saplings.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: saplings-service
+            port:
+              number: 80
 ```
 
-## Environment Configuration
+## Operational Best Practices
 
-### Environment-Specific Settings
+### Logging Configuration
 
 ```python
-# config/environments.py
-import os
-from enum import Enum
-from saplings import AgentBuilder
+# logging_config.py
+import logging
+import sys
+from logging.handlers import RotatingFileHandler
 
-class Environment(Enum):
-    DEVELOPMENT = "development"
-    STAGING = "staging"
-    PRODUCTION = "production"
-
-class EnvironmentConfig:
-    """Environment-specific configuration."""
+def setup_production_logging():
+    """Configure production logging."""
     
-    @staticmethod
-    def get_config(env: Environment):
-        configs = {
-            Environment.DEVELOPMENT: {
-                "log_level": "DEBUG",
-                "gasa_enabled": False,
-                "monitoring_enabled": True,
-                "self_healing_enabled": False,
-                "max_workers": 2,
-                "timeout": 60,
-                "rate_limit": 1000,
-            },
-            Environment.STAGING: {
-                "log_level": "INFO",
-                "gasa_enabled": True,
-                "monitoring_enabled": True,
-                "self_healing_enabled": True,
-                "max_workers": 4,
-                "timeout": 120,
-                "rate_limit": 500,
-            },
-            Environment.PRODUCTION: {
-                "log_level": "WARNING",
-                "gasa_enabled": True,
-                "monitoring_enabled": True,
-                "self_healing_enabled": True,
-                "max_workers": 8,
-                "timeout": 300,
-                "rate_limit": 100,
-            }
-        }
-        return configs[env]
-
-def create_environment_agent():
-    """Create agent based on current environment."""
-    env_name = os.getenv("ENVIRONMENT", "development")
-    env = Environment(env_name)
-    config = EnvironmentConfig.get_config(env)
+    # Root logger configuration
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
     
-    builder = AgentBuilder.for_openai("gpt-4o")
+    # Console handler for container logs
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    console_handler.setFormatter(console_formatter)
+    root_logger.addHandler(console_handler)
     
-    if env == Environment.PRODUCTION:
-        # Production-specific configuration
-        builder = builder \
-            .with_gasa_enabled(config["gasa_enabled"]) \
-            .with_monitoring_enabled(config["monitoring_enabled"]) \
-            .with_self_healing_enabled(config["self_healing_enabled"]) \
-            .with_api_key_from_env("OPENAI_API_KEY") \
-            .with_memory_path("/app/data/memory") \
-            .with_rate_limiting(config["rate_limit"])
+    # File handler for local development
+    if os.path.exists('/app/logs'):
+        file_handler = RotatingFileHandler(
+            '/app/logs/saplings.log',
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5
+        )
+        file_handler.setLevel(logging.INFO)
+        file_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
+        )
+        file_handler.setFormatter(file_formatter)
+        root_logger.addHandler(file_handler)
     
-    elif env == Environment.STAGING:
-        # Staging-specific configuration
-        builder = builder \
-            .with_gasa_enabled(config["gasa_enabled"]) \
-            .with_monitoring_enabled(config["monitoring_enabled"]) \
-            .with_self_healing_enabled(config["self_healing_enabled"]) \
-            .with_memory_path("./staging_data/memory")
-    
-    else:
-        # Development configuration
-        builder = builder \
-            .with_monitoring_enabled(config["monitoring_enabled"]) \
-            .with_memory_path("./dev_data/memory")
-    
-    return builder.build()
+    # Suppress noisy third-party loggers
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('requests').setLevel(logging.WARNING)
 ```
 
-### Configuration Validation
+### Error Handling & Recovery
 
 ```python
-# config/validator.py
-import os
-from typing import List, Dict, Any
-
-class ConfigValidator:
-    """Validate production configuration."""
-    
-    @staticmethod
-    def validate_production_config() -> Dict[str, Any]:
-        """Validate all required production settings."""
-        validation_result = {
-            "valid": True,
-            "errors": [],
-            "warnings": []
-        }
-        
-        # Required environment variables
-        required_vars = [
-            "OPENAI_API_KEY",
-            "ENVIRONMENT",
-            "DATABASE_URL",
-            "REDIS_URL"
-        ]
-        
-        missing_vars = []
-        for var in required_vars:
-            if not os.getenv(var):
-                missing_vars.append(var)
-        
-        if missing_vars:
-            validation_result["valid"] = False
-            validation_result["errors"].append(
-                f"Missing required environment variables: {', '.join(missing_vars)}"
-            )
-        
-        # Validate specific values
-        environment = os.getenv("ENVIRONMENT")
-        if environment not in ["development", "staging", "production"]:
-            validation_result["errors"].append(
-                f"Invalid ENVIRONMENT value: {environment}"
-            )
-        
-        # Security checks
-        if environment == "production":
-            # Check for development keys in production
-            openai_key = os.getenv("OPENAI_API_KEY", "")
-            if openai_key.startswith("sk-test") or "test" in openai_key.lower():
-                validation_result["warnings"].append(
-                    "Using test API key in production environment"
-                )
-            
-            # Check for debug settings
-            if os.getenv("DEBUG", "").lower() == "true":
-                validation_result["warnings"].append(
-                    "Debug mode enabled in production"
-                )
-        
-        return validation_result
-
-# Usage in application startup
-if __name__ == "__main__":
-    validation = ConfigValidator.validate_production_config()
-    
-    if not validation["valid"]:
-        print("Configuration validation failed:")
-        for error in validation["errors"]:
-            print(f"ERROR: {error}")
-        exit(1)
-    
-    if validation["warnings"]:
-        print("Configuration warnings:")
-        for warning in validation["warnings"]:
-            print(f"WARNING: {warning}")
-    
-    # Proceed with application startup
-    agent = create_environment_agent()
-```
-
-## Scaling Strategies
-
-### Horizontal Scaling
-
-```python
-# scaling/horizontal.py
-from saplings import AgentBuilder
+# error_handling.py
 import asyncio
-import aioredis
-from typing import List
+import logging
+from typing import Callable, Any
 
-class HorizontalScalingManager:
-    """Manage horizontally scaled agent instances."""
+class ProductionErrorHandler:
+    """Production-grade error handling."""
     
-    def __init__(self, redis_url: str):
-        self.redis_url = redis_url
-        self.agents: List[AgentBuilder] = []
-        self.current_agent = 0
+    def __init__(self, max_retries=3, base_delay=1.0):
+        self.max_retries = max_retries
+        self.base_delay = base_delay
+        self.logger = logging.getLogger(__name__)
     
-    async def initialize(self, num_agents: int = 3):
-        """Initialize multiple agent instances."""
-        self.redis = await aioredis.from_url(self.redis_url)
+    async def with_retry(self, func: Callable, *args, **kwargs) -> Any:
+        """Execute function with exponential backoff retry."""
+        last_exception = None
         
-        for i in range(num_agents):
-            agent = AgentBuilder.for_openai("gpt-4o") \
-                .with_memory_path(f"./data/agent_{i}") \
-                .with_instance_id(f"agent_{i}") \
-                .build()
+        for attempt in range(self.max_retries + 1):
+            try:
+                return await func(*args, **kwargs)
             
-            self.agents.append(agent)
+            except Exception as e:
+                last_exception = e
+                
+                if attempt == self.max_retries:
+                    self.logger.error(
+                        f"Function {func.__name__} failed after {self.max_retries} retries: {e}"
+                    )
+                    break
+                
+                delay = self.base_delay * (2 ** attempt)
+                self.logger.warning(
+                    f"Function {func.__name__} failed (attempt {attempt + 1}), retrying in {delay}s: {e}"
+                )
+                await asyncio.sleep(delay)
         
-        print(f"Initialized {num_agents} agent instances")
+        raise last_exception
     
-    async def get_agent(self) -> AgentBuilder:
-        """Get next available agent using round-robin."""
-        agent = self.agents[self.current_agent]
-        self.current_agent = (self.current_agent + 1) % len(self.agents)
-        return agent
-    
-    async def get_least_busy_agent(self) -> AgentBuilder:
-        """Get agent with lowest current load."""
-        # Check Redis for current load metrics
-        agent_loads = {}
+    def handle_exception(self, e: Exception, context: str = ""):
+        """Handle exceptions with appropriate logging and recovery."""
+        error_msg = f"Error in {context}: {type(e).__name__}: {e}"
         
-        for i, agent in enumerate(self.agents):
-            load_key = f"agent_load:{agent.instance_id}"
-            load = await self.redis.get(load_key)
-            agent_loads[i] = int(load) if load else 0
-        
-        # Return agent with minimum load
-        min_load_agent = min(agent_loads, key=agent_loads.get)
-        return self.agents[min_load_agent]
-    
-    async def update_agent_load(self, agent_id: str, load: int):
-        """Update agent load metrics."""
-        load_key = f"agent_load:{agent_id}"
-        await self.redis.setex(load_key, 60, load)  # Expire after 60 seconds
-
-# Usage
-async def main():
-    scaling_manager = HorizontalScalingManager("redis://localhost:6379")
-    await scaling_manager.initialize(num_agents=5)
-    
-    # Process requests
-    agent = await scaling_manager.get_least_busy_agent()
-    result = await agent.run("Your task here")
+        if isinstance(e, (ConnectionError, TimeoutError)):
+            self.logger.warning(f"Transient error: {error_msg}")
+        else:
+            self.logger.error(f"Application error: {error_msg}", exc_info=True)
 ```
 
-### Vertical Scaling
+### Resource Management
 
 ```python
-# scaling/vertical.py
+# resource_management.py
+import os
 import psutil
 import asyncio
-from saplings import AgentBuilder
+from contextlib import asynccontextmanager
 
-class VerticalScalingManager:
-    """Manage vertical scaling based on resource usage."""
+class ResourceManager:
+    """Manage system resources for production deployment."""
     
-    def __init__(self):
-        self.agent = None
-        self.current_config = "standard"
-        self.monitoring = True
+    def __init__(self, max_memory_percent=80, max_cpu_percent=90):
+        self.max_memory_percent = max_memory_percent
+        self.max_cpu_percent = max_cpu_percent
+        self.logger = logging.getLogger(__name__)
     
-    async def create_optimized_agent(self):
-        """Create agent optimized for current system resources."""
-        # Get system information
-        cpu_count = psutil.cpu_count()
-        memory_gb = psutil.virtual_memory().total / (1024**3)
+    def check_system_resources(self):
+        """Check if system resources are within limits."""
+        memory_percent = psutil.virtual_memory().percent
+        cpu_percent = psutil.cpu_percent(interval=1)
         
-        print(f"System resources: {cpu_count} CPUs, {memory_gb:.1f}GB RAM")
+        if memory_percent > self.max_memory_percent:
+            self.logger.warning(f"High memory usage: {memory_percent}%")
+            return False
         
-        if memory_gb >= 16 and cpu_count >= 8:
-            # High-performance configuration
-            self.agent = AgentBuilder.full_featured("openai", "gpt-4o") \
-                .with_gasa_enabled(True) \
-                .with_gasa_max_hops(3) \
-                .with_retrieval_max_documents(50) \
-                .with_planner_total_budget(10.0) \
-                .build()
-            self.current_config = "high_performance"
-            
-        elif memory_gb >= 8 and cpu_count >= 4:
-            # Standard configuration
-            self.agent = AgentBuilder.standard("openai", "gpt-4o") \
-                .with_gasa_enabled(True) \
-                .with_gasa_max_hops(2) \
-                .with_retrieval_max_documents(20) \
-                .build()
-            self.current_config = "standard"
-            
-        else:
-            # Minimal configuration for limited resources
-            self.agent = AgentBuilder.minimal("openai", "gpt-4o") \
-                .with_gasa_enabled(False) \
-                .with_retrieval_max_documents(5) \
-                .build()
-            self.current_config = "minimal"
+        if cpu_percent > self.max_cpu_percent:
+            self.logger.warning(f"High CPU usage: {cpu_percent}%")
+            return False
         
-        print(f"Created agent with {self.current_config} configuration")
+        return True
     
-    async def monitor_and_adjust(self):
-        """Monitor resource usage and adjust configuration."""
-        while self.monitoring:
-            cpu_percent = psutil.cpu_percent(interval=1)
-            memory_percent = psutil.virtual_memory().percent
-            
-            print(f"Resource usage: CPU {cpu_percent}%, Memory {memory_percent}%")
-            
-            # Adjust configuration based on usage
-            if cpu_percent > 90 or memory_percent > 90:
-                if self.current_config != "minimal":
-                    print("High resource usage detected, scaling down")
-                    await self.scale_down()
-            
-            elif cpu_percent < 30 and memory_percent < 50:
-                if self.current_config == "minimal":
-                    print("Low resource usage detected, scaling up")
-                    await self.scale_up()
-            
-            await asyncio.sleep(30)  # Check every 30 seconds
-    
-    async def scale_down(self):
-        """Scale down to use fewer resources."""
-        if self.current_config == "high_performance":
-            # Scale to standard
-            await self.create_optimized_agent()  # Will create standard config
-        elif self.current_config == "standard":
-            # Scale to minimal
-            self.agent = AgentBuilder.minimal("openai", "gpt-4o").build()
-            self.current_config = "minimal"
-    
-    async def scale_up(self):
-        """Scale up to use more resources if available."""
-        memory_gb = psutil.virtual_memory().total / (1024**3)
-        cpu_count = psutil.cpu_count()
-        
-        if self.current_config == "minimal" and memory_gb >= 8:
-            self.agent = AgentBuilder.standard("openai", "gpt-4o").build()
-            self.current_config = "standard"
-        elif self.current_config == "standard" and memory_gb >= 16:
-            await self.create_optimized_agent()  # Will create high_performance config
-```
-
-## Health Checks & Monitoring
-
-### Application Health Checks
-
-```python
-# monitoring/health.py
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import asyncio
-import time
-from typing import Dict, Any
-
-app = FastAPI()
-
-class HealthCheck(BaseModel):
-    status: str
-    timestamp: float
-    version: str
-    checks: Dict[str, Any]
-
-class HealthChecker:
-    """Comprehensive health checking for Saplings applications."""
-    
-    def __init__(self, agent):
-        self.agent = agent
-        self.start_time = time.time()
-    
-    async def check_agent_health(self) -> Dict[str, Any]:
-        """Check agent-specific health."""
+    @asynccontextmanager
+    async def resource_limits(self):
+        """Context manager for resource-limited execution."""
         try:
-            # Test basic functionality
-            start_time = time.time()
-            test_result = await asyncio.wait_for(
-                self.agent.run("Health check test"), 
-                timeout=10
-            )
-            response_time = time.time() - start_time
+            if not self.check_system_resources():
+                raise ResourceError("System resources exhausted")
             
-            return {
-                "status": "healthy",
-                "response_time_ms": round(response_time * 1000, 2),
-                "test_result_length": len(test_result) if test_result else 0
-            }
-        except asyncio.TimeoutError:
-            return {"status": "unhealthy", "error": "timeout"}
-        except Exception as e:
-            return {"status": "unhealthy", "error": str(e)}
-    
-    async def check_memory_health(self) -> Dict[str, Any]:
-        """Check memory system health."""
-        try:
-            # Test memory operations
-            test_doc = "Health check document"
-            self.agent.add_document(test_doc, {"type": "health_check"})
+            yield
             
-            # Test retrieval
-            results = await self.agent.run("Find health check documents")
-            
-            return {
-                "status": "healthy",
-                "memory_accessible": True,
-                "retrieval_working": len(results) > 0 if results else False
-            }
-        except Exception as e:
-            return {"status": "unhealthy", "error": str(e)}
-    
-    async def check_external_dependencies(self) -> Dict[str, Any]:
-        """Check external service dependencies."""
-        checks = {}
-        
-        # Check API connectivity
-        try:
-            # Test with a simple request
-            result = await asyncio.wait_for(
-                self.agent.run("Say hello"), 
-                timeout=5
-            )
-            checks["llm_api"] = {
-                "status": "healthy",
-                "response_received": bool(result)
-            }
-        except Exception as e:
-            checks["llm_api"] = {
-                "status": "unhealthy", 
-                "error": str(e)
-            }
-        
-        return checks
+        finally:
+            # Cleanup resources if needed
+            pass
 
-@app.get("/health")
-async def health():
-    """Basic health check endpoint."""
-    return {
-        "status": "healthy",
-        "timestamp": time.time()
-    }
-
-@app.get("/health/detailed")
-async def detailed_health():
-    """Detailed health check with component status."""
-    # This would be injected with your actual agent instance
-    # health_checker = HealthChecker(agent)
+# Usage in production application
+async def process_with_limits(agent, task):
+    """Process task with resource limits."""
+    resource_manager = ResourceManager()
     
-    checks = {
-        "application": {"status": "healthy"},
-        # "agent": await health_checker.check_agent_health(),
-        # "memory": await health_checker.check_memory_health(),
-        # "dependencies": await health_checker.check_external_dependencies(),
-    }
-    
-    # Determine overall status
-    overall_status = "healthy"
-    for check in checks.values():
-        if check.get("status") != "healthy":
-            overall_status = "unhealthy"
-            break
-    
-    return HealthCheck(
-        status=overall_status,
-        timestamp=time.time(),
-        version="1.0.0",
-        checks=checks
-    )
-
-@app.get("/ready")
-async def readiness():
-    """Readiness check for Kubernetes."""
-    # Check if application is ready to receive traffic
-    try:
-        # Perform minimal checks
-        return {"status": "ready", "timestamp": time.time()}
-    except Exception as e:
-        raise HTTPException(status_code=503, detail="Not ready")
+    async with resource_manager.resource_limits():
+        return await agent.run(task)
 ```
 
-### Monitoring Integration
-
-```python
-# monitoring/metrics.py
-from prometheus_client import Counter, Histogram, Gauge, generate_latest
-import time
-from typing import Optional
-
-# Prometheus metrics
-REQUEST_COUNT = Counter('saplings_requests_total', 'Total requests', ['method', 'endpoint', 'status'])
-REQUEST_DURATION = Histogram('saplings_request_duration_seconds', 'Request duration', ['method', 'endpoint'])
-ACTIVE_CONNECTIONS = Gauge('saplings_active_connections', 'Active connections')
-AGENT_MEMORY_USAGE = Gauge('saplings_agent_memory_bytes', 'Agent memory usage')
-
-class MetricsCollector:
-    """Collect and expose application metrics."""
-    
-    def __init__(self, agent):
-        self.agent = agent
-    
-    def record_request(self, method: str, endpoint: str, status: int, duration: float):
-        """Record request metrics."""
-        REQUEST_COUNT.labels(method=method, endpoint=endpoint, status=status).inc()
-        REQUEST_DURATION.labels(method=method, endpoint=endpoint).observe(duration)
-    
-    def update_active_connections(self, count: int):
-        """Update active connections gauge."""
-        ACTIVE_CONNECTIONS.set(count)
-    
-    def update_memory_usage(self, bytes_used: int):
-        """Update memory usage gauge."""
-        AGENT_MEMORY_USAGE.set(bytes_used)
-
-# FastAPI middleware for metrics
-from fastapi import Request, Response
-import time
-
-async def metrics_middleware(request: Request, call_next):
-    start_time = time.time()
-    
-    response = await call_next(request)
-    
-    duration = time.time() - start_time
-    
-    # Record metrics
-    REQUEST_COUNT.labels(
-        method=request.method,
-        endpoint=request.url.path,
-        status=response.status_code
-    ).inc()
-    
-    REQUEST_DURATION.labels(
-        method=request.method,
-        endpoint=request.url.path
-    ).observe(duration)
-    
-    return response
-
-@app.get("/metrics")
-async def metrics():
-    """Prometheus metrics endpoint."""
-    return Response(generate_latest(), media_type="text/plain")
-```
-
-## Load Balancing
-
-### Nginx Configuration
-
-```nginx
-# nginx.conf
-events {
-    worker_connections 1024;
-}
-
-http {
-    upstream saplings_backend {
-        least_conn;  # Use least connections algorithm
-        
-        # Backend servers
-        server saplings-app-1:8000 max_fails=3 fail_timeout=30s;
-        server saplings-app-2:8000 max_fails=3 fail_timeout=30s;
-        server saplings-app-3:8000 max_fails=3 fail_timeout=30s;
-        
-        # Health checks
-        keepalive 32;
-    }
-    
-    # Rate limiting
-    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
-    
-    server {
-        listen 80;
-        server_name api.your-domain.com;
-        
-        # Redirect HTTP to HTTPS
-        return 301 https://$server_name$request_uri;
-    }
-    
-    server {
-        listen 443 ssl http2;
-        server_name api.your-domain.com;
-        
-        # SSL configuration
-        ssl_certificate /etc/nginx/ssl/cert.pem;
-        ssl_certificate_key /etc/nginx/ssl/key.pem;
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
-        
-        # Security headers
-        add_header X-Content-Type-Options nosniff;
-        add_header X-Frame-Options DENY;
-        add_header X-XSS-Protection "1; mode=block";
-        
-        # Gzip compression
-        gzip on;
-        gzip_types text/plain application/json;
-        
-        location / {
-            # Rate limiting
-            limit_req zone=api burst=20 nodelay;
-            
-            # Proxy settings
-            proxy_pass http://saplings_backend;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            
-            # Timeouts
-            proxy_connect_timeout 60s;
-            proxy_send_timeout 300s;
-            proxy_read_timeout 300s;
-            
-            # Buffer settings
-            proxy_buffering on;
-            proxy_buffer_size 128k;
-            proxy_buffers 4 256k;
-            proxy_busy_buffers_size 256k;
-        }
-        
-        location /health {
-            # Health check endpoint
-            access_log off;
-            proxy_pass http://saplings_backend;
-        }
-        
-        location /metrics {
-            # Metrics endpoint (restrict access)
-            allow 10.0.0.0/8;
-            deny all;
-            proxy_pass http://saplings_backend;
-        }
-    }
-}
-```
-
-### Application Load Balancer (AWS)
-
-```json
-{
-  "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
-  "Properties": {
-    "Name": "saplings-alb",
-    "Type": "application",
-    "Scheme": "internet-facing",
-    "SecurityGroups": ["sg-12345678"],
-    "Subnets": ["subnet-12345", "subnet-67890"],
-    "Tags": [
-      {"Key": "Environment", "Value": "production"},
-      {"Key": "Application", "Value": "saplings"}
-    ]
-  }
-}
-```
-
-This comprehensive production deployment guide provides everything needed to deploy Saplings applications at scale with proper monitoring, security, and operational practices.
+This production deployment guide provides comprehensive coverage of deploying Saplings applications in production environments, focusing on the actual containerization and sandboxing capabilities available in the framework.
