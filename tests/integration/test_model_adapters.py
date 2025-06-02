@@ -15,8 +15,19 @@ import pytest
 
 from saplings.core.model_adapter import LLM
 
+# Check if OpenAI is available
+try:
+    from openai import OpenAI
 
-@pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OpenAI API key not available")
+    HAS_OPENAI = True
+except ImportError:
+    HAS_OPENAI = False
+
+
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY") or not HAS_OPENAI,
+    reason="OpenAI API key not available or package not installed",
+)
 class TestOpenAIIntegration:
     """Test OpenAI integration with real API."""
 
@@ -46,8 +57,10 @@ class TestOpenAIIntegration:
 
         # Test streaming
         chunks = []
-        async for chunk in model.generate_stream("Count from 1 to 5"):
-            if chunk.text:
+        async for chunk in model.generate_streaming("Count from 1 to 5"):
+            if isinstance(chunk, str):
+                chunks.append(chunk)
+            elif hasattr(chunk, "text") and chunk.text:
                 chunks.append(chunk.text)
 
         # Verify we got chunks
@@ -103,8 +116,18 @@ class TestOpenAIIntegration:
             assert "location" in response.tool_calls[0]["function"]["arguments"]
 
 
+# Check if Anthropic is available
+try:
+    from anthropic import Anthropic
+
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
+
+
 @pytest.mark.skipif(
-    not os.environ.get("ANTHROPIC_API_KEY"), reason="Anthropic API key not available"
+    not os.environ.get("ANTHROPIC_API_KEY") or not HAS_ANTHROPIC,
+    reason="Anthropic API key not available or package not installed",
 )
 class TestAnthropicIntegration:
     """Test Anthropic integration with real API."""
@@ -135,8 +158,10 @@ class TestAnthropicIntegration:
 
         # Test streaming
         chunks = []
-        async for chunk in model.generate_stream("Count from 1 to 5"):
-            if chunk.text:
+        async for chunk in model.generate_streaming("Count from 1 to 5"):
+            if isinstance(chunk, str):
+                chunks.append(chunk)
+            elif hasattr(chunk, "text") and chunk.text:
                 chunks.append(chunk.text)
 
         # Verify we got chunks
@@ -199,8 +224,10 @@ class TestVLLMIntegration:
 
             # Test streaming
             chunks = []
-            async for chunk in model.generate_stream("Count from 1 to 5"):
-                if chunk.text:
+            async for chunk in model.generate_streaming("Count from 1 to 5"):
+                if isinstance(chunk, str):
+                    chunks.append(chunk)
+                elif hasattr(chunk, "text") and chunk.text:
                     chunks.append(chunk.text)
 
             # Verify we got chunks

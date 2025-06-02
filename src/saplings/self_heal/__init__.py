@@ -12,28 +12,16 @@ This module provides self-healing capabilities for Saplings, including:
 - Integration with JudgeAgent feedback
 """
 
+# Import directly from internal modules to avoid circular imports
+from saplings.self_heal._internal.adapters import AdapterPriority
+from saplings.self_heal._internal.config import RetryStrategy
+from saplings.self_heal._internal.patches import PatchStatus
 
-from saplings.self_heal.adapter_manager import (
-    Adapter,
-    AdapterManager,
-    AdapterMetadata,
-    AdapterPriority,
-)
-from saplings.self_heal.lora_tuning import LoRaConfig, LoRaTrainer, TrainingMetrics
-from saplings.self_heal.patch_generator import Patch, PatchGenerator, PatchResult, PatchStatus
-from saplings.self_heal.success_pair_collector import SuccessPairCollector
-
+# Re-export symbols
 __all__ = [
-    "Adapter",
-    "AdapterManager",
-    "AdapterMetadata",
+    # Enums that can be safely re-exported
     "AdapterPriority",
-    "LoRaConfig",
-    "LoRaTrainer",
-    "Patch",
-    "PatchGenerator",
-    "PatchResult",
+    "RetryStrategy",
     "PatchStatus",
-    "SuccessPairCollector",
-    "TrainingMetrics",
+    # Note: Other self-heal symbols should be imported from saplings.api.self_heal
 ]

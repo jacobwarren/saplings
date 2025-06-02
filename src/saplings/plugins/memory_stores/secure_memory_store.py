@@ -14,10 +14,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from saplings.core.plugin import MemoryStorePlugin, PluginType
-from saplings.memory.config import MemoryConfig, PrivacyLevel
-from saplings.memory.document import Document
-from saplings.memory.vector_store import InMemoryVectorStore, VectorStore
+from saplings.api.memory import MemoryConfig
+from saplings.api.memory.document import Document
+from saplings.api.registry import Plugin, PluginType
+from saplings.api.vector_store import InMemoryVectorStore, VectorStore
+
+# Privacy level enum - should be moved to public API
+from saplings.memory._internal.config import PrivacyLevel
 
 if TYPE_CHECKING:
     import builtins
@@ -25,7 +28,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class SecureMemoryStore(MemoryStorePlugin, VectorStore):
+class SecureMemoryStore(Plugin, VectorStore):
     """
     Secure memory store implementation.
 
@@ -64,7 +67,7 @@ class SecureMemoryStore(MemoryStorePlugin, VectorStore):
         return "Secure memory store with hash-key protection and differential privacy noise"
 
     @property
-    def plugin_type(self) -> PluginType:
+    def plugin_type(self) -> str:
         """Type of the plugin."""
         return PluginType.MEMORY_STORE
 

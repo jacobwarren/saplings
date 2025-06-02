@@ -14,12 +14,16 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
-from saplings.core.plugin import IndexerPlugin, PluginType
-from saplings.memory.indexer import Entity, Indexer, Relationship
+from saplings.api.memory.indexer import Indexer
+from saplings.api.registry import Plugin, PluginType
+
+# Import from internal modules directly to avoid circular imports
+from saplings.memory._internal.entity import Entity
+from saplings.memory._internal.relationship import Relationship
 
 if TYPE_CHECKING:
-    from saplings.memory.config import MemoryConfig
-    from saplings.memory.document import Document
+    from saplings.memory._internal.config import MemoryConfig
+    from saplings.memory._internal.document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +52,7 @@ def get_source_from_metadata(metadata: Any) -> str | None:
     return None
 
 
-class CodeIndexer(IndexerPlugin, Indexer):
+class CodeIndexer(Plugin, Indexer):
     """
     Indexer specialized for code repositories.
 
@@ -92,7 +96,7 @@ class CodeIndexer(IndexerPlugin, Indexer):
         return "Indexer specialized for code repositories"
 
     @property
-    def plugin_type(self) -> PluginType:
+    def plugin_type(self) -> str:
         """Type of the plugin."""
         return PluginType.INDEXER
 

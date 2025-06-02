@@ -1,0 +1,40 @@
+"""
+Type stubs for FAISS library.
+This is a minimal stub file to satisfy type checkers when FAISS is not installed.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Tuple
+
+
+class Index:
+    """Base class for all FAISS indices."""
+
+    def add(self, x: Any) -> None: ...
+    def search(self, x: Any, k: int) -> Tuple[Any, Any]: ...
+
+
+class IndexFlatIP(Index):
+    """FAISS index for inner product similarity."""
+
+    def __init__(self, d: int) -> None: ...
+
+
+class IndexFlatL2(Index):
+    """FAISS index for L2 distance."""
+
+    def __init__(self, d: int) -> None: ...
+
+
+class StandardGpuResources:
+    """GPU resources for FAISS."""
+
+    def __init__(self) -> None: ...
+
+
+def normalize_L2(x: Any) -> None: ...
+def index_cpu_to_gpu(res: StandardGpuResources, device: int, index: Index) -> Index: ...
+def index_gpu_to_cpu(index: Index) -> Index: ...
+def write_index(index: Index, filename: str) -> None: ...
+def read_index(filename: str) -> Index: ...

@@ -38,6 +38,10 @@ dependencies = [
     "arxiv>=2.0.0",
     "dependency-injector>=4.41.0",
     "punq>=0.6.0",
+    "openai>=1.0.0",
+    "anthropic>=0.8.0",
+    "scikit-learn>=1.2.0",
+    "sentence-transformers>=2.2.2",
 ]
 
 [project.urls]
@@ -49,8 +53,6 @@ packages = [{include = "saplings", from = "src"}]
 
 [project.optional-dependencies]
 # Service-level extras
-openai = ["openai>=1.0.0"]
-anthropic = ["anthropic>=0.8.0"]
 transformers = ["transformers>=4.30.0"]
 torch = ["torch>=2.0.0"]
 monitoring = []
@@ -58,7 +60,7 @@ langsmith = ["langsmith>=0.0.60"]
 vllm = ["vllm>=0.8.5"]
 
 # Retrieval extras
-retrieval = ["scikit-learn>=1.2.0", "sentence-transformers>=2.2.2"]
+retrieval = []
 optimized = ["torch>=2.0.0"]
 faiss = ["faiss-cpu>=1.7.0"]
 
@@ -84,8 +86,6 @@ lora = [
 
 # Grouped extras
 services = [
-    "openai>=1.0.0",
-    "anthropic>=0.8.0",
     "transformers>=4.30.0",
     "torch>=2.0.0"
 ]
@@ -116,15 +116,15 @@ test = [
 
 full = [
     # Services
-    "openai>=1.0.0", "anthropic>=0.8.0", "transformers>=4.30.0", "torch>=2.0.0",
+    "transformers>=4.30.0", "torch>=2.0.0",
     # Monitoring
     "langsmith>=0.0.60",
     # LoRA
     "peft>=0.5.0", "accelerate>=0.20.0", "bitsandbytes>=0.40.0", "datasets>=2.13.0", "apscheduler>=3.10.0",
     # VLLM
     "vllm>=0.8.5",
-    # Retrieval
-    "scikit-learn>=1.2.0", "sentence-transformers>=2.2.2",
+    # Retrieval (now in core dependencies)
+    # "scikit-learn>=1.2.0", "sentence-transformers>=2.2.2",
     # Visualization
     "matplotlib>=3.5.0", "plotly>=5.5.0",
     # Tools
@@ -139,14 +139,13 @@ full = [
     "faiss-cpu>=1.7.0"
 ]
 
-all = ["saplings[full,dev]"]
+all = []  # This will be populated in a post-install script
 
-# Poetry configuration for backward compatibility
+# Poetry configuration
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
 
 # Note: All dependencies are now defined in [project.dependencies] and [project.optional-dependencies]
-# This section is kept minimal for backward compatibility with Poetry 1.x
 
 [tool.black]
 line-length = 100
@@ -231,10 +230,10 @@ benchmark = "Mark test as a benchmark test"
 timeout = "Mark a test with a timeout in seconds"
 
 [project.entry-points."saplings.model_adapters"]
-vllm = "saplings.adapters.vllm_adapter:VLLMAdapter"
-openai = "saplings.adapters.openai_adapter:OpenAIAdapter"
-anthropic = "saplings.adapters.anthropic_adapter:AnthropicAdapter"
-huggingface = "saplings.adapters.huggingface_adapter:HuggingFaceAdapter"
+vllm = "saplings.api.models:VLLMAdapter"
+openai = "saplings.api.models:OpenAIAdapter"
+anthropic = "saplings.api.models:AnthropicAdapter"
+huggingface = "saplings.api.models:HuggingFaceAdapter"
 
 [project.entry-points."saplings.memory_stores"]
 secure = "saplings.plugins.memory_stores:SecureMemoryStore"

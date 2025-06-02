@@ -13,16 +13,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from saplings.agent_config import AgentConfig
-from saplings.container_config import configure_container
-from saplings.core.interfaces import (
+from saplings.api.core.interfaces import (
     IExecutionService,
     IMemoryManager,
-    IModelService,
+    IModelInitializationService,
     IPlannerService,
     IRetrievalService,
     IToolService,
     IValidatorService,
 )
+from saplings.container_config import configure_container
 from saplings.di import reset_container
 
 
@@ -73,7 +73,7 @@ class TestServiceInteractions:
     def test_service_resolution(self, test_container) -> None:
         """Test that all services can be resolved from the container."""
         # Resolve all services
-        model_service = test_container.resolve(IModelService)
+        model_init_service = test_container.resolve(IModelInitializationService)
         memory_manager = test_container.resolve(IMemoryManager)
         retrieval_service = test_container.resolve(IRetrievalService)
         planner_service = test_container.resolve(IPlannerService)
@@ -82,7 +82,7 @@ class TestServiceInteractions:
         tool_service = test_container.resolve(IToolService)
 
         # Verify services were resolved
-        assert model_service is not None
+        assert model_init_service is not None
         assert memory_manager is not None
         assert retrieval_service is not None
         assert planner_service is not None
@@ -117,20 +117,20 @@ class TestServiceInteractions:
         assert any("artificial intelligence" in result[0].content.lower() for result in results)
 
     @patch("saplings.core.model_adapter.LLM")
-    def test_model_execution_interaction(self, mock_llm, test_container) -> None:
-        """Test interaction between model service and execution service."""
+    async def test_model_execution_interaction(self, mock_llm, test_container) -> None:
+        """Test interaction between model initialization service and execution service."""
         # Mock LLM response
         mock_response = MagicMock()
         mock_response.text = "This is a test response."
         mock_llm.create.return_value.generate = MagicMock(return_value=mock_response)
 
         # Get services
-        # We need to resolve the model service to ensure it's initialized
-        _ = test_container.resolve(IModelService)
+        # We need to resolve the model initialization service to ensure it's initialized
+        _ = test_container.resolve(IModelInitializationService)
         execution_service = test_container.resolve(IExecutionService)
 
         # Execute prompt
-        response = execution_service.execute(prompt="This is a test prompt.", context=[])
+        response = await execution_service.execute(prompt="This is a test prompt.", documents=[])
 
         # Verify response
         assert response is not None

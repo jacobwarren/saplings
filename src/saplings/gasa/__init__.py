@@ -3,14 +3,9 @@ from __future__ import annotations
 """
 Graph-Aligned Sparse Attention (GASA) module for Saplings.
 
-This module provides the GASA functionality for Saplings, including:
-- Graph traversal algorithm for token-level mask generation
-- Mask serialization/deserialization
-- Integration points for executor.py
-- Block-diagonal packing fallback for unsupported models
-- Visualization utilities for debugging masks
-- Shadow model tokenization for third-party LLM APIs
-- Graph-aware prompt composition for third-party LLM APIs
+This module re-exports the public API from saplings.api.gasa.
+For application code, it is recommended to import directly from saplings.api
+or the top-level saplings package.
 
 GASA injects a binary attention mask—derived from the retrieval dependency graph—into
 each transformer layer, permitting full attention only between tokens whose source chunks
@@ -26,19 +21,29 @@ mechanisms, GASA provides alternative approaches:
 3. Block-diagonal packing - Reorders chunks to create a block-diagonal structure
 """
 
-
-from saplings.gasa.builder.standard_mask_builder import StandardMaskBuilder
-from saplings.gasa.config import FallbackStrategy, GASAConfig, MaskStrategy
-from saplings.gasa.core.types import MaskFormat, MaskType
-from saplings.gasa.packing.block_diagonal_packer import BlockDiagonalPacker
+# Import from the public API
+from saplings.api.gasa import (
+    BlockDiagonalPacker,
+    FallbackStrategy,
+    GASAConfig,
+    GASAConfigBuilder,
+    GASAPromptComposer,
+    GASAService,
+    GASAServiceBuilder,
+    GraphDistanceCalculator,
+    MaskFormat,
+    MaskStrategy,
+    MaskType,
+    MaskVisualizer,
+    NullGASAService,
+    StandardMaskBuilder,
+    TokenMapper,
+    TokenTrackingMaskBuilder,
+    block_pack,
+)
 
 # For backward compatibility
-from saplings.gasa.packing.block_diagonal_packer import (
-    BlockDiagonalPacker as GASABlockDiagonalPacker,
-)
-from saplings.gasa.prompt.prompt_composer import GASAPromptComposer
-from saplings.gasa.service.gasa_service import GASAService
-from saplings.gasa.visualization.mask_visualizer import MaskVisualizer
+from saplings.api.gasa import BlockDiagonalPacker as GASABlockDiagonalPacker
 
 # Import shadow model tokenizer if available
 try:
@@ -53,13 +58,20 @@ __all__ = [
     "FallbackStrategy",
     "GASABlockDiagonalPacker",
     "GASAConfig",
+    "GASAConfigBuilder",
     "GASAPromptComposer",
     "GASAService",
+    "GASAServiceBuilder",
+    "GraphDistanceCalculator",
     "MaskFormat",
     "MaskStrategy",
     "MaskType",
     "MaskVisualizer",
+    "NullGASAService",
     "StandardMaskBuilder",
+    "TokenMapper",
+    "TokenTrackingMaskBuilder",
+    "block_pack",
 ]
 
 # Add shadow model tokenizer to exports if available

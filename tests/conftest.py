@@ -8,9 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from saplings.agent_config import AgentConfig
-from saplings.container_config import configure_container
-from saplings.di import reset_container
+from saplings.api.agent import AgentConfig
+from saplings.api.di import configure_container, reset_container, reset_container_config
 
 
 @pytest.fixture(autouse=True)
@@ -21,10 +20,12 @@ def reset_di():
     for each test.
     """
     # Reset before test to start clean
-    reset_container()
+    reset_container_config()  # Reset the configuration state
+    reset_container()  # Reset the actual container
     yield
     # Reset after test to clean up
-    reset_container()
+    reset_container_config()  # Reset the configuration state
+    reset_container()  # Reset the actual container
 
 
 @pytest.fixture()

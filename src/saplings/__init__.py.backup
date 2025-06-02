@@ -1,0 +1,667 @@
+"""
+Saplings: A graph-first, self-improving agent framework.
+
+This package provides a comprehensive framework for building intelligent agents
+that can learn, adapt, and improve over time through automated critique and
+fine-tuning loops.
+
+Main Components:
+- Agent: Core agent functionality
+- Tools: Built-in and custom tools for agents
+- Memory: Document storage and retrieval
+- Models: LLM adapters and interfaces
+- Services: Service builders and managers
+- Monitoring: Tracing and performance analysis
+- Self-Healing: Automated error recovery and improvement
+
+Example:
+    >>> from saplings import Agent, AgentConfig, PythonInterpreterTool
+    >>> agent = Agent(
+    ...     config=AgentConfig(
+    ...         provider="openai",
+    ...         model_name="gpt-4o",
+    ...         tools=[PythonInterpreterTool()],
+    ...     )
+    ... )
+    >>> result = await agent.run("Calculate the factorial of 5")
+"""
+
+from __future__ import annotations
+
+# Use lazy imports to avoid circular dependencies
+# Import only essential items immediately, defer others until needed
+
+# Import version immediately as it's safe
+from saplings.api.version import __version__
+
+# Import core configuration immediately as it's needed early
+from saplings._internal.agent_config import AgentConfig
+
+# Lazy import cache to avoid repeated imports
+_lazy_cache = {}
+
+def __getattr__(name: str):
+    """
+    Lazy import function to load API components when accessed.
+
+    This avoids circular imports by only importing when actually needed.
+    """
+    if name in _lazy_cache:
+        return _lazy_cache[name]
+
+    # Core Agent functionality
+    if name == "Agent":
+        from saplings.api.agent import Agent
+        _lazy_cache[name] = Agent
+        return Agent
+    elif name == "AgentBuilder":
+        from saplings.api.agent import AgentBuilder
+        _lazy_cache[name] = AgentBuilder
+        return AgentBuilder
+    elif name == "AgentFacade":
+        from saplings.api.agent import AgentFacade
+        _lazy_cache[name] = AgentFacade
+        return AgentFacade
+    elif name == "AgentFacadeBuilder":
+        from saplings.api.agent import AgentFacadeBuilder
+        _lazy_cache[name] = AgentFacadeBuilder
+        return AgentFacadeBuilder
+
+    # Container and Dependency Injection
+    elif name in ("Container", "container", "reset_container", "configure_container", "reset_container_config"):
+        from saplings.api.di import (
+            Container,
+            container,
+            reset_container,
+            configure_container,
+            reset_container_config,
+        )
+        _lazy_cache.update({
+            "Container": Container,
+            "container": container,
+            "reset_container": reset_container,
+            "configure_container": configure_container,
+            "reset_container_config": reset_container_config,
+        })
+        return _lazy_cache[name]
+
+    # For any other attribute, try to import from the full API
+    else:
+        try:
+            from saplings import api
+            attr = getattr(api, name)
+            _lazy_cache[name] = attr
+            return attr
+        except (ImportError, AttributeError):
+            raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    DocumentMetadata,
+    DocumentNode,
+    DependencyGraph,
+    DependencyGraphBuilder,
+    MemoryStore,
+    MemoryStoreBuilder,
+    MemoryConfig,
+
+    # Indexing and Vector Storage
+    Indexer,
+    IndexerRegistry,
+    SimpleIndexer,
+    get_indexer,
+    VectorStore,
+    InMemoryVectorStore,
+    get_vector_store,
+
+    # Tools
+    Tool,
+    ToolCollection,
+    ToolRegistry,
+    DuckDuckGoSearchTool,
+    FinalAnswerTool,
+    GoogleSearchTool,
+    PythonInterpreterTool,
+    SpeechToTextTool,
+    UserInputTool,
+    VisitWebpageTool,
+    WikipediaSearchTool,
+    get_all_default_tools,
+    get_default_tool,
+    get_registered_tools,
+    is_browser_tools_available,
+    is_mcp_available,
+    register_tool,
+    tool,
+    validate_tool,
+    validate_tool_attributes,
+    validate_tool_parameters,
+
+    # Browser Tools
+    ClickTool,
+    ClosePopupsTool,
+    GetPageTextTool,
+    GoBackTool,
+    GoToTool,
+    ScrollTool,
+    SearchTextTool,
+    WaitTool,
+    close_browser,
+    get_browser_tools,
+    initialize_browser,
+    save_screenshot,
+
+    # MCP Tools
+    MCPClient,
+    MCPTool,
+
+    # Models and LLM Adapters
+    LLM,
+    LLMBuilder,
+    LLMResponse,
+    ModelMetadata,
+    ModelCapability,
+    ModelRole,
+    AnthropicAdapter,
+    HuggingFaceAdapter,
+    OpenAIAdapter,
+    VLLMAdapter,
+
+    # Services
+    ExecutionService,
+    ExecutionServiceBuilder,
+    GASAConfigBuilder,
+    GASAServiceBuilder,
+    JudgeService,
+    JudgeServiceBuilder,
+    MemoryManager,
+    MemoryManagerBuilder,
+    ModalityService,
+    ModalityServiceBuilder,
+    ModelServiceBuilder,
+    OrchestrationService,
+    OrchestrationServiceBuilder,
+    PlannerService,
+    PlannerServiceBuilder,
+    RetrievalService,
+    RetrievalServiceBuilder,
+    SelfHealingService,
+    SelfHealingServiceBuilder,
+    ToolService,
+    ToolServiceBuilder,
+    ValidatorService,
+    ValidatorServiceBuilder,
+
+    # Validators
+    ExecutionValidator,
+    KeywordValidator,
+    LengthValidator,
+    RuntimeValidator,
+    StaticValidator,
+    ValidationResult,
+    ValidationStatus,
+    ValidationStrategy,
+    Validator,
+    ValidatorConfig,
+    ValidatorRegistry,
+    ValidatorType,
+    get_validator_registry,
+
+    # Retrieval
+    CascadeRetriever,
+    EmbeddingRetriever,
+    EntropyCalculator,
+    FaissVectorStore,
+    GraphExpander,
+    RetrievalConfig,
+    TFIDFRetriever,
+
+    # Monitoring
+    BlameEdge,
+    BlameGraph,
+    BlameNode,
+    MonitoringConfig,
+    TraceManager,
+    TraceViewer,
+
+    # Judge
+    CritiqueFormat,
+    JudgeAgent,
+    JudgeConfig,
+    JudgeResult,
+    Rubric,
+    RubricItem,
+    ScoringDimension,
+
+    # Modality
+    AudioHandler,
+    ImageHandler,
+    ModalityHandler,
+    ModalityConfig,
+    ModalityType,
+    TextHandler,
+    VideoHandler,
+    get_handler_for_modality,
+
+    # Orchestration
+    AgentNode,
+    CommunicationChannel,
+    GraphRunner,
+    GraphRunnerConfig,
+    NegotiationStrategy,
+    OrchestrationConfig,
+
+    # Security
+    RedactingFilter,
+    Sanitizer,
+    install_global_filter,
+    install_import_hook,
+    redact,
+    sanitize,
+
+    # Tokenizers
+    SimpleTokenizer,
+    TokenizerFactory,
+    SHADOW_MODEL_AVAILABLE,
+
+    # Registry and Service Locator
+    PluginRegistry,
+    PluginType,
+    RegistryContext,
+    ServiceLocator,
+
+    # GASA (Graph-Aware Sparse Attention)
+    BlockDiagonalPacker,
+    FallbackStrategy,
+    GASAConfig,
+    GASAService,
+    GASAServiceBuilder,
+    GraphDistanceCalculator,
+    MaskFormat,
+    MaskStrategy,
+    MaskType,
+    MaskVisualizer,
+    StandardMaskBuilder,
+    TokenMapper,
+    block_pack,
+
+    # Tool Factory and Secure Hot Loading
+    CodeSigner,
+    DockerSandbox,
+    E2BSandbox,
+    Sandbox,
+    SandboxType,
+    SecureHotLoader,
+    SecureHotLoaderConfig,
+    SecurityLevel,
+    SignatureVerifier,
+    SigningLevel,
+    ToolFactory,
+    ToolFactoryConfig,
+    ToolSpecification,
+    ToolTemplate,
+    ToolValidator,
+    create_secure_hot_loader,
+
+    # Self-Healing
+    Adapter,
+    AdapterManager,
+    AdapterMetadata,
+    AdapterPriority,
+    LoRaConfig,
+    LoRaTrainer,
+    Patch,
+    PatchGenerator,
+    PatchResult,
+    PatchStatus,
+    RetryStrategy,
+    SelfHealingConfig,
+    SuccessPairCollector,
+    TrainingMetrics,
+
+    # Core Configuration and Exceptions
+    Config,
+    ConfigValue,
+    ConfigurationError,
+    ModelError,
+    ProviderError,
+    ResourceExhaustedError,
+    SaplingsError,
+
+    # Core Interfaces and Types
+    ExecutionContext,
+    ExecutionResult,
+    IExecutionService,
+    GasaConfig,
+    IGasaService,
+    IJudgeService,
+    IMemoryManager,
+    IModalityService,
+    IModelCachingService,
+    ModelCachingConfig,
+    IModelInitializationService,
+    ModelInitializationConfig,
+    ModelContext,
+    GenerationContext,
+    IMonitoringService,
+    MonitoringEvent,
+    IOrchestrationService,
+    OrchestrationResult,
+    IPlannerService,
+    PlannerConfig,
+    PlanningResult,
+    IRetrievalService,
+    RetrievalResult,
+    ISelfHealingService,
+    SelfHealingResult,
+    IToolService,
+    ToolConfig,
+    ToolResult,
+    IValidatorService,
+    ValidationConfig,
+    ValidationContext,
+
+    # Utilities
+    async_run_sync,
+    count_tokens,
+    get_model_sync,
+    get_tokens_remaining,
+    run_sync,
+    split_text_by_tokens,
+    truncate_text_tokens,
+
+    # Version
+    __version__,
+)
+
+# Define __all__ to expose the complete public API
+__all__ = [
+    # Core Agent functionality
+    "Agent",
+    "AgentBuilder",
+    "AgentConfig",
+    "AgentFacade",
+    "AgentFacadeBuilder",
+
+    # Container and Dependency Injection
+    "Container",
+    "container",
+    "reset_container",
+    "configure_container",
+    "reset_container_config",
+
+    # Document and Memory
+    "Document",
+    "DocumentMetadata",
+    "DocumentNode",
+    "DependencyGraph",
+    "DependencyGraphBuilder",
+    "MemoryStore",
+    "MemoryStoreBuilder",
+    "MemoryConfig",
+
+    # Indexing and Vector Storage
+    "Indexer",
+    "IndexerRegistry",
+    "SimpleIndexer",
+    "get_indexer",
+    "VectorStore",
+    "InMemoryVectorStore",
+    "get_vector_store",
+
+    # Tools
+    "Tool",
+    "ToolCollection",
+    "ToolRegistry",
+    "DuckDuckGoSearchTool",
+    "FinalAnswerTool",
+    "GoogleSearchTool",
+    "PythonInterpreterTool",
+    "SpeechToTextTool",
+    "UserInputTool",
+    "VisitWebpageTool",
+    "WikipediaSearchTool",
+    "get_all_default_tools",
+    "get_default_tool",
+    "get_registered_tools",
+    "is_browser_tools_available",
+    "is_mcp_available",
+    "register_tool",
+    "tool",
+    "validate_tool",
+    "validate_tool_attributes",
+    "validate_tool_parameters",
+
+    # Browser Tools
+    "ClickTool",
+    "ClosePopupsTool",
+    "GetPageTextTool",
+    "GoBackTool",
+    "GoToTool",
+    "ScrollTool",
+    "SearchTextTool",
+    "WaitTool",
+    "close_browser",
+    "get_browser_tools",
+    "initialize_browser",
+    "save_screenshot",
+
+    # MCP Tools
+    "MCPClient",
+    "MCPTool",
+
+    # Models and LLM Adapters
+    "LLM",
+    "LLMBuilder",
+    "LLMResponse",
+    "ModelMetadata",
+    "ModelCapability",
+    "ModelRole",
+    "AnthropicAdapter",
+    "HuggingFaceAdapter",
+    "OpenAIAdapter",
+    "VLLMAdapter",
+
+    # Services
+    "ExecutionService",
+    "ExecutionServiceBuilder",
+    "GASAConfigBuilder",
+    "GASAServiceBuilder",
+    "JudgeService",
+    "JudgeServiceBuilder",
+    "MemoryManager",
+    "MemoryManagerBuilder",
+    "ModalityService",
+    "ModalityServiceBuilder",
+    "ModelServiceBuilder",
+    "OrchestrationService",
+    "OrchestrationServiceBuilder",
+    "PlannerService",
+    "PlannerServiceBuilder",
+    "RetrievalService",
+    "RetrievalServiceBuilder",
+    "SelfHealingService",
+    "SelfHealingServiceBuilder",
+    "ToolService",
+    "ToolServiceBuilder",
+    "ValidatorService",
+    "ValidatorServiceBuilder",
+
+    # Validators
+    "ExecutionValidator",
+    "KeywordValidator",
+    "LengthValidator",
+    "RuntimeValidator",
+    "StaticValidator",
+    "ValidationResult",
+    "ValidationStatus",
+    "ValidationStrategy",
+    "Validator",
+    "ValidatorConfig",
+    "ValidatorRegistry",
+    "ValidatorType",
+    "get_validator_registry",
+
+    # Retrieval
+    "CascadeRetriever",
+    "EmbeddingRetriever",
+    "EntropyCalculator",
+    "FaissVectorStore",
+    "GraphExpander",
+    "RetrievalConfig",
+    "TFIDFRetriever",
+
+    # Monitoring
+    "BlameEdge",
+    "BlameGraph",
+    "BlameNode",
+    "MonitoringConfig",
+    "TraceManager",
+    "TraceViewer",
+
+    # Judge
+    "CritiqueFormat",
+    "JudgeAgent",
+    "JudgeConfig",
+    "JudgeResult",
+    "Rubric",
+    "RubricItem",
+    "ScoringDimension",
+
+    # Modality
+    "AudioHandler",
+    "ImageHandler",
+    "ModalityHandler",
+    "ModalityConfig",
+    "ModalityType",
+    "TextHandler",
+    "VideoHandler",
+    "get_handler_for_modality",
+
+    # Orchestration
+    "AgentNode",
+    "CommunicationChannel",
+    "GraphRunner",
+    "GraphRunnerConfig",
+    "NegotiationStrategy",
+    "OrchestrationConfig",
+
+    # Security
+    "RedactingFilter",
+    "Sanitizer",
+    "install_global_filter",
+    "install_import_hook",
+    "redact",
+    "sanitize",
+
+    # Tokenizers
+    "SimpleTokenizer",
+    "TokenizerFactory",
+    "SHADOW_MODEL_AVAILABLE",
+
+    # Registry and Service Locator
+    "PluginRegistry",
+    "PluginType",
+    "RegistryContext",
+    "ServiceLocator",
+
+    # GASA (Graph-Aware Sparse Attention)
+    "BlockDiagonalPacker",
+    "FallbackStrategy",
+    "GASAConfig",
+    "GASAService",
+    "GASAServiceBuilder",
+    "GraphDistanceCalculator",
+    "MaskFormat",
+    "MaskStrategy",
+    "MaskType",
+    "MaskVisualizer",
+    "StandardMaskBuilder",
+    "TokenMapper",
+    "block_pack",
+
+    # Tool Factory and Secure Hot Loading
+    "CodeSigner",
+    "DockerSandbox",
+    "E2BSandbox",
+    "Sandbox",
+    "SandboxType",
+    "SecureHotLoader",
+    "SecureHotLoaderConfig",
+    "SecurityLevel",
+    "SignatureVerifier",
+    "SigningLevel",
+    "ToolFactory",
+    "ToolFactoryConfig",
+    "ToolSpecification",
+    "ToolTemplate",
+    "ToolValidator",
+    "create_secure_hot_loader",
+
+    # Self-Healing
+    "Adapter",
+    "AdapterManager",
+    "AdapterMetadata",
+    "AdapterPriority",
+    "LoRaConfig",
+    "LoRaTrainer",
+    "Patch",
+    "PatchGenerator",
+    "PatchResult",
+    "PatchStatus",
+    "RetryStrategy",
+    "SelfHealingConfig",
+    "SuccessPairCollector",
+    "TrainingMetrics",
+
+    # Core Configuration and Exceptions
+    "Config",
+    "ConfigValue",
+    "ConfigurationError",
+    "ModelError",
+    "ProviderError",
+    "ResourceExhaustedError",
+    "SaplingsError",
+
+    # Core Interfaces and Types
+    "ExecutionContext",
+    "ExecutionResult",
+    "IExecutionService",
+    "GasaConfig",
+    "IGasaService",
+    "IJudgeService",
+    "IMemoryManager",
+    "IModalityService",
+    "IModelCachingService",
+    "ModelCachingConfig",
+    "IModelInitializationService",
+    "ModelInitializationConfig",
+    "ModelContext",
+    "GenerationContext",
+    "IMonitoringService",
+    "MonitoringEvent",
+    "IOrchestrationService",
+    "OrchestrationResult",
+    "IPlannerService",
+    "PlannerConfig",
+    "PlanningResult",
+    "IRetrievalService",
+    "RetrievalResult",
+    "ISelfHealingService",
+    "SelfHealingResult",
+    "IToolService",
+    "ToolConfig",
+    "ToolResult",
+    "IValidatorService",
+    "ValidationConfig",
+    "ValidationContext",
+
+    # Utilities
+    "async_run_sync",
+    "count_tokens",
+    "get_model_sync",
+    "get_tokens_remaining",
+    "run_sync",
+    "split_text_by_tokens",
+    "truncate_text_tokens",
+
+    # Version
+    "__version__",
+]

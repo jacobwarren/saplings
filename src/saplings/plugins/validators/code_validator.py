@@ -13,9 +13,8 @@ import logging
 import re
 from typing import Any
 
-from saplings.core.plugin import PluginType
-from saplings.validator.result import ValidationResult, ValidationStatus
-from saplings.validator.validator import RuntimeValidator
+from saplings.api.registry import PluginType
+from saplings.api.validator import RuntimeValidator, ValidationResult, ValidationStatus
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ class CodeValidator(RuntimeValidator):
         return "Validates code outputs for syntax errors, security issues, and code quality"
 
     @property
-    def plugin_type(self) -> PluginType:
+    def plugin_type(self) -> str:
         """Type of the plugin."""
         return PluginType.VALIDATOR
 
@@ -72,10 +71,9 @@ class CodeValidator(RuntimeValidator):
 
         if not code_blocks:
             return ValidationResult(
-                validator_id=self.id,
                 status=ValidationStatus.WARNING,
                 message="No code blocks found in the output",
-                metadata={"code_blocks_found": 0},
+                metadata={"code_blocks_found": 0, "validator_id": self.id},
             )
 
         # Check each code block
@@ -93,21 +91,20 @@ class CodeValidator(RuntimeValidator):
 
         if issues:
             return ValidationResult(
-                validator_id=self.id,
-                status=ValidationStatus.FAILED,
+                status=ValidationStatus.FAILURE,
                 message=f"Found {len(issues)} code blocks with issues",
                 metadata={
                     "code_blocks_found": len(code_blocks),
                     "code_blocks_with_issues": len(issues),
                     "issues": issues,
+                    "validator_id": self.id,
                 },
             )
 
         return ValidationResult(
-            validator_id=self.id,
-            status=ValidationStatus.PASSED,
+            status=ValidationStatus.SUCCESS,
             message=f"All {len(code_blocks)} code blocks passed validation",
-            metadata={"code_blocks_found": len(code_blocks)},
+            metadata={"code_blocks_found": len(code_blocks), "validator_id": self.id},
         )
 
     def _extract_code_blocks(self, text: str) -> list[tuple[str, str]]:

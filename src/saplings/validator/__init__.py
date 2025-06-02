@@ -3,27 +3,49 @@ from __future__ import annotations
 """
 Validator module for Saplings.
 
-This module provides the validator functionality for Saplings, including:
-- ValidatorRegistry for managing validators
-- Base Validator interface
-- StaticValidator and RuntimeValidator implementations
-- Plugin discovery for validators
+This module provides validator functionality for Saplings.
+For application code, it is recommended to import directly from the top-level
+saplings package.
 """
 
-from saplings.validator.config import ValidatorConfig, ValidatorType
-from saplings.validator.registry import ValidatorRegistry, get_validator_registry
-from saplings.validator.result import ValidationResult, ValidationStatus
-from saplings.validator.validator import (
+# Import from the public API
+from saplings.api.validator import (
+    ExecutionValidator,
+    IValidationStrategy,
+    JudgeBasedValidationStrategy,
+    KeywordValidator,
+    LengthValidator,
+    PiiValidator,
+    ProfanityValidator,
+    RuleBasedValidationStrategy,
     RuntimeValidator,
+    SentimentValidator,
     StaticValidator,
+    ValidationResult,
+    ValidationStatus,
+    ValidationStrategy,
     Validator,
+    ValidatorConfig,
+    ValidatorRegistry,
+    ValidatorType,
+    get_validator_registry,
 )
 
 __all__ = [
+    "ExecutionValidator",
+    "IValidationStrategy",
+    "JudgeBasedValidationStrategy",
+    "KeywordValidator",
+    "LengthValidator",
+    "PiiValidator",
+    "ProfanityValidator",
+    "RuleBasedValidationStrategy",
     "RuntimeValidator",
+    "SentimentValidator",
     "StaticValidator",
     "ValidationResult",
     "ValidationStatus",
+    "ValidationStrategy",
     "Validator",
     "ValidatorConfig",
     "ValidatorRegistry",

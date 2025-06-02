@@ -1,0 +1,35 @@
+from __future__ import annotations
+
+"""
+Retrieval module for Saplings.
+
+This module provides the retrieval functionality for Saplings, including:
+- TF-IDF initial filtering
+- Embedding-based similarity search
+- Graph expansion using the dependency graph
+- Entropy-based termination logic
+- CascadeRetriever for orchestrating the retrieval pipeline
+
+The retrieval module is designed to be efficient and context-aware,
+with a cascaded approach that progressively refines results.
+"""
+
+
+# Import from the public API
+from saplings.api.retrieval import (
+    CascadeRetriever,
+    EmbeddingRetriever,
+    EntropyCalculator,
+    GraphExpander,
+    RetrievalConfig,
+    TFIDFRetriever,
+)
+
+__all__ = [
+    "CascadeRetriever",
+    "EmbeddingRetriever",
+    "EntropyCalculator",
+    "GraphExpander",
+    "RetrievalConfig",
+    "TFIDFRetriever",
+]

@@ -3,141 +3,27 @@ from __future__ import annotations
 """
 Tools module for Saplings.
 
-This module provides functionality for registering and managing tools that can be used by agents.
-It also includes a set of default tools that can be used out of the box.
+This module re-exports the public API from saplings.api.tools.
+For application code, it is recommended to import directly from saplings.api
+or the top-level saplings package.
 """
 
+# Import directly from internal modules to avoid circular imports
+# We can't import from saplings.api.tools due to circular imports
+# The public API test will need to be updated to handle this special case
+from saplings.tools._internal.base import Tool
+from saplings.tools._internal.registry import ToolRegistry, get_registered_tools
+from saplings.tools._internal.registry.tool_registry import register_tool
+from saplings.tools._internal.service import ToolCollection
+from saplings.tools._internal.tool_decorator import tool
 
-from .default_tools import (
-    TOOL_MAPPING,
-    DuckDuckGoSearchTool,
-    FinalAnswerTool,
-    GoogleSearchTool,
-    PythonInterpreterTool,
-    SpeechToTextTool,
-    UserInputTool,
-    VisitWebpageTool,
-    WikipediaSearchTool,
-    get_all_default_tools,
-    get_default_tool,
-)
-from .tool_collection import ToolCollection
-from .tool_decorator import tool
-from .tool_registry import Tool, ToolRegistry, get_registered_tools, register_tool
-from .tool_validation import validate_tool_attributes, validate_tool_parameters
-
-# Import MCP client if dependencies are available
-try:
-    from .mcp_client import MCPClient, MCPTool
-
-    _MCP_AVAILABLE = True
-except ImportError:
-    _MCP_AVAILABLE = False
-
-
-def is_mcp_available():
-    """
-    Check if MCP tools are available.
-
-    Returns
-    -------
-        True if MCP tools are available, False otherwise
-
-    """
-    return _MCP_AVAILABLE
-
-
-# Import browser tools if dependencies are available
-try:
-    from .browser_tools import (
-        ClickTool,
-        ClosePopupsTool,
-        GetPageTextTool,
-        GoBackTool,
-        GoToTool,
-        ScrollTool,
-        SearchTextTool,
-        WaitTool,
-        close_browser,
-        get_browser_tools,
-        initialize_browser,
-        save_screenshot,
-    )
-
-    _BROWSER_TOOLS_AVAILABLE = True
-except ImportError:
-    _BROWSER_TOOLS_AVAILABLE = False
-
-
-def is_browser_tools_available():
-    """
-    Check if browser tools are available.
-
-    Returns
-    -------
-        True if browser tools are available, False otherwise
-
-    """
-    return _BROWSER_TOOLS_AVAILABLE
-
-
+# Re-export symbols
 __all__ = [
-    "TOOL_MAPPING",
-    "DuckDuckGoSearchTool",
-    "FinalAnswerTool",
-    "GoogleSearchTool",
-    # Default tools
-    "PythonInterpreterTool",
-    "SpeechToTextTool",
-    # Core tool classes and functions
     "Tool",
-    # Tool collection
     "ToolCollection",
     "ToolRegistry",
-    "UserInputTool",
-    "VisitWebpageTool",
-    "WikipediaSearchTool",
-    "get_all_default_tools",
-    "get_default_tool",
     "get_registered_tools",
-    # Browser tools availability check
-    "is_browser_tools_available",
-    # MCP tools availability check
-    "is_mcp_available",
     "register_tool",
-    # Tool decorator
     "tool",
-    # Tool validation
-    "validate_tool_attributes",
-    "validate_tool_parameters",
+    # Note: Other tool symbols should be imported from saplings.api.tools
 ]
-
-# Add MCP client to __all__ if available
-if _MCP_AVAILABLE:
-    __all__.extend(
-        [
-            # MCP client
-            "MCPClient",
-            "MCPTool",
-        ]
-    )
-
-# Add browser tools to __all__ if available
-if _BROWSER_TOOLS_AVAILABLE:
-    __all__.extend(
-        [
-            "ClickTool",
-            "ClosePopupsTool",
-            "GetPageTextTool",
-            "GoBackTool",
-            "GoToTool",
-            "ScrollTool",
-            "SearchTextTool",
-            "WaitTool",
-            "close_browser",
-            "get_browser_tools",
-            # Browser tools
-            "initialize_browser",
-            "save_screenshot",
-        ]
-    )

@@ -8,15 +8,8 @@ This module provides a unified caching system for Saplings, with pluggable backe
 consistent key generation, TTL, and eviction policies.
 """
 
-# Import main API components
-
-from saplings.core.caching.api import (
-    Cache,
-    CacheConfig,
-    CacheProvider,
-    CacheStats,
-    CacheStrategy,
-    KeyBuilder,
+# Import from internal modules
+from saplings.core._internal.caching.api import (
     cached,
     cached_property,
     clear_all_caches,
@@ -26,16 +19,20 @@ from saplings.core.caching.api import (
     get_provider,
     register_provider,
 )
-
-# Import model caching components
-from saplings.core.caching.model import (
+from saplings.core._internal.caching.interface import (
+    Cache,
+    CacheConfig,
+    CacheProvider,
+    CacheStats,
+    CacheStrategy,
+)
+from saplings.core._internal.caching.keys import KeyBuilder
+from saplings.core._internal.caching.model import (
     cached_model_response,
     generate_with_cache,
     generate_with_cache_async,
 )
-
-# Import vector caching components
-from saplings.core.caching.vector import (
+from saplings.core._internal.caching.vector import (
     cached_embedding,
     cached_retrieval,
     embed_with_cache,

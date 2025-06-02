@@ -1,142 +1,125 @@
-from __future__ import annotations
+"""
+Saplings: A powerful AI agent framework for building intelligent applications.
 
-"""Saplings - A graphs-first, self-improving agent framework.
+This package provides a comprehensive framework for creating AI agents with
+advanced capabilities including memory management, tool integration, and
+multi-modal processing.
 
-This package provides the core functionality for the Saplings agent framework.
+Example:
+-------
+    >>> from saplings import AgentConfig, Agent
+    >>> config = AgentConfig(
+    ...     provider="openai",
+    ...     model_name="gpt-4o",
+    ...     api_key="your-api-key"
+    ... )
+    >>> agent = Agent(config)
+    >>> result = await agent.run("Calculate the factorial of 5")
 
-Saplings is a lightweight (≤ 1.2 k LOC core) framework for building domain-aware,
-self-critiquing autonomous agents.
-
-Key pillars:
-1. Structural Memory — vector + graph store per corpus.
-2. Cascaded, Entropy-Aware Retrieval — TF-IDF → embeddings → graph expansion.
-3. Guard-railed Generation — Planner with budget, Executor with speculative draft/verify.
-4. Judge & Validator Loop — reflexive scoring, self-healing patches.
-5. Extensibility — hot-pluggable models, tools, validators.
-6. Graph-Aligned Sparse Attention (GASA) — graph-conditioned attention masks for faster, better-grounded reasoning.
 """
 
-# Standard library imports
-import logging  # noqa: E402
-from importlib import import_module  # noqa: E402
+from __future__ import annotations
 
-# Local imports
-from saplings.core import (  # noqa: E402
-    # Core types and interfaces
-    LLM,
-    # Configuration
-    Config,
-    ConfigurationError,
-    ConfigValue,
-    IExecutionService,
-    IMemoryManager,
-    IModalityService,
-    # Interfaces
-    IModelService,
-    IMonitoringService,
-    IOrchestrationService,
-    IPlannerService,
-    IRetrievalService,
-    ISelfHealingService,
-    IToolService,
-    IValidatorService,
-    LLMResponse,
-    ModelCapability,
-    ModelError,
-    ModelMetadata,
-    ModelRole,
-    Plugin,
-    PluginRegistry,
-    PluginType,
-    ProviderError,
-    ResourceExhaustedError,
-    # Exceptions
-    SaplingsError,
-    # Utils
-    count_tokens,
-    discover_plugins,
-    get_tokens_remaining,
-    split_text_by_tokens,
-    truncate_text_tokens,
-)
-from saplings.security.log_filter import install_global_filter  # noqa: E402
-from saplings.version import __version__  # noqa: E402
+# Import core configuration immediately as it's needed early
+from saplings._internal.agent_config import AgentConfig
 
-# Create a module-specific logger
-logger = logging.getLogger(__name__)
+# Use lazy imports to avoid circular dependencies
+# Import only essential items immediately, defer others until needed
+# Import version immediately as it's safe
+from saplings.api.version import __version__
 
-# Install security features on startup
-install_global_filter()
-logger.info("Saplings initialized with security filters")
+# Lazy import cache to avoid repeated imports
+_lazy_cache = {}
 
-# By default, only expose core modules to keep the API surface minimal
-# Higher-level modules can be imported explicitly
-# These imports allow for backwards compatibility but aren't exposed in __all__
 
-# fmt: off
+def __getattr__(name: str):
+    """
+    Lazy import function to load API components when accessed.
+
+    This avoids circular imports by only importing when actually needed.
+    """
+    if name in _lazy_cache:
+        return _lazy_cache[name]
+
+    # Core Agent functionality
+    if name == "Agent":
+        from saplings.api.agent import Agent
+
+        _lazy_cache[name] = Agent
+        return Agent
+    elif name == "AgentBuilder":
+        from saplings.api.agent import AgentBuilder
+
+        _lazy_cache[name] = AgentBuilder
+        return AgentBuilder
+    elif name == "AgentFacade":
+        from saplings.api.agent import AgentFacade
+
+        _lazy_cache[name] = AgentFacade
+        return AgentFacade
+    elif name == "AgentFacadeBuilder":
+        from saplings.api.agent import AgentFacadeBuilder
+
+        _lazy_cache[name] = AgentFacadeBuilder
+        return AgentFacadeBuilder
+
+    # Container and Dependency Injection
+    elif name in (
+        "Container",
+        "container",
+        "reset_container",
+        "configure_container",
+        "reset_container_config",
+    ):
+        from saplings.api.di import (
+            Container,
+            configure_container,
+            container,
+            reset_container,
+            reset_container_config,
+        )
+
+        _lazy_cache.update(
+            {
+                "Container": Container,
+                "container": container,
+                "reset_container": reset_container,
+                "configure_container": configure_container,
+                "reset_container_config": reset_container_config,
+            }
+        )
+        return _lazy_cache[name]
+
+    # Tools
+    elif name == "tool":
+        from saplings.api.tools import tool
+
+        _lazy_cache[name] = tool
+        return tool
+
+    # For any other attribute, raise AttributeError immediately
+    # This prevents circular imports that would occur if we tried to import from saplings.api
+    # Users should import other components from saplings.api directly
+    else:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+# Define a minimal __all__ for the most commonly used items
 __all__ = [
-    # Core types and interfaces
-    "Config",
-    "ConfigurationError",
-    "ConfigValue",
-    "IExecutionService",
-    "IMemoryManager",
-    "IModalityService",
-    "IModelService",
-    "IMonitoringService",
-    "IOrchestrationService",
-    "IPlannerService",
-    "IRetrievalService",
-    "ISelfHealingService",
-    "IToolService",
-    "IValidatorService",
-    "LLM",
-    "LLMResponse",
-    "ModelCapability",
-    "ModelError",
-    "ModelMetadata",
-    "ModelRole",
-    "Plugin",
-    "PluginRegistry",
-    "PluginType",
-    "ProviderError",
-    "ResourceExhaustedError",
-    "SaplingsError",
-    # Utils
-    "count_tokens",
-    "discover_plugins",
-    "get_tokens_remaining",
-    "split_text_by_tokens",
-    "truncate_text_tokens",
-    # Version
+    # Core essentials
     "__version__",
+    "AgentConfig",
+    # Core Agent functionality (lazy loaded)
+    "Agent",
+    "AgentBuilder",
+    "AgentFacade",
+    "AgentFacadeBuilder",
+    # Tools (lazy loaded)
+    "tool",
+    # Container and Dependency Injection (lazy loaded)
+    "Container",
+    "container",
+    "reset_container",
+    "configure_container",
+    "reset_container_config",
 ]
-# fmt: on
-
-# Lazy imports to avoid circular dependencies
-# These will be imported when accessed but aren't loaded immediately
-
-
-def __getattr__(name: str) -> object:
-    """Lazy import mechanism for modules to avoid circular imports."""
-    # Map attribute names to their module and attribute
-    lazy_imports = {
-        "Agent": ("saplings.agent", "Agent"),
-        "AgentConfig": ("saplings.agent_config", "AgentConfig"),
-        "AgentFacade": ("saplings.agent_facade", "AgentFacade"),
-        "AnthropicAdapter": ("saplings.adapters", "AnthropicAdapter"),
-        "OpenAIAdapter": ("saplings.adapters", "OpenAIAdapter"),
-        "HuggingFaceAdapter": ("saplings.adapters", "HuggingFaceAdapter"),
-        "VLLMAdapter": ("saplings.adapters", "VLLMAdapter"),
-    }
-
-    if name in lazy_imports:
-        module_name, attr_name = lazy_imports[name]
-        module = import_module(module_name)
-        return getattr(module, attr_name)
-
-    msg = f"module 'saplings' has no attribute '{name}'"
-    raise AttributeError(msg)
-
-
-# Note: These classes are already included in __all__ for easier importing

@@ -78,7 +78,7 @@ class TestPromptSanitization:
         assert "sudo chmod" not in sanitized
         assert "curl -s" not in sanitized
         assert "bash" not in sanitized
-        assert "[FILTERED]" in sanitized
+        assert "[COMMAND]" in sanitized
 
     def test_sanitize_document_collection(self) -> None:
         """Test sanitizing a collection of documents."""

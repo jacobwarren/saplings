@@ -26,7 +26,9 @@ class TestInMemoryVectorStore:
         assert store.config is not None
 
         # Test with custom configuration
-        config = MemoryConfig(vector_store={"similarity_metric": SimilarityMetric.COSINE})
+        config = MemoryConfig.default()
+        # Modify the similarity metric
+        config.vector_store.similarity_metric = SimilarityMetric.COSINE
         store = InMemoryVectorStore(config=config)
         assert store.similarity_metric == SimilarityMetric.COSINE
 
@@ -53,8 +55,11 @@ class TestInMemoryVectorStore:
 
         # Test retrieval
         retrieved_doc = store.get("test1")
+        assert retrieved_doc is not None
         assert retrieved_doc.id == doc.id
         assert retrieved_doc.content == doc.content
+        assert retrieved_doc.embedding is not None
+        assert doc.embedding is not None
         assert np.array_equal(retrieved_doc.embedding, doc.embedding)
 
     def test_add_documents(self) -> None:
@@ -109,8 +114,10 @@ class TestInMemoryVectorStore:
         assert len(results) == self.EXPECTED_COUNT_1
         assert results[0][0].id == docs[0].id  # First result should be the query document
 
-        # Test with filter
-        results = store.search(docs[0].embedding, limit=5, filter_dict={"source": "test1.txt"})
+        # Test with filter using metadata prefix
+        results = store.search(
+            docs[0].embedding, limit=5, filter_dict={"metadata.source": "test1.txt"}
+        )
         assert len(results) == 1
         assert results[0][0].id == "test1"
 
@@ -172,8 +179,12 @@ class TestInMemoryVectorStore:
 
         # Verify document is updated
         retrieved_doc = store.get("test_update")
+        assert retrieved_doc is not None
         assert retrieved_doc.content == "Updated content"
+        assert isinstance(retrieved_doc.metadata, DocumentMetadata)
         assert retrieved_doc.metadata.source == "updated.txt"
+        assert retrieved_doc.embedding is not None
+        assert updated_doc.embedding is not None
         assert np.array_equal(retrieved_doc.embedding, updated_doc.embedding)
 
     def test_list(self) -> None:
@@ -200,8 +211,8 @@ class TestInMemoryVectorStore:
         docs = store.list(limit=5)
         assert len(docs) == self.EXPECTED_COUNT_1
 
-        # List with filter
-        docs = store.list(filter_dict={"source": "test1.txt"})
+        # List with filter using metadata prefix
+        docs = store.list(filter_dict={"metadata.source": "test1.txt"})
         assert len(docs) == 1
         assert docs[0].id == "test1"
 
@@ -225,8 +236,8 @@ class TestInMemoryVectorStore:
         count = store.count()
         assert count == 10
 
-        # Count with filter
-        count = store.count(filter_dict={"source": "test1.txt"})
+        # Count with filter using metadata prefix
+        count = store.count(filter_dict={"metadata.source": "test1.txt"})
         assert count == 1
 
     def test_clear(self) -> None:
@@ -286,5 +297,9 @@ class TestInMemoryVectorStore:
                 loaded_doc = new_store.get(doc.id)
                 assert loaded_doc is not None
                 assert loaded_doc.content == doc.content
+                assert isinstance(loaded_doc.metadata, DocumentMetadata)
+                assert isinstance(doc.metadata, DocumentMetadata)
                 assert loaded_doc.metadata.source == doc.metadata.source
+                assert loaded_doc.embedding is not None
+                assert doc.embedding is not None
                 assert np.array_equal(loaded_doc.embedding, doc.embedding)

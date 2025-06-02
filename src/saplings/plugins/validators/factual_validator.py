@@ -12,13 +12,12 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-from saplings.core.plugin import PluginType
-from saplings.retrieval import CascadeRetriever, RetrievalConfig
-from saplings.validator.result import ValidationResult, ValidationStatus
-from saplings.validator.validator import RuntimeValidator
+from saplings.api.registry import PluginType
+from saplings.api.retrieval import CascadeRetriever, RetrievalConfig
+from saplings.api.validator import RuntimeValidator, ValidationResult, ValidationStatus
 
 if TYPE_CHECKING:
-    from saplings.memory.document import Document
+    from saplings.api.memory.document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ class FactualValidator(RuntimeValidator):
         return "Validates outputs for factual accuracy against reference documents"
 
     @property
-    def plugin_type(self) -> PluginType:
+    def plugin_type(self) -> str:
         """Type of the plugin."""
         return PluginType.VALIDATOR
 
@@ -81,10 +80,9 @@ class FactualValidator(RuntimeValidator):
         memory_store = kwargs.get("memory_store")
         if memory_store is None:
             return ValidationResult(
-                validator_id=self.id,
                 status=ValidationStatus.ERROR,
                 message="No memory store provided for factual validation",
-                metadata={"error": "missing_memory_store"},
+                metadata={"error": "missing_memory_store", "validator_id": self.id},
             )
 
         # Initialize retriever if needed
@@ -101,10 +99,9 @@ class FactualValidator(RuntimeValidator):
 
         if not statements:
             return ValidationResult(
-                validator_id=self.id,
                 status=ValidationStatus.WARNING,
                 message="No statements found to validate",
-                metadata={"statements_found": 0},
+                metadata={"statements_found": 0, "validator_id": self.id},
             )
 
         # Limit the number of statements to check
@@ -150,24 +147,24 @@ class FactualValidator(RuntimeValidator):
 
         if issues:
             return ValidationResult(
-                validator_id=self.id,
-                status=ValidationStatus.FAILED,
+                status=ValidationStatus.FAILURE,
                 message=f"Found {len(issues)} statements with factual issues",
                 metadata={
                     "statements_checked": len(statements),
                     "statements_with_issues": len(issues),
                     "issues": issues,
                     "threshold": threshold,
+                    "validator_id": self.id,
                 },
             )
 
         return ValidationResult(
-            validator_id=self.id,
-            status=ValidationStatus.PASSED,
+            status=ValidationStatus.SUCCESS,
             message=f"All {len(statements)} statements passed factual validation",
             metadata={
                 "statements_checked": len(statements),
                 "threshold": threshold,
+                "validator_id": self.id,
             },
         )
 

@@ -56,15 +56,15 @@ class TestGASAService:
         # Create GASA service with patch
         with (
             patch("saplings.gasa.service.gasa_service.BlockDiagonalPacker") as mock_packer_class,
-            patch("saplings.gasa.service.gasa_service.PromptComposer") as mock_composer_class,
+            patch("saplings.gasa.service.gasa_service.GASAPromptComposer") as mock_composer_class,
         ):
             # Setup mock packer
             mock_packer = MagicMock()
-            mock_packer.reorder_tokens.return_value = {
-                "input_ids": list(range(30)),
-                "attention_mask": np.ones((30, 30), dtype=np.int32),
-                "reordering": list(range(30)),
-            }
+            mock_packer.reorder_tokens.return_value = (
+                list(range(30)),
+                np.ones((30, 30), dtype=np.int32),
+                {i: i for i in range(30)},
+            )
             mock_packer_class.return_value = mock_packer
 
             # Setup mock composer
@@ -89,7 +89,7 @@ class TestGASAService:
         assert self.service.config is self.config
         assert self.service.mask_builder is not None
         # Access to packer and prompt_composer is through private attributes
-        assert hasattr(self.service, "_packer")
+        assert hasattr(self.service, "_block_packer")
         assert hasattr(self.service, "_prompt_composer")
 
     def test_build_mask(self) -> None:
@@ -135,29 +135,32 @@ class TestGASAService:
         """Test applying GASA with block diagonal fallback."""
         prompt = f"Document 1: {self.doc1.content}\nDocument 2: {self.doc2.content}\nDocument 3: {self.doc3.content}\nSummary:"
 
-        # Reset mock to ensure clean state
-        self.mock_packer.reset_mock()
+        # Set fallback strategy to block diagonal
+        self.service.config.fallback_strategy = FallbackStrategy.BLOCK_DIAGONAL
 
-        # Set up return value
-        self.mock_packer.reorder_tokens.return_value = {
-            "input_ids": list(range(30)),
-            "attention_mask": np.ones((30, 30), dtype=np.int32),
-            "reordering": list(range(30)),
-        }
+        # Create a mock for the reorder_tokens method
+        with patch.object(self.service, "reorder_tokens") as mock_reorder:
+            # Set up return value
+            mock_reorder.return_value = (
+                list(range(30)),
+                np.ones((30, 30), dtype=np.int32),
+                {i: i for i in range(30)},
+            )
 
-        # Call the method
-        result = self.service.apply_gasa(
-            documents=[self.doc1, self.doc2, self.doc3],
-            prompt=prompt,
-            input_ids=list(range(30)),
-            attention_mask=np.ones((30,), dtype=np.int32),
-            model_supports_sparse_attention=False,
-        )
+            # Call the method
+            result = self.service.apply_gasa(
+                documents=[self.doc1, self.doc2, self.doc3],
+                prompt=prompt,
+                input_ids=list(range(30)),
+                attention_mask=np.ones((30,), dtype=np.int32),
+                model_supports_sparse_attention=False,
+            )
 
-        # Verify results
-        assert result["input_ids"] == list(range(30))
-        assert np.array_equal(result["attention_mask"], np.ones((30, 30), dtype=np.int32))
-        self.mock_packer.reorder_tokens.assert_called_once()
+            # Verify results
+            assert result["input_ids"] == list(range(30))
+            assert np.array_equal(result["attention_mask"], np.ones((30, 30), dtype=np.int32))
+            assert "position_mapping" in result
+            mock_reorder.assert_called_once()
 
     def test_apply_gasa_with_prompt_composer(self) -> None:
         """Test applying GASA with prompt composer fallback."""
@@ -166,27 +169,26 @@ class TestGASAService:
         # Set fallback strategy to prompt composer
         self.service.config.fallback_strategy = FallbackStrategy.PROMPT_COMPOSER
 
-        # Reset mock to ensure clean state
-        self.mock_composer.reset_mock()
+        # Create a mock for the compose_prompt method
+        with patch.object(self.service, "compose_prompt") as mock_compose:
+            # Set up return value
+            mock_compose.return_value = "Composed prompt"
 
-        # Set up return value
-        self.mock_composer.compose_prompt.return_value = "Composed prompt"
+            # Call the method
+            result = self.service.apply_gasa(
+                documents=[self.doc1, self.doc2, self.doc3],
+                prompt=prompt,
+                model_supports_sparse_attention=False,
+                system_prompt="System prompt",
+            )
 
-        # Call the method
-        result = self.service.apply_gasa(
-            documents=[self.doc1, self.doc2, self.doc3],
-            prompt=prompt,
-            model_supports_sparse_attention=False,
-            system_prompt="System prompt",
-        )
-
-        # Verify results
-        assert result["prompt"] == "Composed prompt"
-        self.mock_composer.compose_prompt.assert_called_once_with(
-            documents=[self.doc1, self.doc2, self.doc3],
-            prompt=prompt,
-            system_prompt="System prompt",
-        )
+            # Verify results
+            assert result["prompt"] == "Composed prompt"
+            mock_compose.assert_called_once_with(
+                documents=[self.doc1, self.doc2, self.doc3],
+                prompt=prompt,
+                system_prompt="System prompt",
+            )
 
     def test_apply_gasa_disabled(self) -> None:
         """Test applying GASA when disabled."""

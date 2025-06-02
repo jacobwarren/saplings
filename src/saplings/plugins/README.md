@@ -90,11 +90,32 @@ class MyMemoryStore(MemoryStorePlugin, VectorStore):
 Then, register the plugin in the `__init__.py` file:
 
 ```python
-from saplings.core.plugin import register_plugin
+from saplings.core.plugin import RegistrationMode, register_plugin
 from saplings.plugins.memory_stores.my_memory_store import MyMemoryStore
 
-register_plugin(MyMemoryStore)
+# Use SKIP mode to avoid warnings if the plugin is already registered
+register_plugin(MyMemoryStore, mode=RegistrationMode.SKIP)
 ```
+
+## Component-Specific Registries
+
+For more advanced use cases, you can create isolated registries for different components:
+
+```python
+from saplings.core.plugin import PluginRegistryManager, register_plugin
+from my_plugin import MyPlugin
+
+# Create a registry manager
+manager = PluginRegistryManager()
+
+# Get component-specific registries
+memory_registry = manager.get_registry("memory")
+
+# Register plugins in specific registries
+register_plugin(MyPlugin, registry=memory_registry, mode=RegistrationMode.SKIP)
+```
+
+This approach helps avoid plugin conflicts between different components.
 
 ## Plugin Entry Points
 

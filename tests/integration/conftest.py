@@ -55,7 +55,6 @@ def mock_dependencies():
 
     # Create mocks for all the services
     services_mock = MagicMock()
-    services_mock.ModelService = MagicMock()
     services_mock.MonitoringService = MagicMock()
     services_mock.MemoryManager = MagicMock()
     services_mock.RetrievalService = MagicMock()
@@ -67,7 +66,6 @@ def mock_dependencies():
     services_mock.ModalityService = MagicMock()
     services_mock.OrchestrationService = MagicMock()
     sys.modules["saplings.services"] = services_mock
-    sys.modules["saplings.services.model_service"] = MagicMock()
     sys.modules["saplings.services.monitoring_service"] = MagicMock()
     sys.modules["saplings.services.memory_manager"] = MagicMock()
     sys.modules["saplings.services.retrieval_service"] = MagicMock()

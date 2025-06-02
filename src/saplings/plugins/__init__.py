@@ -2,22 +2,26 @@ from __future__ import annotations
 
 """Plugin modules for the Saplings framework."""
 
-# Import the register_all_plugins function
+import logging
 
-from saplings.plugins.register import register_all_plugins
+# Import from the public API
+from saplings.api.plugins import (
+    CodeIndexer,
+    CodeValidator,
+    FactualValidator,
+    SecureMemoryStore,
+)
 
-# Import plugins to make them available
-try:
-    # Import the plugin classes
-    from saplings.plugins.indexers.code_indexer import CodeIndexer
-    from saplings.plugins.memory_stores.secure_memory_store import SecureMemoryStore
-    from saplings.plugins.validators.code_validator import CodeValidator
-    from saplings.plugins.validators.factual_validator import FactualValidator
+# Import register_all_plugins from internal implementation
+from saplings.plugins._internal.loader import register_all_plugins
 
-    # Register the plugins automatically
-    register_all_plugins()
-except ImportError:
-    pass
+# Set up logging
+logger = logging.getLogger(__name__)
+
+# Don't register plugins automatically during import
+# This prevents side effects and circular dependencies
+# Users should call register_all_plugins() explicitly when needed
+logger.debug("Plugin classes imported successfully")
 
 __all__ = [
     "CodeIndexer",

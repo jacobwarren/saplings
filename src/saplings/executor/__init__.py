@@ -3,6 +3,10 @@ from __future__ import annotations
 """
 Executor module for Saplings.
 
+This module re-exports the public API from saplings.api.executor.
+For application code, it is recommended to import directly from saplings.api
+or the top-level saplings package.
+
 This module provides the executor functionality for Saplings, including:
 - Speculative draft generation with low temperature
 - Streaming output capabilities
@@ -12,14 +16,19 @@ This module provides the executor functionality for Saplings, including:
 - Performance optimizations for latency reduction
 """
 
-
-from saplings.executor.config import ExecutorConfig, RefinementStrategy, VerificationStrategy
-from saplings.executor.executor import ExecutionResult, Executor
+# Import from the public API
+from saplings.api.executor import (
+    ExecutionResult,
+    Executor,
+    ExecutorConfig,
+    RefinementStrategy,
+    ValidationStrategy,
+)
 
 __all__ = [
     "ExecutionResult",
     "Executor",
     "ExecutorConfig",
     "RefinementStrategy",
-    "VerificationStrategy",
+    "ValidationStrategy",
 ]

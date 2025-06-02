@@ -1,16 +1,45 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 
 from saplings.gasa.config import FallbackStrategy, GASAConfig, MaskStrategy
+from saplings.gasa.core.chunk_info import ChunkInfo
 from saplings.gasa.mask_builder import MaskBuilder, MaskFormat, MaskType
-from saplings.memory import DependencyGraph, Document
+from saplings.memory import DependencyGraph
+from saplings.memory.graph import Node
 
 """
 Unit tests for the GASA mask builder.
 """
+
+
+# Create a document class that satisfies the Document protocol expected by MaskBuilder
+class Document:
+    """Document class that satisfies the Document protocol for MaskBuilder."""
+
+    def __init__(self, id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
+        """Initialize document with required attributes."""
+        self.id = id
+        self.content = content
+        self.metadata: Dict[str, Any] | None = metadata
+        self.chunks: List[Any] | None = []
+
+    def create_chunks(self) -> Sequence[Any]:
+        """Create chunks from the document."""
+        return self.chunks or []
+
+    # Parameter names must match the protocol
+    def chunk(self, chunk_size: int, chunk_overlap: int = 0) -> List[Any]:
+        """Chunk the document content."""
+        # Simple implementation that returns self as a single chunk
+        # Use parameters to avoid linting warnings
+        if chunk_size <= 0 or chunk_overlap < 0:
+            return []
+        return [self]
 
 
 class TestMaskBuilder:
@@ -26,10 +55,13 @@ class TestMaskBuilder:
         self.doc2 = Document(id="doc2", content="Document 2 content")
         self.doc3 = Document(id="doc3", content="Document 3 content")
 
-        # Add documents to graph
-        self.graph.add_document_node(self.doc1)
-        self.graph.add_document_node(self.doc2)
-        self.graph.add_document_node(self.doc3)
+        # Add nodes to the graph
+        node1 = Node(id="doc1")
+        node2 = Node(id="doc2")
+        node3 = Node(id="doc3")
+        self.graph.add_node(node1)
+        self.graph.add_node(node2)
+        self.graph.add_node(node3)
 
         # Add relationships
         self.graph.add_relationship("doc1", "doc2", "relates_to", 0.9)
@@ -44,7 +76,7 @@ class TestMaskBuilder:
             global_tokens=[],
             summary_token="",
             add_summary_token=False,
-            block_size=0,
+            block_size=64,
             overlap=0,
             soft_mask_temperature=1.0,
             cache_masks=False,
@@ -64,12 +96,9 @@ class TestMaskBuilder:
 
         # Create mock tokenizer
         self.mock_tokenizer = MagicMock()
-        self.mock_tokenizer.return_value = MagicMock(
-            input_ids=MagicMock(
-                # Mock a sequence of 30 tokens
-                tolist=MagicMock(return_value=list(range(30)))
-            )
-        )
+        mock_tokenizer_output = MagicMock()
+        mock_tokenizer_output.input_ids = list(range(30))
+        self.mock_tokenizer.return_value = mock_tokenizer_output
 
         # Create mask builder with mock tokenizer
         self.builder = MaskBuilder(graph=self.graph, config=self.config)
@@ -91,11 +120,29 @@ class TestMaskBuilder:
             # Create chunk info mapping
             chunk_infos = [
                 # First 10 tokens belong to doc1
-                {"doc_id": "doc1", "chunk_id": 0, "start": 0, "end": 10},
+                ChunkInfo(
+                    chunk_id="chunk1",
+                    document_id="doc1",
+                    start_token=0,
+                    end_token=10,
+                    node_id="doc1",
+                ),
                 # Next 10 tokens belong to doc2
-                {"doc_id": "doc2", "chunk_id": 0, "start": 10, "end": 20},
+                ChunkInfo(
+                    chunk_id="chunk2",
+                    document_id="doc2",
+                    start_token=10,
+                    end_token=20,
+                    node_id="doc2",
+                ),
                 # Last 10 tokens belong to doc3
-                {"doc_id": "doc3", "chunk_id": 0, "start": 20, "end": 30},
+                ChunkInfo(
+                    chunk_id="chunk3",
+                    document_id="doc3",
+                    start_token=20,
+                    end_token=30,
+                    node_id="doc3",
+                ),
             ]
             mock_map.return_value = chunk_infos
 
@@ -141,7 +188,7 @@ class TestMaskBuilder:
             global_tokens=[],
             summary_token="",
             add_summary_token=False,
-            block_size=0,
+            block_size=64,
             overlap=0,
             soft_mask_temperature=1.0,
             cache_masks=False,
@@ -169,11 +216,29 @@ class TestMaskBuilder:
             # Create chunk info mapping
             chunk_infos = [
                 # First 10 tokens belong to doc1
-                {"doc_id": "doc1", "chunk_id": 0, "start": 0, "end": 10},
+                ChunkInfo(
+                    chunk_id="chunk1",
+                    document_id="doc1",
+                    start_token=0,
+                    end_token=10,
+                    node_id="doc1",
+                ),
                 # Next 10 tokens belong to doc2
-                {"doc_id": "doc2", "chunk_id": 0, "start": 10, "end": 20},
+                ChunkInfo(
+                    chunk_id="chunk2",
+                    document_id="doc2",
+                    start_token=10,
+                    end_token=20,
+                    node_id="doc2",
+                ),
                 # Last 10 tokens belong to doc3
-                {"doc_id": "doc3", "chunk_id": 0, "start": 20, "end": 30},
+                ChunkInfo(
+                    chunk_id="chunk3",
+                    document_id="doc3",
+                    start_token=20,
+                    end_token=30,
+                    node_id="doc3",
+                ),
             ]
             mock_map.return_value = chunk_infos
 
@@ -218,11 +283,29 @@ class TestMaskBuilder:
             # Create chunk info mapping
             chunk_infos = [
                 # First 10 tokens belong to doc1
-                {"doc_id": "doc1", "chunk_id": 0, "start": 0, "end": 10},
+                ChunkInfo(
+                    chunk_id="chunk1",
+                    document_id="doc1",
+                    start_token=0,
+                    end_token=10,
+                    node_id="doc1",
+                ),
                 # Next 10 tokens belong to doc2
-                {"doc_id": "doc2", "chunk_id": 0, "start": 10, "end": 20},
+                ChunkInfo(
+                    chunk_id="chunk2",
+                    document_id="doc2",
+                    start_token=10,
+                    end_token=20,
+                    node_id="doc2",
+                ),
                 # Last 10 tokens belong to doc3
-                {"doc_id": "doc3", "chunk_id": 0, "start": 20, "end": 30},
+                ChunkInfo(
+                    chunk_id="chunk3",
+                    document_id="doc3",
+                    start_token=20,
+                    end_token=30,
+                    node_id="doc3",
+                ),
             ]
             mock_map.return_value = chunk_infos
 
