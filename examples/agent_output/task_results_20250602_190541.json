@@ -1,0 +1,24 @@
+{
+  "task": "Write a short story about a robot learning to paint, in exactly 3 sentences.",
+  "plan": [],
+  "results": [
+    {
+      "result": "Mock response for: Write a short story about a robot learning to paint, in exactly 3 sentences."
+    }
+  ],
+  "judgment": {
+    "score": 1.0,
+    "feedback": "No validation rules defined - validation passed",
+    "is_valid": true,
+    "details": {}
+  },
+  "input_modalities": [
+    "text"
+  ],
+  "output_modalities": [
+    "text"
+  ],
+  "modality_outputs": {
+    "text": null
+  }
+}

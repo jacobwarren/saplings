@@ -147,7 +147,26 @@ class Agent:
         )
         self.config = config
 
+        # Track initialization state
+        self._initialized = False
+
         logger.info("Agent initialized using dependency injection with interfaces")
+
+    async def _initialize_async(self) -> None:
+        """
+        Initialize the agent asynchronously.
+
+        This method handles the async initialization of services, particularly
+        initializing the model and any services that depend on it.
+        """
+        if self._initialized:
+            return
+            
+        # Initialize the model in the facade, which will also initialize
+        # the ExecutionService with the model
+        await self._facade.init_model()
+        self._initialized = True
+        logger.info("Agent async initialization completed")
 
     def _ensure_model_factory_initialized(self) -> None:
         """
@@ -291,6 +310,9 @@ class Agent:
             use the run_sync() method which handles the async execution internally.
 
         """
+        # Ensure the agent is properly initialized
+        await self._initialize_async()
+        
         result = await self._facade.run(
             task=task,
             input_modalities=input_modalities,
@@ -310,6 +332,86 @@ class Agent:
             return result["final_result"]
 
         return result
+
+    def run_sync(
+        self,
+        task: str,
+        input_modalities: list[str] | None = None,
+        output_modalities: list[str] | None = None,
+        use_tools: bool = True,
+        skip_retrieval: bool = False,
+        skip_planning: bool = False,
+        skip_validation: bool = False,
+        context: list[Any] | None = None,
+        plan: list[Any] | None = None,
+        timeout: float | None = None,
+        save_results: bool = True,
+    ) -> dict[str, Any] | str:
+        """
+        Synchronous wrapper for the run() method.
+
+        This method provides a convenient synchronous interface for the async run() method.
+        It handles the async execution internally using asyncio.
+
+        Args:
+        ----
+            task: The task to execute
+            input_modalities: Optional list of input modalities
+            output_modalities: Optional list of output modalities
+            use_tools: Whether to use tools during execution
+            skip_retrieval: Whether to skip retrieval phase
+            skip_planning: Whether to skip planning phase
+            skip_validation: Whether to skip validation phase
+            context: Optional context for the task
+            plan: Optional pre-defined plan
+            timeout: Optional timeout in seconds
+            save_results: Whether to save results
+
+        Returns:
+        -------
+            The result of the task execution (string or dict)
+
+        Raises:
+        ------
+            RuntimeError: If called from within an async context
+            Exception: Any exception raised by the underlying async method
+
+        Example:
+        -------
+            agent = Agent(config)
+            result = agent.run_sync("What is the capital of France?")
+            print(result)  # "The capital of France is Paris."
+
+        """
+        import asyncio
+
+        try:
+            # Check if we're already in an async context
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                raise RuntimeError(
+                    "Cannot call run_sync() from async context. Use 'await agent.run()' instead."
+                )
+        except RuntimeError:
+            # No running loop, which is what we want for sync execution
+            pass
+
+        # Run the async method in a new event loop
+        return asyncio.run(
+            self.run(
+                task=task,
+                input_modalities=input_modalities,
+                output_modalities=output_modalities,
+                use_tools=use_tools,
+                skip_retrieval=skip_retrieval,
+                skip_planning=skip_planning,
+                skip_validation=skip_validation,
+                context=context,
+                plan=plan,
+                timeout=timeout,
+                save_results=save_results,
+            )
+        )
 
     async def add_documents_from_directory(self, directory: str, extension=".txt"):
         """Add documents from a directory."""

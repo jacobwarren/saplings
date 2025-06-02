@@ -58,35 +58,35 @@ async def gasa_with_local_documents():
     ml_documents = [
         {
             "content": "Linear regression is a statistical method used to model the relationship between a dependent variable and independent variables.",
-            "metadata": {"topic": "linear_regression", "category": "algorithms", "difficulty": "beginner"}
+            "metadata": {"topic": "linear_regression", "category": "algorithms", "difficulty": "beginner", "source": "ml_textbook"}
         },
         {
             "content": "Logistic regression is used for binary classification problems where the output is categorical.",
-            "metadata": {"topic": "logistic_regression", "category": "algorithms", "difficulty": "beginner", "relates_to": "linear_regression"}
+            "metadata": {"topic": "logistic_regression", "category": "algorithms", "difficulty": "beginner", "relates_to": "linear_regression", "source": "ml_textbook"}
         },
         {
             "content": "Decision trees make predictions by splitting data based on feature values to create a tree-like model.",
-            "metadata": {"topic": "decision_trees", "category": "algorithms", "difficulty": "intermediate"}
+            "metadata": {"topic": "decision_trees", "category": "algorithms", "difficulty": "intermediate", "source": "ml_textbook"}
         },
         {
             "content": "Random forests combine multiple decision trees to improve prediction accuracy and reduce overfitting.",
-            "metadata": {"topic": "random_forest", "category": "algorithms", "difficulty": "intermediate", "relates_to": "decision_trees"}
+            "metadata": {"topic": "random_forest", "category": "algorithms", "difficulty": "intermediate", "relates_to": "decision_trees", "source": "ml_textbook"}
         },
         {
             "content": "Support Vector Machines find the optimal boundary between classes by maximizing the margin.",
-            "metadata": {"topic": "svm", "category": "algorithms", "difficulty": "advanced"}
+            "metadata": {"topic": "svm", "category": "algorithms", "difficulty": "advanced", "source": "ml_textbook"}
         },
         {
             "content": "K-means clustering groups data into k clusters based on similarity without labeled examples.",
-            "metadata": {"topic": "k_means", "category": "unsupervised", "difficulty": "intermediate"}
+            "metadata": {"topic": "k_means", "category": "unsupervised", "difficulty": "intermediate", "source": "ml_textbook"}
         },
         {
             "content": "Neural networks consist of interconnected layers of neurons that can learn complex patterns.",
-            "metadata": {"topic": "neural_networks", "category": "deep_learning", "difficulty": "advanced"}
+            "metadata": {"topic": "neural_networks", "category": "deep_learning", "difficulty": "advanced", "source": "ml_textbook"}
         },
         {
             "content": "Gradient descent is an optimization algorithm used to minimize loss functions in machine learning.",
-            "metadata": {"topic": "gradient_descent", "category": "optimization", "difficulty": "intermediate"}
+            "metadata": {"topic": "gradient_descent", "category": "optimization", "difficulty": "intermediate", "source": "ml_textbook"}
         }
     ]
     
@@ -244,7 +244,8 @@ async def specialized_gasa_strategies():
         
         # Add documents
         for doc in docs:
-            await agent.add_document(content=doc, metadata={"strategy": strategy_config["name"]})
+            metadata = {"complexity": "high", "domain": "research", "source": "research_papers"}
+            await agent.add_document(content=doc, metadata=metadata)
         
         # Test the strategy
         response = await agent.run(query)

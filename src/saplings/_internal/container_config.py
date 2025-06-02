@@ -178,21 +178,21 @@ def configure_execution_service(config: Any) -> None:
         ExecutionServiceBuilder,
     )
 
-    # Register the execution service factory with lazy model initialization
+    # Register the execution service factory with lazy initialization
     def create_execution_service():
-        # Create the execution service without a model (lazy initialization)
-        # The model will be provided when the service is first used
-        return (
+        # Create the execution service without model (lazy initialization)
+        # The model will be provided when the service is actually used
+        service = (
             ExecutionServiceBuilder()
-            .with_config({"validation_type": config.executor_validation_type})
+            .with_config(config)  # Pass the full config instead of just a dict
             .build()
         )
+        
+        # The service will be initialized with the model when needed
+        # through the async initialize() method
+        return service
 
-    container.register(
-        IExecutionService,
-        factory=create_execution_service,
-        singleton=True,
-    )
+    container.register(IExecutionService, factory=create_execution_service, singleton=True)
 
     logger.debug("Registered execution service with container")
 

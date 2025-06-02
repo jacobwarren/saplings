@@ -10,7 +10,7 @@ This module provides the graph-based expansion for retrieval results.
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 # Import from public API
 from saplings.retrieval._internal.config import GraphConfig, RetrievalConfig
@@ -33,7 +33,7 @@ class GraphExpander:
 
     def __init__(
         self,
-        memory_store: MemoryStore,
+        memory_store: Any,  # Can be MemoryStore or MemoryManager
         config: RetrievalConfig | GraphConfig | None = None,
     ) -> None:
         """
@@ -46,7 +46,14 @@ class GraphExpander:
 
         """
         self.memory_store = memory_store
-        self.graph = memory_store.graph
+        
+        # Handle both MemoryStore and MemoryManager objects
+        if hasattr(memory_store, 'graph'):
+            self.graph = memory_store.graph
+        elif hasattr(memory_store, 'dependency_graph'):
+            self.graph = memory_store.dependency_graph
+        else:
+            raise ValueError(f"Memory store {type(memory_store)} does not have graph or dependency_graph attribute")
 
         # Extract graph config from RetrievalConfig if needed
         if config is None:

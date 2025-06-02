@@ -23,14 +23,19 @@ class IExecutionService(ABC):
     """Interface for execution operations."""
 
     @abstractmethod
-    def initialize(self) -> None:
+    def initialize(self, model=None) -> None:
         """
         Initialize the execution service.
 
         This method should be called after the service is created to ensure
-        all dependencies are properly initialized.
+        all dependencies are properly initialized. If the service was created
+        without a model, this method can be used to provide one.
 
-        Raises
+        Args:
+        ----
+            model: Optional model to use for execution (required if not provided in __init__)
+
+        Raises:
         ------
             InitializationError: If initialization fails
 

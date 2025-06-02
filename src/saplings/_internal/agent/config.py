@@ -44,7 +44,7 @@ class AgentConfig:
     gasa_prompt_composer: bool = False
     retrieval_entropy_threshold: float = 0.1
     retrieval_max_documents: int = 10
-    planner_budget_strategy: str = "token_count"
+    planner_budget_strategy: str = "proportional"
     planner_total_budget: float = 1.0
     planner_allow_budget_overflow: bool = False
     planner_budget_overflow_margin: float = 0.1

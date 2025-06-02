@@ -323,6 +323,117 @@ class AgentBuilder:
 
         return builder
 
+    @classmethod
+    def for_openai(cls, model_name: str, **kwargs) -> "AgentBuilder":
+        """
+        Create a builder optimized for OpenAI models.
+
+        This creates a builder with a configuration preset optimized for OpenAI models,
+        including appropriate GASA settings for API-based models.
+
+        Args:
+        ----
+            model_name: OpenAI model name (e.g., "gpt-4o", "gpt-4-turbo")
+            **kwargs: Additional configuration parameters to override defaults
+
+        Returns:
+        -------
+            AgentBuilder: Builder optimized for OpenAI
+
+        """
+        # Import here to avoid circular imports
+        from saplings._internal.agent_module import AgentConfig
+
+        # Create a new builder
+        builder = cls()
+
+        # Create an OpenAI-optimized config
+        config = AgentConfig.for_openai(model_name, **kwargs)
+
+        # Update the builder's config params with all values from the config
+        for key, value in vars(config).items():
+            if not key.startswith("_"):  # Skip private attributes
+                builder._config_params[key] = value
+
+        # Add model parameters
+        builder._config_params["model_parameters"] = config.model_parameters
+
+        return builder
+
+    @classmethod
+    def for_anthropic(cls, model_name: str, **kwargs) -> "AgentBuilder":
+        """
+        Create a builder optimized for Anthropic models.
+
+        This creates a builder with a configuration preset optimized for Anthropic models,
+        including appropriate GASA settings for API-based models.
+
+        Args:
+        ----
+            model_name: Anthropic model name (e.g., "claude-3-opus", "claude-3-sonnet")
+            **kwargs: Additional configuration parameters to override defaults
+
+        Returns:
+        -------
+            AgentBuilder: Builder optimized for Anthropic
+
+        """
+        # Import here to avoid circular imports
+        from saplings._internal.agent_module import AgentConfig
+
+        # Create a new builder
+        builder = cls()
+
+        # Create an Anthropic-optimized config
+        config = AgentConfig.for_anthropic(model_name, **kwargs)
+
+        # Update the builder's config params with all values from the config
+        for key, value in vars(config).items():
+            if not key.startswith("_"):  # Skip private attributes
+                builder._config_params[key] = value
+
+        # Add model parameters
+        builder._config_params["model_parameters"] = config.model_parameters
+
+        return builder
+
+    @classmethod
+    def for_vllm(cls, model_name: str, **kwargs) -> "AgentBuilder":
+        """
+        Create a builder optimized for vLLM models.
+
+        This creates a builder with a configuration preset optimized for vLLM models,
+        including appropriate GASA settings for self-hosted models.
+
+        Args:
+        ----
+            model_name: vLLM model name (e.g., "Qwen/Qwen3-7B-Instruct")
+            **kwargs: Additional configuration parameters to override defaults
+
+        Returns:
+        -------
+            AgentBuilder: Builder optimized for vLLM
+
+        """
+        # Import here to avoid circular imports
+        from saplings._internal.agent_module import AgentConfig
+
+        # Create a new builder
+        builder = cls()
+
+        # Create a vLLM-optimized config
+        config = AgentConfig.for_vllm(model_name, **kwargs)
+
+        # Update the builder's config params with all values from the config
+        for key, value in vars(config).items():
+            if not key.startswith("_"):  # Skip private attributes
+                builder._config_params[key] = value
+
+        # Add model parameters
+        builder._config_params["model_parameters"] = config.model_parameters
+
+        return builder
+
     def build(self) -> "Agent":
         """
         Build the Agent instance.

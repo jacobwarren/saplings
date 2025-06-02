@@ -1,0 +1,23 @@
+{
+  "task": "What is the capital of France?",
+  "plan": [],
+  "results": [
+    {
+      "result": "Error during execution: Execution failed: Failed to initialize ExecutionService: Failed to initialize executor: 'dict' object has no attribute 'enable_gasa'"
+    }
+  ],
+  "judgment": {
+    "is_valid": true,
+    "score": 1.0,
+    "feedback": "No validation performed"
+  },
+  "input_modalities": [
+    "text"
+  ],
+  "output_modalities": [
+    "text"
+  ],
+  "modality_outputs": {
+    "text": null
+  }
+}

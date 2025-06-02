@@ -205,7 +205,7 @@ class AgentBuilder(_AgentBuilder):
         .with_allowed_imports(["os", "json", "re", "math"]) \\
         .with_retrieval_entropy_threshold(0.1) \\
         .with_retrieval_max_documents(10) \\
-        .with_planner_budget_strategy("token_count") \\
+        .with_planner_budget_strategy("proportional") \\
         .with_planner_total_budget(1.0) \\
         .with_planner_allow_budget_overflow(False) \\
         .with_planner_budget_overflow_margin(0.1) \\
@@ -269,7 +269,7 @@ class AgentConfig(_AgentConfig):
         gasa_prompt_composer: Whether to use prompt composer for GASA
         retrieval_entropy_threshold: Entropy threshold for retrieval
         retrieval_max_documents: Maximum number of documents to retrieve
-        planner_budget_strategy: Strategy for allocating budget to tasks (token_count, fixed, dynamic)
+        planner_budget_strategy: Strategy for allocating budget to tasks (equal, proportional, priority_based, adaptive)
         planner_total_budget: Total budget for planning
         planner_allow_budget_overflow: Whether to allow budget overflow
         planner_budget_overflow_margin: Margin for budget overflow

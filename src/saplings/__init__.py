@@ -23,11 +23,6 @@ from __future__ import annotations
 # Import core configuration immediately as it's needed early
 from saplings._internal.agent_config import AgentConfig
 
-# Use lazy imports to avoid circular dependencies
-# Import only essential items immediately, defer others until needed
-# Import version immediately as it's safe
-from saplings.api.version import __version__
-
 # Lazy import cache to avoid repeated imports
 _lazy_cache = {}
 
@@ -41,8 +36,15 @@ def __getattr__(name: str):
     if name in _lazy_cache:
         return _lazy_cache[name]
 
+    # Version info
+    if name == "__version__":
+        from saplings.api.version import __version__
+
+        _lazy_cache[name] = __version__
+        return __version__
+
     # Core Agent functionality
-    if name == "Agent":
+    elif name == "Agent":
         from saplings.api.agent import Agent
 
         _lazy_cache[name] = Agent

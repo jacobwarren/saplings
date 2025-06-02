@@ -113,17 +113,18 @@ class ExecutionServiceBuilder(ServiceBuilder[ExecutionService]):
         """
         return self.with_dependency("trace_manager", trace_manager)
 
-    def with_config(self, config: Dict[str, Any]) -> ExecutionServiceBuilder:
+    def with_config(self, config: Any) -> ExecutionServiceBuilder:
         """
         Set the configuration for the ExecutionService.
 
         Args:
         ----
-            config: Configuration dictionary
+            config: Configuration object (AgentConfig or dict)
 
         Returns:
         -------
             The builder instance for method chaining
 
         """
-        return super().with_config({"config": config})
+        self.with_dependency("config", config)
+        return self

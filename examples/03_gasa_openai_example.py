@@ -33,26 +33,17 @@ async def basic_gasa_setup():
     
     print("2. Adding structured documents to demonstrate GASA effectiveness...")
     
-    # Add interconnected documents that GASA can optimize
-    await agent.add_document(
-        content="Python is a programming language created by Guido van Rossum in 1991.",
-        metadata={"topic": "python_basics", "type": "fact"}
-    )
+    # Create some sample documents to demonstrate GASA effectiveness
+    documents = [
+        ("Python supports multiple programming paradigms.", {"topic": "programming", "source": "tech_guide"}),
+        ("Machine learning requires large datasets for training.", {"topic": "ml", "source": "ml_guide"}),
+        ("Neural networks are inspired by biological neurons.", {"topic": "ml", "relates_to": "programming", "source": "ml_guide"}),
+        ("Python has excellent ML libraries like scikit-learn.", {"topic": "programming", "relates_to": "ml", "source": "tech_guide"}),
+        ("Data preprocessing is crucial for ML success.", {"topic": "ml", "source": "ml_guide"}),
+    ]
     
-    await agent.add_document(
-        content="Python supports multiple programming paradigms including procedural, object-oriented, and functional programming.",
-        metadata={"topic": "python_paradigms", "type": "concept", "relates_to": "python_basics"}
-    )
-    
-    await agent.add_document(
-        content="NumPy is a Python library for numerical computing that provides support for large multi-dimensional arrays.",
-        metadata={"topic": "numpy", "type": "tool", "relates_to": "python_basics"}
-    )
-    
-    await agent.add_document(
-        content="Pandas is built on top of NumPy and provides data structures for data analysis.",
-        metadata={"topic": "pandas", "type": "tool", "relates_to": ["python_basics", "numpy"]}
-    )
+    for content, metadata in documents:
+        await agent.add_document(content=content, metadata=metadata)
     
     print("\n3. Testing GASA-optimized retrieval and reasoning...")
     
@@ -103,7 +94,7 @@ async def gasa_shadow_model_example():
     for content, topic in ai_topics:
         await shadow_agent.add_document(
             content=content,
-            metadata={"topic": topic, "category": "ai_ml"}
+            metadata={"topic": topic, "category": "ai_ml", "source": "ai_guide"}
         )
     
     print("\n3. Testing shadow model optimization...")
@@ -158,7 +149,7 @@ async def gasa_performance_comparison():
     ]
     
     for i, content in enumerate(knowledge_base):
-        metadata = {"doc_id": i, "category": "programming_languages"}
+        metadata = {"doc_id": i, "category": "programming_languages", "source": "programming_guide"}
         await gasa_agent.add_document(content=content, metadata=metadata)
         await standard_agent.add_document(content=content, metadata=metadata)
     
@@ -236,7 +227,7 @@ async def gasa_configuration_tuning():
         
         # Add documents
         for doc in test_docs:
-            await agent.add_document(content=doc, metadata={"category": "tech"})
+            await agent.add_document(content=doc, metadata={"category": "tech", "source": "tech_guide"})
         
         # Test query
         query = "How do AI, ML, and NLP work together in modern applications?"
@@ -283,7 +274,7 @@ async def gasa_fallback_strategies():
         ]
         
         for doc in complex_docs:
-            await agent.add_document(content=doc, metadata={"category": "quantum"})
+            await agent.add_document(content=doc, metadata={"category": "quantum", "source": "quantum_guide"})
         
         # Query that might challenge GASA attention selection
         query = "Explain how quantum computing could revolutionize machine learning algorithms."

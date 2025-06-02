@@ -46,7 +46,7 @@ class AgentConfig:
         "enable_monitoring": True,
         "enable_self_healing": False,
         "enable_tool_factory": True,
-        "planner_budget_strategy": "token_count",
+        "planner_budget_strategy": "proportional",
         "executor_validation_type": "execution",
     }
 

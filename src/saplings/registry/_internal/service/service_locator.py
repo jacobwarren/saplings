@@ -11,6 +11,31 @@ from typing import Any, Dict, Optional
 # Import from common module to avoid circular dependencies
 
 
+class ServiceLocator:
+    """Service locator for Saplings."""
+    
+    _instance: Optional["ServiceLocator"] = None
+    
+    def __init__(self) -> None:
+        """Initialize the service locator."""
+        self._services: Dict[str, Any] = {}
+    
+    @classmethod
+    def get_instance(cls) -> "ServiceLocator":
+        """Get the singleton instance of the service locator."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+    
+    def register_service(self, name: str, service: Any) -> None:
+        """Register a service."""
+        self._services[name] = service
+    
+    def get_service(self, name: str) -> Any:
+        """Get a service by name."""
+        return self._services.get(name)
+
+
 class IndexerRegistry:
     """Registry for indexers."""
 

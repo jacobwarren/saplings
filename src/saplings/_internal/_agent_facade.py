@@ -264,6 +264,14 @@ class AgentFacade:
         if self._model_service:
             self._model = await self._model_service.get_model()
 
+            # Initialize the ExecutionService with the model
+            if self._execution_service:
+                try:
+                    self._execution_service.initialize(self._model)
+                    logger.info("ExecutionService initialized with model")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize ExecutionService with model: {e}")
+
             # Initialize the judge for the validator service
             # This ensures the judge is available for validation
             if self._validator_service:

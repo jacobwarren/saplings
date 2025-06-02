@@ -24,14 +24,22 @@ class IValidationStrategy:
     used to validate outputs against specific criteria.
     """
 
-    def validate(self, output: str, context: dict | None = None) -> "ValidationResult":
+    async def validate(
+        self,
+        input_data: dict,
+        output_data: Any,
+        validation_type: str = "general",
+        trace_id: str | None = None,
+    ) -> "ValidationResult":
         """
         Validate an output against specific criteria.
 
         Args:
         ----
-            output: The output to validate
-            context: Additional context for validation
+            input_data: Input data that produced the output
+            output_data: Output data to validate
+            validation_type: Type of validation to perform
+            trace_id: Optional trace ID for monitoring
 
         Returns:
         -------
@@ -77,25 +85,53 @@ class JudgeBasedValidationStrategy(IValidationStrategy):
         self.judge_service = judge_service
         self.criteria = criteria or {}
 
-    def validate(self, output: str, context: dict | None = None) -> "ValidationResult":
+    async def validate(
+        self,
+        input_data: dict,
+        output_data: Any,
+        validation_type: str = "general",
+        trace_id: str | None = None,
+    ) -> "ValidationResult":
         """
         Validate an output using a judge.
 
         Args:
         ----
-            output: The output to validate
-            context: Additional context for validation
+            input_data: Input data that produced the output
+            output_data: Output data to validate
+            validation_type: Type of validation to perform
+            trace_id: Optional trace ID for monitoring
 
         Returns:
         -------
             ValidationResult: The result of the validation
 
         """
-        # This is a stub implementation
-        return ValidationResult(
-            status=ValidationStatus.SUCCESS,
-            message="Judge-based validation not implemented in this version",
-        )
+        if self.judge_service:
+            try:
+                # Delegate to the judge service
+                judgment = await self.judge_service.judge(
+                    input_data=input_data,
+                    output_data=output_data,
+                    judgment_type=validation_type,
+                    trace_id=trace_id,
+                )
+                
+                return ValidationResult(
+                    status=ValidationStatus.SUCCESS if judgment.is_valid else ValidationStatus.FAILURE,
+                    message=judgment.feedback or "Judge-based validation completed",
+                )
+            except Exception as e:
+                return ValidationResult(
+                    status=ValidationStatus.ERROR,
+                    message=f"Judge validation failed: {e}",
+                )
+        else:
+            # No judge service available, return success
+            return ValidationResult(
+                status=ValidationStatus.SUCCESS,
+                message="Judge-based validation not available - validation passed",
+            )
 
 
 # Define RuleBasedValidationStrategy directly to avoid circular imports
@@ -117,26 +153,58 @@ class RuleBasedValidationStrategy(IValidationStrategy):
             rules: The rules to use for validation
 
         """
-        self.rules = rules or []
+        self.rules = rules or {}
 
-    def validate(self, output: str, context: dict | None = None) -> "ValidationResult":
+    async def validate(
+        self,
+        input_data: dict,
+        output_data: Any,
+        validation_type: str = "general",
+        trace_id: str | None = None,
+    ) -> "ValidationResult":
         """
         Validate an output using rules.
 
         Args:
         ----
-            output: The output to validate
-            context: Additional context for validation
+            input_data: Input data that produced the output
+            output_data: Output data to validate  
+            validation_type: Type of validation to perform
+            trace_id: Optional trace ID for monitoring
 
         Returns:
         -------
             ValidationResult: The result of the validation
 
         """
-        # This is a stub implementation
+        # Get rules for the validation type
+        type_rules = self.rules.get(validation_type, {})
+        if not type_rules:
+            return ValidationResult(
+                status=ValidationStatus.SUCCESS,
+                message="No validation rules defined - validation passed",
+            )
+
+        # Apply basic validation rules
+        is_valid = True
+        messages = []
+
+        # Basic length check
+        if isinstance(output_data, str) and len(output_data.strip()) == 0:
+            is_valid = False
+            messages.append("Output is empty")
+
+        # Basic content check
+        if isinstance(output_data, str) and "error" in output_data.lower():
+            is_valid = False
+            messages.append("Output contains error indication")
+
+        status = ValidationStatus.SUCCESS if is_valid else ValidationStatus.FAILURE
+        message = "; ".join(messages) if messages else "Rule-based validation passed"
+
         return ValidationResult(
-            status=ValidationStatus.SUCCESS,
-            message="Rule-based validation not implemented in this version",
+            status=status,
+            message=message,
         )
 
 
@@ -168,6 +236,9 @@ class ValidationResult:
         status: ValidationStatus,
         message: str = "",
         metadata: Optional[Dict[str, Any]] = None,
+        score: float | None = None,
+        feedback: str | None = None,
+        details: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a validation result.
@@ -177,11 +248,17 @@ class ValidationResult:
             status: Status of the validation
             message: Message describing the validation result
             metadata: Additional metadata about the validation
+            score: Optional score for the validation (0.0 to 1.0)
+            feedback: Optional feedback message
+            details: Optional additional details about the validation
 
         """
         self.status = status
         self.message = message
         self.metadata = metadata or {}
+        self.score = score if score is not None else (1.0 if status == ValidationStatus.SUCCESS else 0.0)
+        self.feedback = feedback or message
+        self.details = details or {}
 
     @property
     def is_valid(self) -> bool:
@@ -482,31 +559,24 @@ def get_validator_registry() -> ValidatorRegistry:
         # Create a new registry instance
         get_validator_registry._registry = ValidatorRegistry()
 
-        # Lazily import and register built-in validators
-        def _register_built_in_validators():
-            # This function is called only once to avoid circular imports
-            try:
-                # Import the registry implementation lazily
-                from saplings.validator._internal.registry import (
-                    get_validator_registry as _get_internal_registry,
-                )
-
-                # Get the internal registry and copy its validators
-                internal_registry = _get_internal_registry()
-                for name in internal_registry.list_validators():
-                    # Get the validator class and kwargs
-                    validator_cls, kwargs = internal_registry._validators.get(name, (None, {}))
-                    if validator_cls:
-                        # Register with our registry
-                        get_validator_registry._registry.register_validator(
-                            name, validator_cls, **kwargs
-                        )
-            except ImportError:
-                # If the internal registry is not available, just continue
-                pass
-
-        # Register built-in validators
-        _register_built_in_validators()
+        # Register built-in validators directly
+        registry = get_validator_registry._registry
+        
+        # Register ExecutionValidator
+        registry.register_validator("execution", ExecutionValidator)
+        registry.register_validator("basic", ExecutionValidator)  # Alias for basic validation
+        
+        # Register LengthValidator  
+        registry.register_validator("length", LengthValidator)
+        registry.register_validator("general", LengthValidator)  # Fallback for general validation
+        
+        # Register KeywordValidator
+        registry.register_validator("keyword", KeywordValidator)
+        
+        # Register other validators
+        registry.register_validator("sentiment", SentimentValidator)
+        registry.register_validator("pii", PiiValidator)
+        registry.register_validator("profanity", ProfanityValidator)
 
     return get_validator_registry._registry
 

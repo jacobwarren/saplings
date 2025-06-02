@@ -1,0 +1,24 @@
+{
+  "task": "How do NumPy and Pandas work together in Python data analysis?",
+  "plan": [],
+  "results": [
+    {
+      "result": "Mock response for: How do NumPy and Pandas work together in Python data analysis?"
+    }
+  ],
+  "judgment": {
+    "score": 1.0,
+    "feedback": "No validation rules defined - validation passed",
+    "is_valid": true,
+    "details": {}
+  },
+  "input_modalities": [
+    "text"
+  ],
+  "output_modalities": [
+    "text"
+  ],
+  "modality_outputs": {
+    "text": null
+  }
+}

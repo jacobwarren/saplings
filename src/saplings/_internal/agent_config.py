@@ -173,6 +173,12 @@ class AgentConfig:
         self.provider = provider
         self.model_name = model_name
         self.api_key = api_key
+        
+        # Add api_key to model_parameters if provided
+        if api_key is not None:
+            model_parameters = model_parameters.copy() if model_parameters else {}
+            model_parameters["api_key"] = api_key
+        
         self._model_parameters = model_parameters
         self.memory_path = memory_path
         self.output_dir = output_dir
