@@ -1,6 +1,6 @@
 # Saplings Examples
 
-This document provides practical examples demonstrating how to use the Saplings AI agent framework for various real-world applications.
+This document provides practical examples demonstrating how to use the Saplings AI agent framework for various real-world applications. All examples use the recommended builder pattern as the primary interface.
 
 ## Table of Contents
 
@@ -17,15 +17,13 @@ This document provides practical examples demonstrating how to use the Saplings 
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 
 async def basic_example():
-    # Create a simple agent
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        api_key="your-openai-api-key"
-    )
+    # Create an agent using the builder pattern (recommended)
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_api_key("your-openai-api-key") \
+        .build()
     
     # Run a simple task
     result = await agent.run("What is the capital of France?")
@@ -38,10 +36,10 @@ asyncio.run(basic_example())
 ### Synchronous Usage
 
 ```python
-from saplings import Agent
+from saplings import AgentBuilder
 
 # For environments that don't support async/await
-agent = Agent(provider="openai", model_name="gpt-4o")
+agent = AgentBuilder.for_openai("gpt-4o").build()
 result = agent.run_sync("Explain quantum computing in simple terms")
 print(result)
 ```
@@ -50,23 +48,22 @@ print(result)
 
 ```python
 import asyncio
-from saplings import Agent, AgentConfig
+from saplings import AgentBuilder
 
 async def provider_examples():
     # OpenAI
-    openai_agent = Agent.from_config(
-        AgentConfig.for_openai("gpt-4o", api_key="your-key")
-    )
+    openai_agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_api_key("your-key") \
+        .build()
     
     # Anthropic
-    anthropic_agent = Agent.from_config(
-        AgentConfig.for_anthropic("claude-3-opus", api_key="your-key")
-    )
+    anthropic_agent = AgentBuilder.for_anthropic("claude-3-opus") \
+        .with_api_key("your-key") \
+        .build()
     
     # Local vLLM
-    vllm_agent = Agent.from_config(
-        AgentConfig.for_vllm("Qwen/Qwen3-7B-Instruct")
-    )
+    vllm_agent = AgentBuilder.for_vllm("Qwen/Qwen3-7B-Instruct") \
+        .build()
     
     # Run tasks with different providers
     tasks = [
@@ -113,66 +110,57 @@ agent = AgentBuilder() \
     .build()
 ```
 
-### Custom Configuration Object
+### Preset Configuration Patterns
 
 ```python
-from saplings import Agent, AgentConfig
-
-# Detailed configuration
-config = AgentConfig(
-    provider="openai",
-    model_name="gpt-4o",
-    api_key="your-key",
-    
-    # GASA settings
-    enable_gasa=True,
-    gasa_max_hops=3,
-    gasa_strategy="binary",
-    gasa_fallback="prompt_composer",
-    gasa_shadow_model=True,
-    gasa_shadow_model_name="Qwen/Qwen3-0.6B",
-    
-    # Memory and retrieval
-    memory_path="./custom_memory",
-    retrieval_max_documents=15,
-    retrieval_entropy_threshold=0.15,
-    
-    # Planning
-    planner_budget_strategy="dynamic",
-    planner_total_budget=3.0,
-    planner_allow_budget_overflow=True,
-    
-    # Advanced features
-    enable_self_healing=True,
-    enable_tool_factory=True,
-    enable_monitoring=True,
-    
-    # Multi-modal support
-    supported_modalities=["text", "image", "audio"]
-)
-
-agent = Agent(config=config)
-```
-
-### Configuration Presets
-
-```python
-from saplings import Agent, AgentConfig
+from saplings import AgentBuilder
 
 # Minimal configuration for simple tasks
-minimal_agent = Agent.from_config(
-    AgentConfig.minimal("openai", "gpt-4o", api_key="your-key")
-)
+minimal_agent = AgentBuilder.minimal("openai", "gpt-4o") \
+    .with_api_key("your-key") \
+    .build()
 
 # Standard configuration for most use cases
-standard_agent = Agent.from_config(
-    AgentConfig.standard("openai", "gpt-4o", api_key="your-key")
-)
+standard_agent = AgentBuilder.standard("openai", "gpt-4o") \
+    .with_api_key("your-key") \
+    .build()
 
 # Full-featured configuration for complex tasks
-full_agent = Agent.from_config(
-    AgentConfig.full_featured("openai", "gpt-4o", api_key="your-key")
-)
+full_agent = AgentBuilder.full_featured("openai", "gpt-4o") \
+    .with_api_key("your-key") \
+    .build()
+```
+
+### Environment-Based Configuration
+
+```python
+import os
+from saplings import AgentBuilder
+
+def create_agent_from_env():
+    """Create agent configuration from environment variables."""
+    provider = os.getenv("SAPLINGS_PROVIDER", "openai")
+    model_name = os.getenv("SAPLINGS_MODEL", "gpt-4o")
+    
+    builder = AgentBuilder()
+    
+    if provider == "openai":
+        builder = AgentBuilder.for_openai(model_name)
+    elif provider == "anthropic":
+        builder = AgentBuilder.for_anthropic(model_name)
+    elif provider == "vllm":
+        builder = AgentBuilder.for_vllm(model_name)
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
+    
+    # Configure from environment
+    return builder \
+        .with_monitoring_enabled(os.getenv("SAPLINGS_MONITORING", "true").lower() == "true") \
+        .with_memory_path(os.getenv("SAPLINGS_MEMORY_PATH", "./agent_memory")) \
+        .build()
+
+# Usage
+agent = create_agent_from_env()
 ```
 
 ## Tool Integration Examples
@@ -181,25 +169,17 @@ full_agent = Agent.from_config(
 
 ```python
 import asyncio
-from saplings import Agent
-from saplings.api.tools import (
-    PythonInterpreterTool,
-    DuckDuckGoSearchTool,
-    WikipediaSearchTool,
-    VisitWebpageTool
-)
+from saplings import AgentBuilder
 
 async def tool_example():
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        tools=[
-            PythonInterpreterTool(),
-            DuckDuckGoSearchTool(),
-            WikipediaSearchTool(),
-            VisitWebpageTool()
-        ]
-    )
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_tools([
+            "PythonInterpreterTool",
+            "DuckDuckGoSearchTool",
+            "WikipediaSearchTool",
+            "VisitWebpageTool"
+        ]) \
+        .build()
     
     # Complex task using multiple tools
     result = await agent.run("""
@@ -216,7 +196,7 @@ asyncio.run(tool_example())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 from saplings.api.tools import tool
 import requests
 
@@ -252,10 +232,9 @@ def get_weather(city: str, api_key: str = None) -> str:
         return f"Error: {str(e)}"
 
 async def custom_tool_example():
-    agent = Agent(provider="openai", model_name="gpt-4o")
-    
-    # Register the custom tool
-    agent.register_tool(get_weather)
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_custom_tools([get_weather]) \
+        .build()
     
     # Use the tool
     result = await agent.run(
@@ -270,15 +249,13 @@ asyncio.run(custom_tool_example())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 
 async def dynamic_tool_example():
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        enable_tool_factory=True,
-        tool_factory_sandbox_enabled=True
-    )
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_tool_factory_enabled(True) \
+        .with_tool_factory_sandbox_enabled(True) \
+        .build()
     
     # Agent can create tools dynamically
     result = await agent.run("""
@@ -299,7 +276,7 @@ asyncio.run(dynamic_tool_example())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 from saplings.api.browser_tools import BrowserManager
 
 async def browser_example():
@@ -308,17 +285,16 @@ async def browser_example():
     browser_manager.initialize()
     
     try:
-        agent = Agent(
-            provider="openai",
-            model_name="gpt-4o",
-            tools=[
+        agent = AgentBuilder.for_openai("gpt-4o") \
+            .with_browser_tools_enabled(True) \
+            .with_tools([
                 "GoToTool",
                 "ClickTool",
                 "TypeTool",
                 "ScreenshotTool",
                 "ExtractTextTool"
-            ]
-        )
+            ]) \
+            .build()
         
         result = await agent.run("""
         Go to https://example.com, take a screenshot, 
@@ -339,14 +315,12 @@ asyncio.run(browser_example())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 
 async def memory_example():
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        memory_path="./knowledge_base"
-    )
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_memory_path("./knowledge_base") \
+        .build()
     
     # Add documents to memory
     agent.add_document(
@@ -379,15 +353,13 @@ asyncio.run(memory_example())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 
 async def retrieval_example():
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        retrieval_max_documents=10,
-        retrieval_entropy_threshold=0.1
-    )
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_retrieval_max_documents(10) \
+        .with_retrieval_entropy_threshold(0.1) \
+        .build()
     
     # Add some documents
     documents = [
@@ -430,22 +402,19 @@ asyncio.run(retrieval_example())
 
 ```python
 import asyncio
-from saplings import Agent, AgentConfig
+from saplings import AgentBuilder
 
 async def gasa_example():
     # Configure GASA for better performance
-    config = AgentConfig.for_openai(
-        "gpt-4o",
-        enable_gasa=True,
-        gasa_max_hops=3,
-        gasa_strategy="binary",
-        gasa_fallback="prompt_composer",
-        gasa_shadow_model=True,
-        gasa_shadow_model_name="Qwen/Qwen3-0.6B",
-        gasa_prompt_composer=True
-    )
-    
-    agent = Agent(config=config)
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_gasa_enabled(True) \
+        .with_gasa_max_hops(3) \
+        .with_gasa_strategy("binary") \
+        .with_gasa_fallback("prompt_composer") \
+        .with_gasa_shadow_model_enabled(True) \
+        .with_gasa_shadow_model_name("Qwen/Qwen3-0.6B") \
+        .with_gasa_prompt_composer_enabled(True) \
+        .build()
     
     # Add a large document to test GASA
     long_document = """
@@ -470,15 +439,13 @@ asyncio.run(gasa_example())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 
 async def self_healing_example():
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        enable_self_healing=True,
-        self_healing_max_retries=3
-    )
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_self_healing_enabled(True) \
+        .with_self_healing_max_retries(3) \
+        .build()
     
     # The agent will automatically retry and learn from failures
     result = await agent.run("""
@@ -499,16 +466,14 @@ asyncio.run(self_healing_example())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 
 async def planning_example():
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        planner_budget_strategy="dynamic",
-        planner_total_budget=5.0,
-        planner_allow_budget_overflow=True
-    )
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_planner_budget_strategy("dynamic") \
+        .with_planner_total_budget(5.0) \
+        .with_planner_allow_budget_overflow(True) \
+        .build()
     
     # Create a plan for a complex task
     plan = await agent.plan(
@@ -536,20 +501,18 @@ asyncio.run(planning_example())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 from saplings.api.validator import CodeValidator, FactualValidator
 
 async def monitoring_example():
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        enable_monitoring=True,
-        executor_validation_type="judge",
-        validators=[
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_monitoring_enabled(True) \
+        .with_executor_validation_type("judge") \
+        .with_validators([
             CodeValidator(),
             FactualValidator()
-        ]
-    )
+        ]) \
+        .build()
     
     # Run a task with full monitoring
     result = await agent.run(
@@ -583,22 +546,19 @@ asyncio.run(monitoring_example())
 
 ```python
 import asyncio
-from saplings import Agent
-from saplings.api.tools import DuckDuckGoSearchTool, WikipediaSearchTool, PythonInterpreterTool
+from saplings import AgentBuilder
 
 async def research_assistant():
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        tools=[
-            DuckDuckGoSearchTool(),
-            WikipediaSearchTool(),
-            PythonInterpreterTool()
-        ],
-        enable_gasa=True,
-        enable_monitoring=True,
-        memory_path="./research_memory"
-    )
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_tools([
+            "DuckDuckGoSearchTool",
+            "WikipediaSearchTool",
+            "PythonInterpreterTool"
+        ]) \
+        .with_gasa_enabled(True) \
+        .with_monitoring_enabled(True) \
+        .with_memory_path("./research_memory") \
+        .build()
     
     result = await agent.run("""
     Research the current state of quantum computing in 2024:
@@ -618,18 +578,15 @@ asyncio.run(research_assistant())
 
 ```python
 import asyncio
-from saplings import Agent
-from saplings.api.tools import PythonInterpreterTool
+from saplings import AgentBuilder
 
 async def code_analyzer():
-    agent = Agent(
-        provider="anthropic",
-        model_name="claude-3-opus",
-        tools=[PythonInterpreterTool()],
-        enable_tool_factory=True,
-        tool_factory_sandbox_enabled=True,
-        memory_path="./code_analysis"
-    )
+    agent = AgentBuilder.for_anthropic("claude-3-opus") \
+        .with_tools(["PythonInterpreterTool"]) \
+        .with_tool_factory_enabled(True) \
+        .with_tool_factory_sandbox_enabled(True) \
+        .with_memory_path("./code_analysis") \
+        .build()
     
     # Add codebase to memory
     agent.add_documents_from_directory("./src", extension=".py")
@@ -656,12 +613,9 @@ asyncio.run(code_analyzer())
 ```python
 import asyncio
 from saplings import AgentBuilder
-import pandas as pd
 
 async def data_science_pipeline():
-    agent = AgentBuilder() \
-        .with_provider("openai") \
-        .with_model_name("gpt-4o") \
+    agent = AgentBuilder.for_openai("gpt-4o") \
         .with_tools([
             "PythonInterpreterTool",
             "DuckDuckGoSearchTool"
@@ -697,21 +651,19 @@ asyncio.run(data_science_pipeline())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 
 async def content_creator():
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        supported_modalities=["text", "image"],
-        tools=[
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_supported_modalities(["text", "image"]) \
+        .with_tools([
             "DuckDuckGoSearchTool",
             "WikipediaSearchTool",
             "VisitWebpageTool",
             "PythonInterpreterTool"
-        ],
-        enable_monitoring=True
-    )
+        ]) \
+        .with_monitoring_enabled(True) \
+        .build()
     
     result = await agent.run(
         task="""
@@ -735,19 +687,17 @@ asyncio.run(content_creator())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 
 async def multimodal_assistant():
-    agent = Agent(
-        provider="openai",
-        model_name="gpt-4o",
-        supported_modalities=["text", "image", "audio"],
-        tools=[
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_supported_modalities(["text", "image", "audio"]) \
+        .with_tools([
             "PythonInterpreterTool",
             "VisitWebpageTool",
             "SpeechToTextTool"
-        ]
-    )
+        ]) \
+        .build()
     
     # Process different types of inputs
     result = await agent.run(
@@ -768,20 +718,18 @@ asyncio.run(multimodal_assistant())
 
 ```python
 import asyncio
-from saplings import Agent
+from saplings import AgentBuilder
 
 async def customer_support():
-    agent = Agent(
-        provider="anthropic",
-        model_name="claude-3-sonnet",
-        tools=[
+    agent = AgentBuilder.for_anthropic("claude-3-sonnet") \
+        .with_tools([
             "DuckDuckGoSearchTool",
             "UserInputTool",
             "FinalAnswerTool"
-        ],
-        enable_self_healing=True,
-        memory_path="./support_knowledge"
-    )
+        ]) \
+        .with_self_healing_enabled(True) \
+        .with_memory_path("./support_knowledge") \
+        .build()
     
     # Load knowledge base
     agent.add_documents_from_directory("./support_docs", extension=".md")
@@ -802,4 +750,66 @@ async def customer_support():
 asyncio.run(customer_support())
 ```
 
-These examples demonstrate the versatility and power of the Saplings framework. You can adapt and combine these patterns to build sophisticated AI applications for your specific needs.
+### Automated Testing Assistant
+
+```python
+import asyncio
+from saplings import AgentBuilder
+
+async def testing_assistant():
+    agent = AgentBuilder.for_openai("gpt-4o") \
+        .with_tools(["PythonInterpreterTool"]) \
+        .with_tool_factory_enabled(True) \
+        .with_memory_path("./test_knowledge") \
+        .with_executor_validation_type("execution") \
+        .build()
+    
+    # Add project documentation
+    agent.add_documents_from_directory("./docs", extension=".md")
+    agent.add_documents_from_directory("./src", extension=".py")
+    
+    result = await agent.run("""
+    Analyze the codebase and create comprehensive tests:
+    1. Identify all functions and classes that need testing
+    2. Generate unit tests with good coverage
+    3. Create integration tests for main workflows
+    4. Add performance benchmarks
+    5. Generate test documentation
+    6. Create CI/CD pipeline configuration
+    """)
+    
+    print(result)
+
+asyncio.run(testing_assistant())
+```
+
+### Convenience Constructor Examples
+
+For simple use cases where you don't need the full builder configuration, you can use the direct constructor:
+
+```python
+from saplings import Agent
+
+# Simple case - direct instantiation
+agent = Agent(
+    provider="openai",
+    model_name="gpt-4o",
+    api_key="your-api-key"
+)
+
+# With basic configuration
+agent = Agent(
+    provider="openai",
+    model_name="gpt-4o",
+    memory_path="./simple_memory",
+    tools=["PythonInterpreterTool"]
+)
+```
+
+However, the builder pattern is recommended for most use cases as it provides:
+- Better discoverability of configuration options
+- Type safety and validation
+- More maintainable code
+- Better error messages
+
+These examples demonstrate the versatility and power of the Saplings framework using the recommended builder pattern. You can adapt and combine these patterns to build sophisticated AI applications for your specific needs.
