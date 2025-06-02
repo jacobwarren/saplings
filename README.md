@@ -559,6 +559,7 @@ pytest --cov=saplings --cov-report=html
 - **[API Reference](API_REFERENCE.md)** - Detailed API documentation
 - **[Examples](EXAMPLES.md)** - Practical examples and use cases
 - **[Developer Guide](DEVELOPER_GUIDE.md)** - Best practices and advanced topics
+- **[GASA Guide](GASA_GUIDE.md)** - Complete Graph-Aligned Sparse Attention documentation
 
 ### Quick Reference
 
