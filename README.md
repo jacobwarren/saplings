@@ -128,7 +128,43 @@ result = agent.run_sync("Calculate the factorial of 5")
 print(result)
 ```
 
-## 🔧 Advanced Configuration
+## 🔧 Configuration
+
+Saplings offers flexible configuration through multiple approaches. For detailed configuration options, see the **[Configuration Guide](CONFIGURATION_GUIDE.md)**.
+
+### Configuration Presets
+
+Choose from predefined configurations optimized for different use cases:
+
+| Preset | Use Case | Features | Resource Usage |
+|--------|----------|----------|----------------|
+| **Minimal** | Learning, simple tasks | Basic features only | Low |
+| **Standard** | Most applications | Balanced feature set | Moderate |
+| **Full-Featured** | Complex workflows | All advanced features | High |
+
+```python
+from saplings import AgentBuilder
+
+# Choose the right preset for your needs
+agent = AgentBuilder.minimal("openai", "gpt-4o").build()      # Simple tasks
+agent = AgentBuilder.standard("openai", "gpt-4o").build()     # Most use cases  
+agent = AgentBuilder.full_featured("openai", "gpt-4o").build() # Complex workflows
+```
+
+### Provider-Specific Optimizations
+
+Each provider has optimized settings:
+
+```python
+# OpenAI optimizations (GASA shadow model, prompt composer)
+agent = AgentBuilder.for_openai("gpt-4o").build()
+
+# Anthropic optimizations (Constitutional AI alignment)  
+agent = AgentBuilder.for_anthropic("claude-3-opus").build()
+
+# vLLM optimizations (local model efficiency)
+agent = AgentBuilder.for_vllm("Qwen/Qwen3-7B-Instruct").build()
+```
 
 ### Comprehensive Builder Configuration
 
@@ -167,29 +203,6 @@ agent = AgentBuilder() \
     .build()
 ```
 
-### Preset Configurations
-
-Use preset configurations for common scenarios:
-
-```python
-from saplings import AgentBuilder
-
-# Minimal configuration for simple tasks
-agent = AgentBuilder.minimal("openai", "gpt-4o") \
-    .with_api_key("your-key") \
-    .build()
-
-# Standard configuration for most use cases
-agent = AgentBuilder.standard("openai", "gpt-4o") \
-    .with_api_key("your-key") \
-    .build()
-
-# Full-featured configuration for complex tasks
-agent = AgentBuilder.full_featured("openai", "gpt-4o") \
-    .with_api_key("your-key") \
-    .build()
-```
-
 ### Configuration with Custom Services (Advanced)
 
 For advanced use cases requiring custom service implementations:
@@ -208,6 +221,8 @@ agent_facade = AgentFacadeBuilder() \
     .with_tool_service(CustomToolService()) \
     .build()
 ```
+
+> **📖 For comprehensive configuration documentation, see the [Configuration Guide](CONFIGURATION_GUIDE.md)**
 
 ## 🛠️ Tools and Extensions
 
@@ -535,16 +550,26 @@ pytest tests/e2e/          # End-to-end tests
 pytest --cov=saplings --cov-report=html
 ```
 
-## 📚 API Reference
+## 📚 Documentation
 
-### Core Builder Classes
+### Complete Documentation
+
+- **[Getting Started Guide](GETTING_STARTED.md)** - Step-by-step tutorial for beginners
+- **[Configuration Guide](CONFIGURATION_GUIDE.md)** - Comprehensive configuration documentation
+- **[API Reference](API_REFERENCE.md)** - Detailed API documentation
+- **[Examples](EXAMPLES.md)** - Practical examples and use cases
+- **[Developer Guide](DEVELOPER_GUIDE.md)** - Best practices and advanced topics
+
+### Quick Reference
+
+#### Core Builder Classes
 
 - **`AgentBuilder`**: Primary builder for creating Agent instances
 - **`AgentFacadeBuilder`**: Advanced builder for service-oriented facade (beta)
 - **`Agent`**: Main agent class with convenience constructors
 - **`AgentConfig`**: Configuration class with factory methods
 
-### Builder Methods
+#### Builder Methods
 
 The `AgentBuilder` provides fluent configuration methods:
 
@@ -556,7 +581,7 @@ The `AgentBuilder` provides fluent configuration methods:
 - **Monitoring**: `.with_monitoring_enabled()`, `.with_self_healing_enabled()`
 - **Multi-modal**: `.with_supported_modalities()`
 
-### Tools
+#### Tools
 
 - **`PythonInterpreterTool`**: Execute Python code safely
 - **`DuckDuckGoSearchTool`**: Web search functionality
