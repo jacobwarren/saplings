@@ -7,7 +7,7 @@ This module provides the public API for building monitoring services.
 """
 
 
-from saplings._internal.monitoring.builders.monitoring_service_builder import (
+from saplings.services._internal.builders.monitoring_service_builder import (
     MonitoringServiceBuilder as _MonitoringServiceBuilder,
 )
 from saplings.api.stability import stable
