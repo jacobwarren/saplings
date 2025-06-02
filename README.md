@@ -561,6 +561,7 @@ pytest --cov=saplings --cov-report=html
 - **[Developer Guide](DEVELOPER_GUIDE.md)** - Best practices and advanced topics
 - **[GASA Guide](GASA_GUIDE.md)** - Complete Graph-Aligned Sparse Attention documentation
 - **[Service Builders Guide](SERVICE_BUILDERS_GUIDE.md)** - Complete service builder documentation
+- **[Services API Guide](SERVICES_API_GUIDE.md)** - Public service APIs (MemoryManager, ModelCachingService, etc.)
 - **[Performance Optimization](PERFORMANCE_OPTIMIZATION_GUIDE.md)** - Optimization strategies
 
 ### Quick Reference
@@ -568,4 +569,25 @@ pytest --cov=saplings --cov-report=html
 #### Core Builder Classes
 
 - **`AgentBuilder`**: Primary builder for creating Agent instances
-- **`
+- **`AgentConfig`**: Configuration class for agent settings
+- **`AgentFacadeBuilder`**: Advanced builder for custom service composition
+
+#### Service Builder Classes
+
+- **`MemoryManagerBuilder`**: Build memory management services
+- **`ToolServiceBuilder`**: Build tool integration services
+- **`PlannerServiceBuilder`**: Build planning and execution services
+- **`ExecutionServiceBuilder`**: Build task execution services
+- **`ValidatorServiceBuilder`**: Build validation services
+- **`RetrievalServiceBuilder`**: Build document retrieval services
+- **`SelfHealingServiceBuilder`**: Build self-healing services
+- **`ModalityServiceBuilder`**: Build multi-modal processing services
+- **`JudgeServiceBuilder`**: Build evaluation and judging services
+- **`OrchestrationServiceBuilder`**: Build workflow orchestration services
+
+#### Configuration Classes
+
+- **`AgentConfig`**: Core agent configuration
+- **`MemoryConfig`**: Memory and retrieval configuration
+- **`GASAConfig`**: Graph-Aligned Sparse Attention configuration
+- **`MonitoringConfig`**: Monitoring and tracing configuration

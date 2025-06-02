@@ -83,6 +83,7 @@ The entire documentation suite was validated against the actual codebase impleme
 ### New Documentation Added
 - **GASA_GUIDE.md**: Comprehensive documentation for Graph-Aligned Sparse Attention, covering all aspects of this major feature including configuration, usage patterns, fallback strategies, and optimization
 - **SERVICE_BUILDERS_GUIDE.md**: Complete documentation for all 12 service builders, their interactions, dependencies, and usage patterns including AgentFacadeBuilder orchestration
+- **SERVICES_API_GUIDE.md**: Comprehensive documentation for all public service APIs (MemoryManager, ModelCachingService, ModelInitializationService, MonitoringService) with usage patterns, integration examples, and best practices
 
 ## Specific Class/Feature Corrections
 
@@ -118,7 +119,8 @@ The entire documentation suite was validated against the actual codebase impleme
 8. **MONITORING_OBSERVABILITY_GUIDE.md** - Monitoring features verified
 9. **PERFORMANCE_OPTIMIZATION_GUIDE.md** - Optimization strategies match codebase
 10. **GASA_GUIDE.md** - Comprehensive GASA documentation based on actual implementation
-11. **SERVICE_BUILDERS_GUIDE.md** - Complete service builder documentation with interactions
+11. **SERVICE_BUILDERS_GUIDE.md** - Complete service builder documentation with actual implementations
+12. **SERVICES_API_GUIDE.md** - Public service APIs documentation with correct import paths and usage
 
 ### ❌ Removed as Non-Existent
 
@@ -159,6 +161,7 @@ from saplings.api.security import Sanitizer, redact, sanitize
 | TESTING_GUIDE.md | 🔧 Fixed | 100% accurate |
 | GASA_GUIDE.md | ✅ Verified | 100% accurate |
 | SERVICE_BUILDERS_GUIDE.md | ✅ Verified | 100% accurate |
+| SERVICES_API_GUIDE.md | ✅ Verified | 100% accurate |
 
 ## Key Takeaways
 
